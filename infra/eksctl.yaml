@@ -1,0 +1,24 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: eks-cluster
+  region: us-east-1
+
+vpc:
+  id: "vpc-0f3da45665223cc99"
+  cidr: "172.31.0.0/16"
+  subnets:
+    private:
+      us-east-1a: { id: subnet-0a68bbe5bf2dcd2f9 }
+      us-east-1b: { id: subnet-0c0836ab5821f3596 }
+      us-east-1c: { id: subnet-02d22e14e30936266 }
+
+managedNodeGroups:
+  - name: dev-cluster
+    instanceType: t3.medium
+    minSize: 2
+    maxSize: 4
+    privateNetworking: true
+    tags:
+      Name: dev-cluster
