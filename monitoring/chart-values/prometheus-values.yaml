@@ -1,0 +1,167 @@
+# alertmanager:
+#   enabled: true
+#   alertmanagerSpec:
+#     loglevel: debug
+#     configSecret: promalertmanager
+
+###kube-prometheus-stack###
+grafana:
+  grafana.ini:
+  enabled: true
+  # env:
+  #   GF_SERVER_ROOT_URL: "https://monitor.example.com/grafana/"
+  #   GF_SERVER_SERVE_FROM_SUB_PATH: 'true'
+
+  # readinessProbe:
+  # httpGet:
+  #   path: /api/health
+  #   port: 80
+
+  # livenessProbe:
+  #   httpGet:
+  #     path: /api/health
+  #     port: 80
+  #   initialDelaySeconds: 60
+  #   timeoutSeconds: 30
+  #   failureThreshold: 10
+
+  additionalDataSources:
+    - name: loki
+      access: proxy
+      orgId: 1
+      type: loki
+      url: http://loki:3100
+      version: 1
+
+    # - name: jaeger
+    #   access: proxy
+    #   orgId: 1
+    #   type: jaeger
+    #   url: http://tracing.monitoring.svc.cluster.local/jaeger 
+    #   version: 1
+
+  datasources: 
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+      - name: Prometheus
+        type: prometheus
+        url: http://prometheus-stack-kube-prom-prometheus:9090
+        isDefault: false
+      - name: Loki
+        type: loki
+        url: http://loki-loki-distributed-query-frontend:3100
+
+  dashboardProviders: 
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+      - name: 'default'
+        orgId: 1
+        folder: 'dashboards'
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards/default
+
+  dashboards:
+    default:
+      loki-dashboard-quick-search:
+        gnetId: 7645
+        revision: 165
+        datasource:
+        - name: DS_PROMETHEUS
+          value: Prometheus
+      kubernetes-cluster-monitoring:
+        gnetId: 6417
+        revision: 1
+        datasource:
+        - name: DS_PROMETHEUS
+          value: Prometheus
+      node-exporter-monitoring:
+        gnetId: 1860
+        revision: 31
+        datasource:
+        - name: DS_PROMETHEUS
+          value: Prometheus
+      loki-monitoring:
+        gnetId: 14055
+        revision: 5
+        datasource:
+        - name: DS_PROMETHEUS
+          value: Prometheus
+        # - name: DS_PROMETHEUS
+        #   value: Loki
+      k8s-views-pods-monitoring:
+        gnetId: 15760
+        revision: 18
+        datasource:
+        - name: DS_PROMETHEUS
+          value: Prometheus
+      k8s-cluster-monitoring:
+        gnetId: 1621
+        revision: 1
+        datasource:
+        - name: DS_PROMETHEUS
+          value: Prometheus
+      k8s-views-namespace-monitoring:
+        gnetId: 15758
+        revision: 23
+        datasource:
+        - name: DS_PROMETHEUS
+          value: Prometheus
+      k8s-views-nodes-monitoring:
+        gnetId: 15759
+        revision: 19
+        datasource:
+        - name: DS_PROMETHEUS
+          value: Prometheus
+      k8s-views-api-server-monitoring:
+        gnetId: 15761
+        revision: 12
+        datasource:
+        - name: DS_PROMETHEUS
+          value: Prometheus
+      k8s-views-core-dns-monitoring:
+        gnetId: 15762
+        revision: 12
+        datasource:
+        - name: DS_PROMETHEUS
+          value: Prometheus
+
+  service:
+    enabled: true
+    type: LoadBalancer
+    port: 80
+    targetPort: 3000
+prometheus:
+  enabled: true
+  service:
+      ## Port for Prometheus Service to listen on
+      ##
+      port: 9090
+      ## Service type
+      # type: LoadBalancer
+  prometheusSpec:
+    enableRemoteWriteReceiver: true
+    externalUrl: "https://localhost:9090/prometheus/"
+    additionalScrapeConfigs:
+      - job_name: 'istiod'
+        kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+            - istio-system
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+          action: keep
+          regex: istiod;http-monitoring
+      - job_name: 'envoy-stats'
+        metrics_path: /stats/prometheus
+        kubernetes_sd_configs:
+        - role: pod
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_container_port_name]
+          action: keep
+          regex: '.*-envoy-prom'

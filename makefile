@@ -8,11 +8,10 @@ start-cluster:
 
 setup-observability:
 	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-	helm repo update
-	helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack -n monitoring
 	helm repo add grafana https://grafana.github.io/helm-charts
-	helm repo update
-	helm install grafana grafana/grafana --namespace monitoring
+	helm repo update	
+	helm upgrade --install prometheus-stack prometheus-community/kube-prometheus-stack --values ./monitoring/chart-values/prometheus-values.yaml -n monitoring --create-namespace --version 47.0.0
+	helm upgrade --install loki grafana/loki-stack -n monitoring
 
 setup-istio:
 	helm repo add istio https://istio-release.storage.googleapis.com/charts && helm repo update
@@ -22,4 +21,7 @@ setup-istio:
 	kubectl label namespace sock-shop istio-injection=enabled
 
 deploy-app:
-	kubectl apply -f app/manifests/complete-demo.yaml
+	kubectl apply -f app/complete-demo.yaml
+
+clenup-cluster:
+	eksctl delete cluster --region=us-east-1 --name=eks-cluster --wait
