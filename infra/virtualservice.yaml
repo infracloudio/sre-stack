@@ -1,0 +1,16 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: sock-shop-frontend
+  namespace: sock-shop
+spec:
+  hosts:
+    - "*"  # Replace with your domain or subdomain
+  gateways:
+    - sock-shop-gateway  # Name of the Gateway created earlier
+  http:
+    - route:
+        - destination:
+            host: front-end  # Replace with your frontend service name
+            port:
+              number: 80
