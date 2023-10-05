@@ -22,6 +22,27 @@ setup-istio:
 
 deploy-app:
 	kubectl apply -f app/complete-demo.yaml
+	kubectl apply -f infra/gateway.yaml
+	kubectl apply -f infra/virtualservice.yaml
 
 clenup-cluster:
 	eksctl delete cluster --region=us-east-1 --name=eks-cluster --wait
+
+install-asg:
+	eksctl utils associate-iam-oidc-provider \
+    --region=us-east-1 --cluster eks-cluster \
+    --approve
+	aws iam create-policy   \
+	--policy-name k8s-asg-policy \
+	--policy-document file://./infra/asg-policy.json
+	eksctl create iamserviceaccount \
+    --region=us-east-1 --name cluster-autoscaler \
+    --namespace kube-system \
+    --cluster eks-cluster \
+    --attach-policy-arn "arn:aws:iam::813864300626:policy/k8s-asg-policy" \
+    --approve \
+    --override-existing-serviceaccounts
+	kubectl apply -f infra/cluster-autoscale.yaml
+	kubectl -n kube-system \
+    annotate deployment.apps/cluster-autoscaler \
+    cluster-autoscaler.kubernetes.io/safe-to-evict="false"
