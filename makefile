@@ -1,7 +1,7 @@
 help:
 	@echo "Run: make setup"
 
-setup: start-cluster setup-observability setup-istio
+setup: start-cluster setup-observability deploy-app setup-istio
 
 start-cluster:
 	eksctl create cluster -f infra/eksctl.yaml
@@ -18,15 +18,16 @@ setup-istio:
 	helm upgrade --install istio-base istio/base -n istio-system --create-namespace --version 1.17.2 --wait --timeout 2m0s
 	helm upgrade --install istiod istio/istiod -n istio-system --version 1.17.2 --set meshConfig.defaultConfig.tracing.zipkin.address=zipkin.monitoring:9411 --set pilot.traceSampling=100 --wait --timeout 2m0s
 	helm upgrade --install istio-ingressgateway istio/gateway -n istio-system --version 1.17.2 --wait --timeout 2m0s
-	kubectl label namespace sock-shop istio-injection=enabled
+	kubectl label namespace sock-shop istio-injection=enabled --overwrite
 
 deploy-app:
 	kubectl apply -f app/complete-demo.yaml
 	kubectl apply -f infra/gateway.yaml
 	kubectl apply -f infra/virtualservice.yaml
 
-clenup-cluster:
+cleanup-cluster:
 	eksctl delete cluster --region=us-east-1 --name=eks-cluster --wait
+        aws iam delete-policy --policy-arn arn:aws:iam::813864300626:policy/k8s-asg-policy
 
 install-asg:
 	eksctl utils associate-iam-oidc-provider \
