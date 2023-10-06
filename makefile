@@ -19,11 +19,11 @@ setup-istio:
 	helm upgrade --install istiod istio/istiod -n istio-system --version 1.17.2 --set meshConfig.defaultConfig.tracing.zipkin.address=zipkin.monitoring:9411 --set pilot.traceSampling=100 --wait --timeout 2m0s
 	helm upgrade --install istio-ingressgateway istio/gateway -n istio-system --version 1.17.2 --wait --timeout 2m0s
 	kubectl label namespace sock-shop istio-injection=enabled
+	kubectl apply -f infra/gateway.yaml
+	kubectl apply -f infra/virtualservice.yaml
 
 deploy-app:
 	kubectl apply -f app/complete-demo.yaml
-	kubectl apply -f infra/gateway.yaml
-	kubectl apply -f infra/virtualservice.yaml
 
 cleanup-cluster:
 	eksctl utils associate-iam-oidc-provider \
