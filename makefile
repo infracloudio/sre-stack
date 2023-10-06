@@ -1,7 +1,7 @@
 help:
 	@echo "Run: make setup"
 
-setup: start-cluster setup-observability deploy-app setup-istio
+setup: start-cluster setup-observability deploy-app setup-istio install-asg
 
 start-cluster:
 	eksctl create cluster -f infra/eksctl.yaml
