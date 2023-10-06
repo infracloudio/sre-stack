@@ -26,11 +26,11 @@ deploy-app:
 	kubectl apply -f infra/virtualservice.yaml
 
 cleanup-cluster:
-	eksctl delete cluster --region=us-east-1 --name=eks-cluster --wait
 	eksctl utils associate-iam-oidc-provider \
     --region=us-east-1 --cluster eks-cluster \
     --approve
 	aws iam delete-policy --policy-arn arn:aws:iam::813864300626:policy/k8s-asg-policy
+	eksctl delete cluster --region=us-east-1 --name=eks-cluster --wait
 
 install-asg:
 	eksctl utils associate-iam-oidc-provider \
