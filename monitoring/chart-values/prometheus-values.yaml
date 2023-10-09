@@ -1,8 +1,8 @@
-# alertmanager:
-#   enabled: true
-#   alertmanagerSpec:
-#     loglevel: debug
-#     configSecret: promalertmanager
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    loglevel: debug
+    configSecret: promalertmanager
 
 ###kube-prometheus-stack###
 grafana:

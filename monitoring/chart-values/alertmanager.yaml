@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: promalertmanager
+  namespace: monitoring
+data:
+  alertmanager.yml: |
+    global:
+      slack_api_url: 'https://hooks.slack.com/services/T0CJB'
+    route:
+      group_by: ['alertname']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      receiver: 'slack'
+    receivers:
+      - name: 'slack'
+        slack_configs:
+          - send_resolved: true
+            username: 'Alertmanager'
+            channel: '#alerts'
+            api_url: 'https://hooks.slack.com/services/ELB'

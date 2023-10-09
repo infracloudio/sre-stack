@@ -1,7 +1,7 @@
 help:
 	@echo "Run: make setup"
 
-setup: start-cluster setup-observability setup-istio
+setup: start-cluster setup-observability deploy-app setup-istio install-asg
 
 start-cluster:
 	eksctl create cluster -f infra/eksctl.yaml
@@ -27,7 +27,11 @@ deploy-app:
 	kubectl apply -f infra/gateway.yaml
 	kubectl apply -f infra/virtualservice.yaml
 
-clenup-cluster:
+cleanup-cluster:
+	eksctl utils associate-iam-oidc-provider \
+    --region=us-east-1 --cluster eks-cluster \
+    --approve
+	aws iam delete-policy --policy-arn arn:aws:iam::813864300626:policy/k8s-asg-policy
 	eksctl delete cluster --region=us-east-1 --name=eks-cluster --wait
 
 install-asg:
