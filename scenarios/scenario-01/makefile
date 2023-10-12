@@ -3,7 +3,7 @@ help:
 	echo "Run commnad: make set-scenario"
 
 rollback:
-	kubectl apply -f scenarios/scenario-01/virtual-services.yaml
+	cd ../../ && make deploy-app
 
 set-scenario:
-	kubectl apply -f scenarios/scenario-01/virtual-service-latency-fault.yaml
+	kubectl apply -f ./virtual-service-fault.yaml -n bookinfo-prod

@@ -8,9 +8,9 @@ alertmanager:
 grafana:
   grafana.ini:
   enabled: true
-  # env:
-  #   GF_SERVER_ROOT_URL: "https://monitor.example.com/grafana/"
-  #   GF_SERVER_SERVE_FROM_SUB_PATH: 'true'
+  env:
+    GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s:/grafana"
+    GF_SERVER_SERVE_FROM_SUB_PATH: 'true'
 
   # readinessProbe:
   # httpGet:
@@ -33,12 +33,12 @@ grafana:
       url: http://loki:3100
       version: 1
 
-    # - name: jaeger
-    #   access: proxy
-    #   orgId: 1
-    #   type: jaeger
-    #   url: http://tracing.monitoring.svc.cluster.local/jaeger 
-    #   version: 1
+    - name: jaeger
+      access: proxy
+      orgId: 1
+      type: jaeger
+      url: http://tracing.monitoring.svc.cluster.local/jaeger 
+      version: 1
 
   datasources: 
     datasources.yaml:
@@ -132,7 +132,7 @@ grafana:
 
   service:
     enabled: true
-    type: LoadBalancer
+    # type: LoadBalancer
     port: 80
     targetPort: 3000
 prometheus:

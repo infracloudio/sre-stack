@@ -1,7 +1,7 @@
 help:
 	@echo "Run: make setup"
 
-setup: start-cluster setup-observability deploy-app setup-istio install-asg
+setup: start-cluster setup-observability setup-istio deploy-app install-asg
 
 start-cluster:
 	eksctl create cluster -f infra/eksctl.yaml
@@ -23,9 +23,12 @@ setup-addons:
 	kubectl apply -f  monitoring/istio-addons/
 
 deploy-app:
-	kubectl apply -f app/complete-demo.yaml
-	kubectl apply -f infra/gateway.yaml
-	kubectl apply -f infra/virtualservice.yaml
+	kubectl create namespace bookinfo-prod --dry-run=client -o yaml | kubectl apply -f -
+	kubectl label namespace bookinfo-prod istio-injection=enabled
+	kubectl apply -f app/bookinfo.yaml -n bookinfo-prod
+	kubectl apply -f infra/gateway.yaml -n bookinfo-prod
+	kubectl apply -f app/virtual-services.yaml -n bookinfo-prod
+	kubectl apply -f app/destination-rules.yaml -n bookinfo-prod
 
 cleanup-cluster:
 	eksctl utils associate-iam-oidc-provider \
@@ -33,6 +36,11 @@ cleanup-cluster:
     --approve
 	aws iam delete-policy --policy-arn arn:aws:iam::813864300626:policy/k8s-asg-policy
 	eksctl delete cluster --region=us-east-1 --name=eks-cluster --wait
+
+setup-litmus:
+	helm repo add litmuschaos https://litmuschaos.github.io/litmus-helm/
+	helm upgrade --install chaos litmuschaos/litmus --namespace=litmus --create-namespace --set portal.frontend.service.type=LoadBalancer
+	kubectl get svc -n litmus | grep "9091"
 
 install-asg:
 	eksctl utils associate-iam-oidc-provider \

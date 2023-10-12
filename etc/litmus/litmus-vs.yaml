@@ -1,0 +1,16 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: litmus-vs
+  namespace: bookinfo-prod
+spec:
+  hosts:
+  - "chaos.example.com"
+  gateways:
+  - app-gateway
+  http:
+  - route:
+    - destination:
+        host: chaos-litmus-frontend-service.litmus.svc.cluster.local
+        port:
+          number: 9091
