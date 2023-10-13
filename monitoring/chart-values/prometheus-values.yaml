@@ -1,8 +1,79 @@
+additionalPrometheusRulesMap: 
+  rule-name:
+    groups:
+    - name: GroupA
+      rules:
+      - alert: reviewsHTTPError
+        expr: increase(istio_requests_total{source_workload=~"reviews-.*", source_app="reviews",reporter="source" ,response_code!="200"}[5m]) > 1
+        for: 1m
+        labels:
+          severity: P1
+        annotations:
+          summary: reviews service error
+          description: error found in reviews service
+      - alert: productpageHTTPError
+        expr: increase(istio_requests_total{source_workload=~"productpage-.*", source_app="productpage",reporter="source" ,response_code!="200"}[5m]) > 1
+        for: 1m
+        labels:
+          severity: P1
+        annotations:
+          summary: productpage service error
+          description: error found in productpage service
+
 alertmanager:
   enabled: true
   alertmanagerSpec:
     loglevel: debug
-    configSecret: promalertmanager
+    # configSecret: promalertmanager
+  config:
+    global:
+      slack_api_url: "<SLACK-WEBHOOK-URL>" 
+      resolve_timeout: 5m
+    inhibit_rules:
+      - source_matchers:
+          - 'severity = critical'
+        target_matchers:
+          - 'severity =~ warning|info'
+        equal:
+          - 'namespace'
+          - 'alertname'
+      - source_matchers:
+          - 'severity = warning'
+        target_matchers:
+          - 'severity = info'
+        equal:
+          - 'namespace'
+          - 'alertname'
+      - source_matchers:
+          - 'alertname = InfoInhibitor'
+        target_matchers:
+          - 'severity = info'
+        equal:
+          - 'namespace'
+    route:
+      group_by: ['namespace']
+      group_wait: 30s
+      group_interval: 2m
+      repeat_interval: 2m
+      receiver: 'slack'
+      routes:
+      # - receiver: 'slack'
+      #   matchers:
+      #     - alertname =~ "InfoInhibitor|Watchdog"
+      - match:
+          severity: P1
+        receiver: 'slack'
+        continue: true
+    receivers:
+    - name: 'null'
+    - name: 'slack'
+      slack_configs:
+      - channel: '#sre-stack'
+        send_resolved: true 
+        # title: 'Monitoring Event Notification'
+        # text:
+    templates:
+      - '/etc/alertmanager/config/*.tmpl'
 
 ###kube-prometheus-stack###
 grafana:

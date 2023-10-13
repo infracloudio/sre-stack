@@ -20,3 +20,14 @@ managedNodeGroups:
     volumeSize: 50
     tags:
       Name: dev-cluster
+    iam:
+      withAddonPolicies:
+        autoScaler: true
+        externalDNS: true
+        certManager: true
+        appMesh: true
+        ebs: true
+        fsx: true
+        efs: true
+        awsLoadBalancerController: true
+        cloudWatch: true

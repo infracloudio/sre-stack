@@ -2,7 +2,9 @@
 
 ## Description:
 
-In a three-tier application that consists of web frontend, backend, and some third-party APIs. One fine day, the backend service started facing some issues while making some HTTP GET/POST calls on 3rd party API. Due to this frontend was unable to load that part of the application from the backend service. These lead to cascading failure due to an outage at 3rd party API platform.
+This is a three-tier application comprising a web frontend, a backend service, and the integration of third-party APIs. One day, the backend service encountered problems when attempting to perform HTTP GET and POST requests to interact with external third-party APIs, disrupting the normal operation of the application.
+
+Due to this frontend was unable to load that part of the application from the backend service. These lead to cascading failure due to an outage at 3rd party API platform.
 
 ### Diagram
 
@@ -19,10 +21,10 @@ The Platform engineering team started checking on Monitoring dashboards and foun
 First, there was no alert on the Prometheus or Alertmanager, because it was not configured to detect this kind of failure. Prometheus and Alertmanager are configured to identify and detect Node failure, Pod failure, storage, CPU, and Memory usage issues.
 
 To find the real cause of this outage:
-We started checking the logs of each and every microservices.
-From the backend, we found a 5XX error code for downstream API calls.
-From the backend service logs it shows which downstream API is actually causing this issue.
-The platform team tried to perform a DRY run of the same 3rd API and found it was down.
+- We started checking the logs of each and every microservices.
+- From the backend, we found a 5XX error code for downstream API calls.
+- From the backend service logs it shows which downstream API is actually causing this issue.
+- The platform team tried to perform a DRY run of the same 3rd API and found it was down.
 
 ## How we solved it?
 
@@ -31,5 +33,5 @@ Considering the SLA of downstream 3rd party API, we reported an outage and initi
 
 ## How it can be detected early?
 
-Platform engineering team implemented a few metrics checks on service mesh, and configured custom alert rules to identify application service level issues. 
-Also, enabled application log level filtering and rules configured to get alerts based on the logs of the application.
+1. Platform engineering team implemented a few metrics checks on service mesh, and configured custom alert rules to identify application service level issues.
+2. Also, enabled application log level filtering and rules configured to get alerts based on the logs of the application.
