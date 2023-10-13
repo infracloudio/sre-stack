@@ -2,7 +2,7 @@ apiVersion: eksctl.io/v1alpha5
 kind: ClusterConfig
 
 metadata:
-  name: eks-cluster1
+  name: eks-cluster
   region: us-east-1
 
 addons:
