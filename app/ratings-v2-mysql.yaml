@@ -26,13 +26,13 @@ spec:
           - name: DB_TYPE
             value: "mysql"
           - name: MYSQL_DB_HOST
-            value: mysqldb
+            value: rds.amazonaws.com
           - name: MYSQL_DB_PORT
             value: "3306"
           - name: MYSQL_DB_USER
-            value: root
+            value: causleyuser
           - name: MYSQL_DB_PASSWORD
-            value: password
+            value: pass1234
         ports:
         - containerPort: 9080
 ---

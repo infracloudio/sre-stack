@@ -1,5 +1,17 @@
 help:
-	@echo "Run: make setup"
+	@echo "Command can be used for setup/deploy app and tools:"
+	@echo "	Run full setup via command:		make setup"
+	@echo "	Or start EKS Cluster via:		make start-cluster"
+	@echo "	Setup monitoring/observability via:	make setup-observability"
+	@echo "	Setup istio and ingress via:		make setup-istio"
+	@echo "	Setup APM via:				make setup-apm"
+	@echo "	Deploy application via:			make deploy-app"
+	@echo "	Setup kiali and jaeger via:		make setup-addons"
+	@echo "	Setup Litmus-3 chaos tool via:		make setup-litmus"
+	@echo "	Setup node auto scaling via:		make install-asg"
+	@echo ""
+	@echo "Command can be used for cleanup:"
+	@echo "	Clenaup all via:			make cleanup-cluster"
 
 setup: start-cluster setup-observability setup-istio deploy-app install-asg
 
@@ -9,9 +21,14 @@ start-cluster:
 setup-observability:
 	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 	helm repo add grafana https://grafana.github.io/helm-charts
-	helm repo update	
+	helm repo update
 	helm upgrade --install prometheus-stack prometheus-community/kube-prometheus-stack --values ./monitoring/chart-values/prometheus-values.yaml -n monitoring --create-namespace --version 47.0.0
 	helm upgrade --install loki grafana/loki-stack -n monitoring
+
+setup-apm:
+	helm repo add signoz https://charts.signoz.io && helm repo updates
+	helm upgrade --install install apm-platform signoz/signoz -n monitoring --create-namespace
+	kubectl get svc svc/apm-platform-frontend -n monitoring | grep "3301"
 
 setup-istio:
 	helm repo add istio https://istio-release.storage.googleapis.com/charts && helm repo update

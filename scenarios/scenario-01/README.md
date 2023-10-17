@@ -10,7 +10,7 @@ Due to this frontend was unable to load that part of the application from the ba
 
 ![Application](https://github.com/infracloudio/sre-stack/blob/main/etc/image/scenario-1-application-arch.png?raw=true)
 
-## How do we detect outages?
+## How did we detect outage?
 
 This was detected via the QA/NOC team when they were doing regular testing of the product and platform. They started facing this issue on the Application web UI and then reported it to the platform engineering team.
 
@@ -18,13 +18,31 @@ The Platform engineering team started checking on Monitoring dashboards and foun
 
 ## What steps did we perform to identify/detect outages?
 
-First, there was no alert on the Prometheus or Alertmanager, because it was not configured to detect this kind of failure. Prometheus and Alertmanager are configured to identify and detect Node failure, Pod failure, storage, CPU, and Memory usage issues.
-
 To find the real cause of this outage:
-- We started checking the logs of each and every microservices.
-- From the backend, we found a 5XX error code for downstream API calls.
-- From the backend service logs it shows which downstream API is actually causing this issue.
-- The platform team tried to perform a DRY run of the same 3rd API and found it was down.
+
+- We started checking the logs of microservices for which we got alerts.
+- From our microservice(reviews), we found a 5XX error code for downstream API calls.
+- From our microservice(reviews), service logs it shows it is not able to reach downstream API which actually causing this issue.
+
+### Possible causes:
+
+1. Network issue caused by AWS VPC resource.
+    - First we checked instance on which reviews service was deployed.
+    - We check that instance in which subnet and which security group is attached.
+    - Then we checked security group outbound rule are allowing this traffic or blocking it.
+    - Then we checked subnet routes for NAT gateway is attached or not.
+    - After that we checked for NACL rules inbound and outbound.
+From above we found that no AWS VPC or Network level misconfiguration are causing this issue.
+
+2. Service outage at downstream API/platform
+
+For further, The platform team tried to perform a DRY run of the same 3rd API.
+    - Platform team logged inside the reviews application pod/container.
+    - Performed DNS check on that third party API e.g. `dig api.example.com`
+    - After that performed netcat to check the API network connection is reachable or not e.g. `nc -v api.example.com 80`. It was fine.
+    - At last performed cURL operation from the reviews application pod and it got failed.
+
+When we faced it first time, there was no alert on the Prometheus or Alertmanager, because it was not configured to detect this kind of failure. Prometheus and Alertmanager are configured to identify and detect Node failure, Pod failure, storage, CPU, and Memory usage issues.
 
 ## How we solved it?
 
