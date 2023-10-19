@@ -19,6 +19,22 @@ additionalPrometheusRulesMap:
         annotations:
           summary: productpage service error
           description: error found in productpage service
+      - alert: ratingsHTTPError
+        expr: increase(istio_requests_total{source_workload=~"ratings-.*", source_app="ratings",reporter="source" ,response_code!="200"}[5m]) > 1
+        for: 1m
+        labels:
+          severity: P1
+        annotations:
+          summary: ratings service error
+          description: error found in ratings service
+      - alert: detailsHTTPError
+        expr: increase(istio_requests_total{source_workload=~"productpage-.*", destination_app="details",reporter="source" ,response_code!="200"}[5m]) > 1
+        for: 1m
+        labels:
+          severity: P1
+        annotations:
+          summary: details service error
+          description: error found in details service
 
 alertmanager:
   enabled: true

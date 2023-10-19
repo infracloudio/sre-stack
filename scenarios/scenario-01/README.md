@@ -36,11 +36,13 @@ From above we found that no AWS VPC or Network level misconfiguration are causin
 
 2. Service outage at downstream API/platform
 
-For further, The platform team tried to perform a DRY run of the same 3rd API.
+    For further, The platform team tried to perform a DRY run of the same 3rd API.
+
     - Platform team logged inside the reviews application pod/container.
     - Performed DNS check on that third party API e.g. `dig api.example.com`
     - After that performed netcat to check the API network connection is reachable or not e.g. `nc -v api.example.com 80`. It was fine.
     - At last performed cURL operation from the reviews application pod and it got failed.
+
 
 When we faced it first time, there was no alert on the Prometheus or Alertmanager, because it was not configured to detect this kind of failure. Prometheus and Alertmanager are configured to identify and detect Node failure, Pod failure, storage, CPU, and Memory usage issues.
 
