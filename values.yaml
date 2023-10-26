@@ -1,0 +1,5 @@
+scrapers:
+  istio:
+    enabled: true
+    prometheus:
+      endpoint: http://prometheus-stack-kube-prom-prometheus.monitoring.svc.cluster.local:9090

@@ -186,6 +186,12 @@ spec:
       serviceAccountName: bookinfo-reviews
       containers:
       - name: reviews
+        readinessProbe:
+          httpGet:
+            path: /ratings/0
+            port: 9080
+          initialDelaySeconds: 5
+          periodSeconds: 5
         image: docker.io/istio/examples-bookinfo-reviews-v2:1.18.0
         imagePullPolicy: IfNotPresent
         env:

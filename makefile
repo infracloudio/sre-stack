@@ -22,8 +22,8 @@ setup-observability:
 	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 	helm repo add grafana https://grafana.github.io/helm-charts
 	helm repo update
-	helm upgrade --install prometheus-stack prometheus-community/kube-prometheus-stack --values ./monitoring/chart-values/prometheus-values.yaml -n monitoring --create-namespace --version 47.0.0
-	helm upgrade --install loki grafana/loki-stack -n monitoring
+	helm upgrade --install prometheus-stack prometheus-community/kube-prometheus-stack --values ./monitoring/chart-values/prometheus-values.yaml -n monitoring --create-namespace --version 52.0.0
+	helm upgrade --install loki grafana/loki-stack -n monitoring --create-namespace
 
 setup-apm:
 	helm repo add signoz https://charts.signoz.io && helm repo updates
@@ -48,9 +48,6 @@ deploy-app:
 	kubectl apply -f app/destination-rules.yaml -n bookinfo-prod
 
 cleanup-cluster:
-	eksctl utils associate-iam-oidc-provider \
-    --region=us-east-1 --cluster eks-cluster \
-    --approve
 	aws iam delete-policy --policy-arn arn:aws:iam::813864300626:policy/k8s-asg-policy
 	eksctl delete cluster --region=us-east-1 --name=eks-cluster --wait
 

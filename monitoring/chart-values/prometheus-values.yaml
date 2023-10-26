@@ -252,3 +252,15 @@ prometheus:
         - source_labels: [__meta_kubernetes_pod_container_port_name]
           action: keep
           regex: '.*-envoy-prom'
+  additionalServiceMonitors:
+      - name: prometheus-operator-cloudwatch
+        endpoints:
+        - port: http
+          path: /metrics
+          interval: 30s
+        namespaceSelector:
+          matchNames:
+          - monitoring
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: yet-another-cloudwatch-exporter
