@@ -46,7 +46,7 @@ alertmanager:
     # configSecret: promalertmanager
   config:
     global:
-      slack_api_url: "https://hooks.slack.com/services/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" 
+      slack_api_url: "SLACK URL HERE" 
       resolve_timeout: 5m
     inhibit_rules:
     route:
