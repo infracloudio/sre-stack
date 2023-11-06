@@ -899,7 +899,7 @@
     {
       "datasource": {
         "type": "loki",
-        "uid": "Loki"
+        "uid": "loki"
       },
       "gridPos": {
         "h": 8,
@@ -923,7 +923,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "Loki"
+            "uid": "loki"
           },
           "editorMode": "code",
           "expr": "{app=\"reviews\"} |~ \".*Error.*\"",
@@ -934,7 +934,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "Loki"
+            "uid": "loki"
           },
           "editorMode": "builder",
           "expr": "{app=\"reviews\"} |= ``",
@@ -949,7 +949,7 @@
     {
       "datasource": {
         "type": "loki",
-        "uid": "Loki"
+        "uid": "loki"
       },
       "fieldConfig": {
         "defaults": {
@@ -1026,7 +1026,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "Loki"
+            "uid": "loki"
           },
           "editorMode": "code",
           "expr": "sum (rate({app=\"reviews\"} |~ \".*Error.*\" [1m]))",
@@ -1040,7 +1040,7 @@
     {
       "datasource": {
         "type": "loki",
-        "uid": "Loki"
+        "uid": "loki"
       },
       "gridPos": {
         "h": 8,
@@ -1063,7 +1063,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "Loki"
+            "uid": "loki"
           },
           "editorMode": "code",
           "expr": "{app=\"ratings\"} |~ \".*Error.*\"",
@@ -1074,7 +1074,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "Loki"
+            "uid": "loki"
           },
           "editorMode": "builder",
           "expr": "{app=\"ratings\"} |= ``",
@@ -1089,7 +1089,7 @@
     {
       "datasource": {
         "type": "loki",
-        "uid": "Loki"
+        "uid": "loki"
       },
       "fieldConfig": {
         "defaults": {
@@ -1165,7 +1165,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "Loki"
+            "uid": "loki"
           },
           "editorMode": "code",
           "expr": "sum (rate({app=\"ratings\"} |~ \".*Error.*\" [1m]))",
