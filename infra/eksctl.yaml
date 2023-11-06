@@ -2,7 +2,7 @@ apiVersion: eksctl.io/v1alpha5
 kind: ClusterConfig
 
 metadata:
-  name: eks-cluster
+  name: prod-eks-cluster
   region: us-east-1
 
 addons:
@@ -12,14 +12,15 @@ addons:
   - arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
   
 managedNodeGroups:
-  - name: dev-cluster
-    instanceType: t3.medium
+  - name: prod-cluster
+    instanceType: c6g.large
     minSize: 2
     maxSize: 5
     privateNetworking: true
     volumeSize: 50
+    spot: true
     tags:
-      Name: dev-cluster
+      Name: prod-cluster
     iam:
       withAddonPolicies:
         autoScaler: true

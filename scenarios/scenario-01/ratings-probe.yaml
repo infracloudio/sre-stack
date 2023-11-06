@@ -29,5 +29,12 @@ spec:
             periodSeconds: 120
           image: docker.io/istio/examples-bookinfo-ratings-v1:1.18.0
           imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
           ports:
           - containerPort: 9080

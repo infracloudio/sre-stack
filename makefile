@@ -24,6 +24,8 @@ setup-observability:
 	helm repo update
 	helm upgrade --install prometheus-stack prometheus-community/kube-prometheus-stack --values ./monitoring/chart-values/prometheus-values.yaml -n monitoring --create-namespace --version 52.0.0
 	helm upgrade --install loki grafana/loki-stack -n monitoring --create-namespace
+	helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/  && helm repo update
+	helm upgrade --install metrics-server metrics-server/metrics-server --values ./monitoring/chart-values/metric-server.yaml
 
 setup-apm:
 	helm repo add signoz https://charts.signoz.io && helm repo updates
@@ -47,9 +49,14 @@ deploy-app:
 	kubectl apply -f app/virtual-services.yaml -n bookinfo-prod
 	kubectl apply -f app/destination-rules.yaml -n bookinfo-prod
 
+setup-keda:
+	helm repo add kedacore https://kedacore.github.io/charts && helm repo update ; \
+	helm upgrade --install keda kedacore/keda --namespace keda --create-namespace --values ./infra/chart-values/keda-values.yaml --version 2.11.1 ; \
+	kubectl apply -f infra/keda-policy/scaled-obj-ratings.yaml
+
 cleanup-cluster:
+	eksctl delete cluster --region=us-east-1 --name=prod-eks-cluster --wait
 	aws iam delete-policy --policy-arn arn:aws:iam::813864300626:policy/k8s-asg-policy
-	eksctl delete cluster --region=us-east-1 --name=eks-cluster --wait
 
 setup-litmus:
 	helm repo add litmuschaos https://litmuschaos.github.io/litmus-helm/
@@ -58,7 +65,7 @@ setup-litmus:
 
 install-asg:
 	eksctl utils associate-iam-oidc-provider \
-	--region=us-east-1 --cluster eks-cluster \
+	--region=us-east-1 --cluster prod-eks-cluster \
 	--approve
 	aws iam create-policy   \
 	--policy-name k8s-asg-policy \
@@ -66,7 +73,7 @@ install-asg:
 	eksctl create iamserviceaccount \
 	--region=us-east-1 --name cluster-autoscaler \
 	--namespace kube-system \
-	--cluster eks-cluster \
+	--cluster prod-eks-cluster \
 	--attach-policy-arn "arn:aws:iam::813864300626:policy/k8s-asg-policy" \
 	--approve \
 	--override-existing-serviceaccounts

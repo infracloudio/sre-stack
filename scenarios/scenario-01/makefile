@@ -12,3 +12,4 @@ set-scenario-case1:
 
 set-scenario-case2:
 	kubectl apply -f ./ratings-probe.yaml -n bookinfo-prod
+	kubectl apply -f ./ratings-vs.yaml -n bookinfo-prod
