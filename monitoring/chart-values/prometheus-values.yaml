@@ -46,7 +46,7 @@ alertmanager:
     # configSecret: promalertmanager
   config:
     global:
-      slack_api_url: "SLACK URL HERE" 
+      slack_api_url: "https://hooks.slack.com/services/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" 
       resolve_timeout: 5m
     inhibit_rules:
     route:
@@ -79,123 +79,214 @@ grafana:
     GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s:/grafana"
     GF_SERVER_SERVE_FROM_SUB_PATH: 'true'
 
-  # readinessProbe:
-  # httpGet:
-  #   path: /api/health
-  #   port: 80
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      # Allow discovery in all namespaces for dashboards
+      searchNamespace: ALL
+      folder: /var/lib/grafana/dashboards
+      folderAnnotation: grafana_folder
+      ## Annotations for Grafana dashboard configmaps
+      ##
+      annotations: {}
+      #annotations:
+      #    grafana_folder: "Database"
+      #folderAnnotation: grafana_folder
+      multicluster:
+        global:
+          enabled: false
+        etcd:
+          enabled: false
+      provider:
+        allowUiUpdates: true 
+        foldersFromFilesStructure: true
+    datasources:
+      enabled: true
+      defaultDatasourceEnabled: true
+      isDefaultDatasource: true
 
-  # livenessProbe:
-  #   httpGet:
-  #     path: /api/health
-  #     port: 80
-  #   initialDelaySeconds: 60
-  #   timeoutSeconds: 30
-  #   failureThreshold: 10
+      uid: prometheus
 
-  additionalDataSources:
-    - name: loki
-      access: proxy
-      orgId: 1
-      type: loki
-      url: http://loki:3100
-      version: 1
+      ## URL of prometheus datasource
+      ##
+      url: http://prometheus-stack-kube-prom-prometheus:9090
 
-    - name: jaeger
-      access: proxy
-      orgId: 1
-      type: jaeger
-      url: http://tracing.monitoring.svc.cluster.local/jaeger 
-      version: 1
+      ## Prometheus request timeout in seconds
+      # timeout: 30
 
-  datasources: 
-    datasources.yaml:
-      apiVersion: 1
-      datasources:
-      - name: Prometheus
-        type: prometheus
-        url: http://prometheus-stack-kube-prom-prometheus:9090
-        isDefault: false
-      - name: Loki
-        type: loki
-        url: http://loki-loki-distributed-query-frontend:3100
+      # If not defined, will use prometheus.prometheusSpec.scrapeInterval or its default
+      # defaultDatasourceScrapeInterval: 15s
 
-  dashboardProviders: 
-    dashboardproviders.yaml:
-      apiVersion: 1
-      providers:
-      - name: 'default'
-        orgId: 1
-        folder: 'dashboards'
-        type: file
-        disableDeletion: false
-        editable: true
-        options:
-          path: /var/lib/grafana/dashboards/default
+      ## Annotations for Grafana datasource configmaps
+      ##
+      annotations: {}
 
-  dashboards:
-    default:
-      loki-dashboard-quick-search:
-        gnetId: 7645
-        revision: 165
-        datasource:
-        - name: DS_PROMETHEUS
-          value: Prometheus
-      kubernetes-cluster-monitoring:
-        gnetId: 6417
-        revision: 1
-        datasource:
-        - name: DS_PROMETHEUS
-          value: Prometheus
-      node-exporter-monitoring:
-        gnetId: 1860
-        revision: 31
-        datasource:
-        - name: DS_PROMETHEUS
-          value: Prometheus
-      loki-monitoring:
-        gnetId: 14055
-        revision: 5
-        datasource:
-        - name: DS_PROMETHEUS
-          value: Prometheus
-        # - name: DS_PROMETHEUS
-        #   value: Loki
-      k8s-views-pods-monitoring:
-        gnetId: 15760
-        revision: 18
-        datasource:
-        - name: DS_PROMETHEUS
-          value: Prometheus
-      k8s-cluster-monitoring:
-        gnetId: 1621
-        revision: 1
-        datasource:
-        - name: DS_PROMETHEUS
-          value: Prometheus
-      k8s-views-namespace-monitoring:
-        gnetId: 15758
-        revision: 23
-        datasource:
-        - name: DS_PROMETHEUS
-          value: Prometheus
-      k8s-views-nodes-monitoring:
-        gnetId: 15759
-        revision: 19
-        datasource:
-        - name: DS_PROMETHEUS
-          value: Prometheus
-      k8s-views-api-server-monitoring:
-        gnetId: 15761
-        revision: 12
-        datasource:
-        - name: DS_PROMETHEUS
-          value: Prometheus
-      k8s-views-core-dns-monitoring:
-        gnetId: 15762
-        revision: 12
-        datasource:
-        - name: DS_PROMETHEUS
-          value: Prometheus
+      ## Set method for HTTP to send query to datasource
+      httpMethod: POST
+
+      ## Create datasource for each Pod of Prometheus StatefulSet;
+      ## this uses headless service `prometheus-operated` which is
+      ## created by Prometheus Operator
+      ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/0fee93e12dc7c2ea1218f19ae25ec6b893460590/pkg/prometheus/statefulset.go#L255-L286
+      createPrometheusReplicasDatasources: false
+      label: grafana_datasource
+      labelValue: "1"
+
+      ## Field with internal link pointing to existing data source in Grafana.
+      ## Can be provisioned via additionalDataSources
+      exemplarTraceIdDestinations: {}
+        # datasourceUid: Jaeger
+        # traceIdLabelName: trace_id
+      alertmanager:
+        enabled: true
+        uid: alertmanager
+        handleGrafanaManagedAlerts: false
+        implementation: prometheus
+
+  extraConfigmapMounts: 
+  # - name: ec2-config 
+  #   mountPath: /tmp/dashboards
+  #   configMap: ec2-config
+    # readOnly: true
+  # - name: bajajmall
+  #   mountPath: /tmp/dashboards
+  #   configMap: bajajmall
+  # - name: glpi
+  #   mountPath: /tmp/dashboards
+  #   configMap: glpi-config
+  #  # readOnly: true
+
+  deleteDatasources: []
+  # - name: example-datasource
+  #   orgId: 1
+
+  ## Configure additional grafana datasources (passed through tpl)
+  ## ref: http://docs.grafana.org/administration/provisioning/#datasources
+  additionalDataSources: 
+  - name: loki
+    access: proxy
+    orgId: 1
+    type: loki
+    url: http://loki:3100
+    version: 1
+  # - name: prometheus-sample
+  #   access: proxy
+  #   basicAuth: true
+  #   basicAuthPassword: pass
+  #   basicAuthUser: daco
+  #   editable: false
+  #   jsonData:
+  #       tlsSkipVerify: true
+  #   orgId: 1
+  #   type: prometheus
+  #   url: https://{{ printf "%s-prometheus.svc" .Release.Name }}:9090
+  #   version: 1
+
+
+
+  # # readinessProbe:
+  # # httpGet:
+  # #   path: /api/health
+  # #   port: 80
+
+  # # livenessProbe:
+  # #   httpGet:
+  # #     path: /api/health
+  # #     port: 80
+  # #   initialDelaySeconds: 60
+  # #   timeoutSeconds: 30
+  # #   failureThreshold: 10
+  # datasources: 
+  #   datasources.yaml:
+  #     apiVersion: 1
+  #     datasources:
+  #     - name: Prometheus
+  #       type: prometheus
+  #       url: http://prometheus-stack-kube-prom-prometheus:9090
+  #       isDefault: true
+  #       enabled: true
+  #       defaultDatasourceEnabled: true
+  #       isDefaultDatasource: true
+
+  # dashboardProviders: 
+  #   dashboardproviders.yaml:
+  #     apiVersion: 1
+  #     providers:
+  #     - name: 'default'
+  #       orgId: 1
+  #       folder: 'dashboards'
+  #       type: file
+  #       disableDeletion: false
+  #       editable: true
+  #       options:
+  #         path: /var/lib/grafana/dashboards/default
+
+  # dashboards:
+  #   default:
+  #     loki-dashboard-quick-search:
+  #       gnetId: 7645
+  #       revision: 165
+  #       datasource:
+  #       - name: DS_PROMETHEUS
+  #         value: Prometheus
+  #     kubernetes-cluster-monitoring:
+  #       gnetId: 6417
+  #       revision: 1
+  #       datasource:
+  #       - name: DS_PROMETHEUS
+  #         value: Prometheus
+  #     node-exporter-monitoring:
+  #       gnetId: 1860
+  #       revision: 31
+  #       datasource:
+  #       - name: DS_PROMETHEUS
+  #         value: Prometheus
+  #     loki-monitoring:
+  #       gnetId: 14055
+  #       revision: 5
+  #       datasource:
+  #       - name: DS_PROMETHEUS
+  #         value: Prometheus
+  #       # - name: DS_PROMETHEUS
+  #       #   value: Loki
+  #     k8s-views-pods-monitoring:
+  #       gnetId: 15760
+  #       revision: 18
+  #       datasource:
+  #       - name: DS_PROMETHEUS
+  #         value: Prometheus
+  #     k8s-cluster-monitoring:
+  #       gnetId: 1621
+  #       revision: 1
+  #       datasource:
+  #       - name: DS_PROMETHEUS
+  #         value: Prometheus
+  #     k8s-views-namespace-monitoring:
+  #       gnetId: 15758
+  #       revision: 23
+  #       datasource:
+  #       - name: DS_PROMETHEUS
+  #         value: Prometheus
+  #     k8s-views-nodes-monitoring:
+  #       gnetId: 15759
+  #       revision: 19
+  #       datasource:
+  #       - name: DS_PROMETHEUS
+  #         value: Prometheus
+  #     k8s-views-api-server-monitoring:
+  #       gnetId: 15761
+  #       revision: 12
+  #       datasource:
+  #       - name: DS_PROMETHEUS
+  #         value: Prometheus
+  #     k8s-views-core-dns-monitoring:
+  #       gnetId: 15762
+  #       revision: 12
+  #       datasource:
+  #       - name: DS_PROMETHEUS
+  #         value: Prometheus
 
   service:
     enabled: true
