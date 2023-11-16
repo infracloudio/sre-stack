@@ -46,7 +46,7 @@ alertmanager:
     # configSecret: promalertmanager
   config:
     global:
-      slack_api_url: "https://hooks.slack.com/services/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" 
+      slack_api_url: "slack-webhook-url" 
       resolve_timeout: 5m
     inhibit_rules:
     route:
@@ -146,17 +146,7 @@ grafana:
         implementation: prometheus
 
   extraConfigmapMounts: 
-  # - name: ec2-config 
-  #   mountPath: /tmp/dashboards
-  #   configMap: ec2-config
-    # readOnly: true
-  # - name: bajajmall
-  #   mountPath: /tmp/dashboards
-  #   configMap: bajajmall
-  # - name: glpi
-  #   mountPath: /tmp/dashboards
-  #   configMap: glpi-config
-  #  # readOnly: true
+
 
   deleteDatasources: []
   # - name: example-datasource
