@@ -176,18 +176,18 @@ grafana:
 
 
 
-  # # readinessProbe:
-  # # httpGet:
-  # #   path: /api/health
-  # #   port: 80
+  # readinessProbe:
+  # httpGet:
+  #   path: /api/health
+  #   port: 80
 
-  # # livenessProbe:
-  # #   httpGet:
-  # #     path: /api/health
-  # #     port: 80
-  # #   initialDelaySeconds: 60
-  # #   timeoutSeconds: 30
-  # #   failureThreshold: 10
+  # livenessProbe:
+  #   httpGet:
+  #     path: /api/health
+  #     port: 80
+  #   initialDelaySeconds: 60
+  #   timeoutSeconds: 30
+  #   failureThreshold: 10
   # datasources: 
   #   datasources.yaml:
   #     apiVersion: 1
@@ -213,70 +213,70 @@ grafana:
   #       options:
   #         path: /var/lib/grafana/dashboards/default
 
-  # dashboards:
-  #   default:
-  #     loki-dashboard-quick-search:
-  #       gnetId: 7645
-  #       revision: 165
-  #       datasource:
-  #       - name: DS_PROMETHEUS
-  #         value: Prometheus
-  #     kubernetes-cluster-monitoring:
-  #       gnetId: 6417
-  #       revision: 1
-  #       datasource:
-  #       - name: DS_PROMETHEUS
-  #         value: Prometheus
-  #     node-exporter-monitoring:
-  #       gnetId: 1860
-  #       revision: 31
-  #       datasource:
-  #       - name: DS_PROMETHEUS
-  #         value: Prometheus
-  #     loki-monitoring:
-  #       gnetId: 14055
-  #       revision: 5
-  #       datasource:
-  #       - name: DS_PROMETHEUS
-  #         value: Prometheus
-  #       # - name: DS_PROMETHEUS
-  #       #   value: Loki
-  #     k8s-views-pods-monitoring:
-  #       gnetId: 15760
-  #       revision: 18
-  #       datasource:
-  #       - name: DS_PROMETHEUS
-  #         value: Prometheus
-  #     k8s-cluster-monitoring:
-  #       gnetId: 1621
-  #       revision: 1
-  #       datasource:
-  #       - name: DS_PROMETHEUS
-  #         value: Prometheus
-  #     k8s-views-namespace-monitoring:
-  #       gnetId: 15758
-  #       revision: 23
-  #       datasource:
-  #       - name: DS_PROMETHEUS
-  #         value: Prometheus
-  #     k8s-views-nodes-monitoring:
-  #       gnetId: 15759
-  #       revision: 19
-  #       datasource:
-  #       - name: DS_PROMETHEUS
-  #         value: Prometheus
-  #     k8s-views-api-server-monitoring:
-  #       gnetId: 15761
-  #       revision: 12
-  #       datasource:
-  #       - name: DS_PROMETHEUS
-  #         value: Prometheus
-  #     k8s-views-core-dns-monitoring:
-  #       gnetId: 15762
-  #       revision: 12
-  #       datasource:
-  #       - name: DS_PROMETHEUS
-  #         value: Prometheus
+  dashboards:
+    default:
+      loki-dashboard-quick-search:
+        gnetId: 7645
+        revision: 165
+        datasource:
+        - name: DS_PROMETHEUS
+          value: Prometheus
+      kubernetes-cluster-monitoring:
+        gnetId: 6417
+        revision: 1
+        datasource:
+        - name: DS_PROMETHEUS
+          value: Prometheus
+      node-exporter-monitoring:
+        gnetId: 1860
+        revision: 31
+        datasource:
+        - name: DS_PROMETHEUS
+          value: Prometheus
+      loki-monitoring:
+        gnetId: 14055
+        revision: 5
+        datasource:
+        - name: DS_PROMETHEUS
+          value: Prometheus
+        # - name: DS_PROMETHEUS
+        #   value: Loki
+      k8s-views-pods-monitoring:
+        gnetId: 15760
+        revision: 18
+        datasource:
+        - name: DS_PROMETHEUS
+          value: Prometheus
+      k8s-cluster-monitoring:
+        gnetId: 1621
+        revision: 1
+        datasource:
+        - name: DS_PROMETHEUS
+          value: Prometheus
+      k8s-views-namespace-monitoring:
+        gnetId: 15758
+        revision: 23
+        datasource:
+        - name: DS_PROMETHEUS
+          value: Prometheus
+      k8s-views-nodes-monitoring:
+        gnetId: 15759
+        revision: 19
+        datasource:
+        - name: DS_PROMETHEUS
+          value: Prometheus
+      k8s-views-api-server-monitoring:
+        gnetId: 15761
+        revision: 12
+        datasource:
+        - name: DS_PROMETHEUS
+          value: Prometheus
+      k8s-views-core-dns-monitoring:
+        gnetId: 15762
+        revision: 12
+        datasource:
+        - name: DS_PROMETHEUS
+          value: Prometheus
 
   service:
     enabled: true
