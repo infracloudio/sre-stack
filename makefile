@@ -2,18 +2,19 @@ help:
 	@echo "Command can be used for setup/deploy app and tools:"
 	@echo "	Run full setup via command:		make setup"
 	@echo "	Or start EKS Cluster via:		make start-cluster"
+	@echo "	Setup node auto scaling via:		make install-asg"
 	@echo "	Setup monitoring/observability via:	make setup-observability"
 	@echo "	Setup istio and ingress via:		make setup-istio"
-	@echo "	Setup APM via:				make setup-apm"
 	@echo "	Deploy application via:			make deploy-app"
+	@echo "	Setup Ingress gateway:		make setup-gateway"
 	@echo "	Setup kiali and jaeger via:		make setup-addons"
 	@echo "	Setup Litmus-3 chaos tool via:		make setup-litmus"
-	@echo "	Setup node auto scaling via:		make install-asg"
+	@echo "	Setup APM via:				make setup-apm"
 	@echo ""
 	@echo "Command can be used for cleanup:"
 	@echo "	Clenaup all via:			make cleanup-cluster"
 
-setup: start-cluster setup-observability setup-istio deploy-app install-asg
+setup: start-cluster install-asg setup-observability setup-istio deploy-app setup-gateway setup-addons
 
 start-cluster:
 	eksctl create cluster -f infra/eksctl.yaml
@@ -23,6 +24,8 @@ setup-observability:
 	helm repo add grafana https://grafana.github.io/helm-charts
 	helm repo update
 	helm upgrade --install prometheus-stack prometheus-community/kube-prometheus-stack --values ./monitoring/chart-values/prometheus-values.yaml -n monitoring --create-namespace --version 52.0.0
+	kubectl apply -f ./monitoring/istio-addons/prometheus-vs.yaml
+	kubectl apply -f ./monitoring/istio-addons/grafana-vs.yaml
 	helm upgrade --install loki grafana/loki-stack -n monitoring --create-namespace
 	helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/  && helm repo update
 	helm upgrade --install metrics-server metrics-server/metrics-server --values ./monitoring/chart-values/metric-server.yaml
@@ -42,12 +45,12 @@ setup-addons:
 	kubectl apply -f  monitoring/istio-addons/
 
 deploy-app:
-	kubectl create namespace bookinfo-prod --dry-run=client -o yaml | kubectl apply -f -
-	kubectl label namespace bookinfo-prod istio-injection=enabled
-	kubectl apply -f app/bookinfo.yaml -n bookinfo-prod
-	kubectl apply -f infra/gateway.yaml -n bookinfo-prod
-	kubectl apply -f app/virtual-services.yaml -n bookinfo-prod
-	kubectl apply -f app/destination-rules.yaml -n bookinfo-prod
+	kubectl create namespace prod-robot-shop --dry-run=client -o yaml | kubectl apply -f -
+	kubectl label namespace prod-robot-shop istio-injection=enabled
+	helm upgrade --install roboshop -n prod-robot-shop --create-namespace ./app/robot-shop/helm/ --wait --timeout 1m0s
+
+setup-gateway:
+	kubectl apply -f ./app/robot-shop/Istio/gateway.yaml -n prod-robot-shop
 
 setup-keda:
 	helm repo add kedacore https://kedacore.github.io/charts && helm repo update ; \

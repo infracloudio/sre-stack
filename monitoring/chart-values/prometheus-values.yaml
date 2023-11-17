@@ -91,6 +91,17 @@ grafana:
   #   initialDelaySeconds: 60
   #   timeoutSeconds: 30
   #   failureThreshold: 10
+  datasources: 
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+      - name: Prometheus
+        type: prometheus
+        url: http://prometheus-stack-kube-prom-prometheus:9090
+        isDefault: true
+        enabled: true
+        defaultDatasourceEnabled: true
+        isDefaultDatasource: true
 
   additionalDataSources:
     - name: loki
@@ -106,18 +117,6 @@ grafana:
       type: jaeger
       url: http://tracing.monitoring.svc.cluster.local/jaeger 
       version: 1
-
-  datasources: 
-    datasources.yaml:
-      apiVersion: 1
-      datasources:
-      - name: Prometheus
-        type: prometheus
-        url: http://prometheus-stack-kube-prom-prometheus:9090
-        isDefault: false
-      - name: Loki
-        type: loki
-        url: http://loki-loki-distributed-query-frontend:3100
 
   dashboardProviders: 
     dashboardproviders.yaml:
