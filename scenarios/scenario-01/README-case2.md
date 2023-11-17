@@ -26,3 +26,25 @@ Mis-Configuration of health probe detected during the Pod Auto-scaling.
 - Check logs (CLI or Grafana) `prouctpage, reviews and ratings`.
 - `ratings` service pods, logs and replica-set and deployment check (Final step where we'll find mis-config cause.)
 
+### Load testing
+
+Load on productpage
+```bash
+k6 run -u 4 -d 600s - <<EOF
+import http from 'k6/http';
+
+export default function () {
+    http.get('http://us-east-1.elb.amazonaws.com/productpage');
+}
+EOF
+```
+
+Load on ratings service direct via API
+```bash
+k6 run -u 5000 -d 300s - <<EOF
+import http from 'k6/http';
+export default function () {
+    http.get('http://us-east-1.elb.amazonaws.com/ratings/0');
+}
+EOF
+```

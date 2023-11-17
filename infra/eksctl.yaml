@@ -13,7 +13,7 @@ addons:
   
 managedNodeGroups:
   - name: prod-cluster
-    instanceType: c6g.large
+    instanceType: c6a.large
     minSize: 2
     maxSize: 5
     privateNetworking: true

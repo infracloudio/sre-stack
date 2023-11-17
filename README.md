@@ -35,6 +35,16 @@ This is the project to deploy infra and test automations.
 
 `make deploy-app`
 
+### Setup Gateway
+
+`make setup-gateway`
+
+Now use the exposed Istio gateway to access Robot Shop.
+
+```shell
+kubectl -n istio-system get svc istio-ingressgateway
+```
+
 ### Install and Setup Cluster auto scaler
 
 `make install-asg`
