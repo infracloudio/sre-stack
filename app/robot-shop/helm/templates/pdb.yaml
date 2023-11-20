@@ -1,0 +1,69 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: web-pdb
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      service: web
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cart-pdb
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      service: cart
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: catalogue-pdb
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      service: catalogue
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dispatch-pdb
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      service: dispatch
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: payment-pdb
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      service: payment
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: rabbitmq-pdb
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      service: rabbitmq
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ratings-pdb
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      service: ratings
