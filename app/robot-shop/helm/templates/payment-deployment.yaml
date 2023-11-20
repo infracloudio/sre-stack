@@ -6,7 +6,7 @@ metadata:
     service: payment
     stage: prod
 spec:
-  replicas: 1
+  replicas: {{ .Values.user.replicas }}
   selector:
     matchLabels:
       service: payment
@@ -37,12 +37,7 @@ spec:
         ports:
         - containerPort: 8080
         resources:
-          limits:
-            cpu: 200m
-            memory: 100Mi
-          requests:
-            cpu: 100m
-            memory: 50Mi
+          {{- toYaml .Values.user.resources | nindent 12 }}
       restartPolicy: Always
       {{- with .Values.payment.affinity }}
       affinity:

@@ -5,7 +5,7 @@ metadata:
   labels:
     service: dispatch
 spec:
-  replicas: 1
+  replicas: {{ .Values.catalogue.replicas }}
   selector:
     matchLabels:
       service: dispatch
@@ -28,12 +28,7 @@ spec:
               fieldRef:
                 fieldPath: status.hostIP
         resources:
-          limits:
-            cpu: 200m
-            memory: 100Mi
-          requests:
-            cpu: 100m
-            memory: 50Mi
+          {{- toYaml .Values.catalogue.resources | nindent 12 }}
       restartPolicy: Always
       {{- with .Values.dispatch.affinity }}
       affinity:
