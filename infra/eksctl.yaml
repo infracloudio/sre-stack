@@ -14,9 +14,32 @@ addons:
 managedNodeGroups:
   - name: prod-cluster
     instanceType: c6a.large
-    minSize: 2
+    minSize: 3
     maxSize: 5
     privateNetworking: true
+    labels: {workload: app}
+    volumeSize: 50
+    spot: true
+    tags:
+      Name: prod-cluster
+    iam:
+      withAddonPolicies:
+        autoScaler: true
+        externalDNS: true
+        certManager: true
+        appMesh: true
+        ebs: true
+        fsx: true
+        efs: true
+        awsLoadBalancerController: true
+        cloudWatch: true
+
+  - name: persistent-ng
+    instanceType: t3.medium
+    minSize: 2
+    maxSize: 3
+    privateNetworking: true
+    labels: {workload: rabbitmq}
     volumeSize: 50
     spot: true
     tags:
