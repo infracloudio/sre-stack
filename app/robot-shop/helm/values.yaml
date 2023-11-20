@@ -33,11 +33,62 @@ ocCreateRoute: false
 #   tolerations: []
 ######################################
 
-cart: {}
+cart:
+  replicas: 3
+  resources:
+    limits:
+      cpu: 200m
+      memory: 100Mi
+    requests:
+      cpu: 100m
+      memory: 50Mi
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            service: cart
+        topologyKey: "kubernetes.io/hostname"
+  nodeSelector:
+    workload: app
 
-catalogue: {}
+catalogue:
+  replicas: 3
+  resources:
+    limits:
+      cpu: 200m
+      memory: 100Mi
+    requests:
+      cpu: 100m
+      memory: 50Mi
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            service: catalogue
+        topologyKey: "kubernetes.io/hostname"
+  nodeSelector:
+    workload: app
 
-dispatch: {}
+dispatch:
+  replicas: 3
+  resources:
+    limits:
+      cpu: 200m
+      memory: 100Mi
+    requests:
+      cpu: 100m
+      memory: 50Mi
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            service: dispatch
+        topologyKey: "kubernetes.io/hostname"
+  nodeSelector:
+    workload: app
 
 mongodb: {}
 
@@ -49,16 +100,109 @@ payment:
   gateway: null
   #gateway: https://www.worldpay.com
 
-rabbitmq: {}
+  replicas: 3
+  resources:
+    limits:
+      cpu: 200m
+      memory: 100Mi
+    requests:
+      cpu: 100m
+      memory: 50Mi
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            service: payment
+        topologyKey: "kubernetes.io/hostname"
+  nodeSelector:
+    workload: app
 
-ratings: {}
+rabbitmq:
+  tolerations:
+    - key: "rabbitmq"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+  nodeSelector:
+    workload: rabbitmq
+
+ratings:
+  replicas: 3
+  resources:
+    limits:
+      cpu: 200m
+      memory: 100Mi
+    requests:
+      cpu: 100m
+      memory: 50Mi
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            service: ratings
+        topologyKey: "kubernetes.io/hostname"
+  nodeSelector:
+    workload: app
 
 redis:
   # Storage class to use with redis statefulset.
   storageClassName: gp2
 
-shipping: {}
+shipping:
+  replicas: 3
+  resources:
+    limits:
+      cpu: 200m
+      memory: 100Mi
+    requests:
+      cpu: 100m
+      memory: 50Mi
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            service: shipping
+        topologyKey: "kubernetes.io/hostname"
+  nodeSelector:
+    workload: app
 
-user: {}
+user: 
+  replicas: 3
+  resources:
+    limits:
+      cpu: 200m
+      memory: 100Mi
+    requests:
+      cpu: 100m
+      memory: 50Mi
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            service: user
+        topologyKey: "kubernetes.io/hostname"
+  nodeSelector:
+    workload: app
 
-web: {}
+web:
+  replicas: 3
+  resources:
+    limits:
+      cpu: 200m
+      memory: 100Mi
+    requests:
+      cpu: 100m
+      memory: 50Mi
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            service: web
+        topologyKey: "kubernetes.io/hostname"
+  nodeSelector:
+    workload: app
