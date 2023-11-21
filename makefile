@@ -44,6 +44,9 @@ setup-istio:
 setup-addons:
 	kubectl apply -f  monitoring/istio-addons/
 
+deploy-rabbitmq-operator:
+	helm upgrade --install rabbitmq-operator bitnami/rabbitmq-cluster-operator -f infra/chart-values/rabbitmq-values.yaml -n rabbitmq-operator --create-namespace --version 3.10.4 --wait
+
 deploy-app:
 	kubectl create namespace prod-robot-shop --dry-run=client -o yaml | kubectl apply -f -
 	kubectl label namespace prod-robot-shop istio-injection=enabled

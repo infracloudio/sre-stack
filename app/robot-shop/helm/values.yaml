@@ -5,6 +5,8 @@ image:
   version: latest
   pullPolicy: IfNotPresent
 
+amqp_host: "rabbitmq-cluster"
+
 # EUM configuration
 # Provide your key and set the endpoint
 eum:
@@ -119,6 +121,7 @@ payment:
     workload: app
 
 rabbitmq:
+  replicas: 3
   tolerations:
     - key: "rabbitmq"
       operator: "Equal"
