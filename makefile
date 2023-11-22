@@ -20,12 +20,15 @@ start-cluster:
 	eksctl create cluster -f infra/eksctl.yaml
 
 setup-observability:
+	make setup-istio
 	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 	helm repo add grafana https://grafana.github.io/helm-charts
 	helm repo update
 	helm upgrade --install prometheus-stack prometheus-community/kube-prometheus-stack --values ./monitoring/chart-values/prometheus-values.yaml -n monitoring --create-namespace --version 52.0.0
 	kubectl apply -f ./monitoring/istio-addons/prometheus-vs.yaml
 	kubectl apply -f ./monitoring/istio-addons/grafana-vs.yaml
+	kubectl apply -f ./monitoring/dashboard.yaml
+	kubectl apply -f ./monitoring/dashboard-rabbitmq.yaml
 	helm upgrade --install loki grafana/loki-stack -n monitoring --create-namespace
 	helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/  && helm repo update
 	helm upgrade --install metrics-server metrics-server/metrics-server --values ./monitoring/chart-values/metric-server.yaml -n monitoring --create-namespace
