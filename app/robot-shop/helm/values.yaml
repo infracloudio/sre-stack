@@ -6,7 +6,7 @@ image:
   pullPolicy: IfNotPresent
 
 amqp_host: "rabbitmq-cluster"
-
+mysql_host: "cities.chh4lgwsalzi.us-east-1.rds.amazonaws.com"
 # EUM configuration
 # Provide your key and set the endpoint
 eum:
@@ -158,10 +158,10 @@ shipping:
   resources:
     limits:
       cpu: 200m
-      memory: 100Mi
+      memory: 2Gi
     requests:
       cpu: 100m
-      memory: 50Mi
+      memory: 1Gi
   affinity:
     podAntiAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:

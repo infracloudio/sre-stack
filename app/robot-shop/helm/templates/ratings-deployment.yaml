@@ -25,6 +25,9 @@ spec:
         - containerPort: 80
         resources:
           {{- toYaml .Values.ratings.resources | nindent 12 }}
+        env:
+          - name: PDO_URL
+            value:  "mysql:host={{ .Values.mysql_host }};dbname=ratings;charset=utf8mb4" 
         readinessProbe:
           httpGet:
             path: /_health

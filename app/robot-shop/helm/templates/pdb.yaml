@@ -67,3 +67,13 @@ spec:
   selector:
     matchLabels:
       service: ratings
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: shipping-pdb
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      service: shipping
