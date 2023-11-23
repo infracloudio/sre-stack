@@ -16,7 +16,7 @@ spec:
     spec:
       {{ if .Values.psp.enabled }}
       serviceAccountName: robot-shop
-      {{ end }}
+      {{ end }}  
       containers:
       - name: shipping
         image: {{ .Values.image.repo }}/rs-shipping:{{ .Values.image.version }}
@@ -28,9 +28,7 @@ spec:
           {{- toYaml .Values.shipping.resources | nindent 12 }}
         env:
           - name: JAVA_OPTS
-            value: -Xms1000M
-          - name: JAVA_OPTS
-            value: -Xmx2000M
+            value: "-Xms1000M -Xmx2000M"
           - name: DB_HOST
             value:  {{ .Values.mysql_host }}
         readinessProbe: 
