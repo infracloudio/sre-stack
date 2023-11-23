@@ -27,6 +27,8 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: status.hostIP
+          - name: MONGO_URL
+            value: {{ .Values.mongo_url }}/user
         ports:
         - containerPort: 8080
         resources:

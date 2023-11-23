@@ -15,7 +15,7 @@ managedNodeGroups:
   - name: prod-cluster
     instanceType: c6a.large
     minSize: 3
-    maxSize: 5
+    maxSize: 6
     privateNetworking: true
     labels: {workload: app}
     volumeSize: 50
@@ -35,15 +35,19 @@ managedNodeGroups:
         cloudWatch: true
 
   - name: persistent-ng
-    instanceType: t3.medium
+    instanceType: t3.xlarge
     minSize: 2
-    maxSize: 3
+    maxSize: 2
     privateNetworking: true
     labels: {workload: rabbitmq}
     volumeSize: 50
     spot: true
     tags:
       Name: prod-cluster
+    taints:
+      - key: rabbitmq
+        value: "true"
+        effect: NoSchedule
     iam:
       withAddonPolicies:
         autoScaler: true
