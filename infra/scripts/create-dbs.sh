@@ -2,6 +2,7 @@
 
 RDS_VPC_ID=$(aws eks describe-cluster --name prod-eks-cluster --region us-east-1 --query "cluster.resourcesVpcConfig.vpcId" --output text)
 
+echo "\nCreate security group..."
 # # ## Create security group
 aws ec2 create-security-group --group-name RobotShopRDSSecurityGroup --vpc-id ${RDS_VPC_ID} --description "RobotShop RDS security group" --region us-east-1 
 
@@ -12,6 +13,7 @@ RDS_VPC_SECURITY_GROUP_ID=$(aws ec2 describe-security-groups --region us-east-1 
 
 CLUSTER_SG=$(aws eks describe-cluster --name prod-eks-cluster --region us-east-1 --query "cluster.resourcesVpcConfig.clusterSecurityGroupId" --output text)
 
+echo "\nAdd security group rules"
 aws ec2 authorize-security-group-ingress \
   --group-id ${RDS_VPC_SECURITY_GROUP_ID}\
   --protocol tcp \
@@ -31,12 +33,12 @@ aws ec2 authorize-security-group-ingress \
 SUBNET=$(aws ec2 describe-subnets --filters Name=vpc-id,Values=${RDS_VPC_ID} Name=mapPublicIpOnLaunch,Values=false --query 'Subnets[*].SubnetId' --region us-east-1 --output json)
 
 ## Create subnet group
-
-# aws rds create-db-subnet-group --db-subnet-group-name robotshop-mysql-subnet-group --db-subnet-group-description "robotsho pmysql subnet group" --subnet-ids $SUBNET --region us-east-1
-aws rds create-db-subnet-group -cli-input-json "{\"DBSubnetGroupName\":\"robotshop-mysql-subnet-group\",\"DBSubnetGroupDescription\":\"robotsho pmysql subnet group\",\"SubnetIds\":$SUBNET}" --region us-east-1
+echo "\nCreate DB subnet group..."
+aws rds create-db-subnet-group --db-subnet-group-name robotshop-mysql-subnet-group --db-subnet-group-description "robotsho pmysql subnet group" --subnet-ids $SUBNET --region us-east-1
+# aws rds create-db-subnet-group -cli-input-json "{\"DBSubnetGroupName\":\"robotshop-mysql-subnet-group\",\"DBSubnetGroupDescription\":\"robotsho pmysql subnet group\",\"SubnetIds\":$SUBNET}" --region us-east-1
 
 ######## Create mysql db 
-
+echo "\nCreate MYSQL DB..."
 aws rds create-db-instance \
   --db-name robotshopmysql \
   --db-instance-identifier robotshopmysql \
@@ -48,18 +50,21 @@ aws rds create-db-instance \
   --master-user-password docdb3421z \
   --no-publicly-accessible \
   --vpc-security-group-ids ${RDS_VPC_SECURITY_GROUP_ID} \
-  --db-subnet-group-name "robotshopmysql-subnet-group" \
+  --db-subnet-group-name "robotshop-mysql-subnet-group" \
   --backup-retention-period 0 \
   --region us-east-1 \
   --port 3306 
- 
+
+echo "\n Wait for MYSQL DB..."
+aws rds wait db-instance-available --db-instance-identifier robotshopmysql  --region us-east-1 
+
 ## GET DB endpoint
 export MYSQL_HOST=$(aws rds describe-db-instances --db-instance-identifier robotshopmysql --region us-east-1 --query 'DBInstances[*].Endpoint.Address' --output text)
 
 ###### DocumentDB
 
 ## create subnet group
-
+echo "\nCreate DocumentDB subnet group..."
 aws docdb create-db-subnet-group --cli-input-json "{\"DBSubnetGroupName\":\"robotshop-docdb-subnet-group\",\"DBSubnetGroupDescription\":\"robotshop docdb subnet group\",\"SubnetIds\":$SUBNET}" --region us-east-1
 
 ## documentDB Parameter Group
@@ -74,7 +79,7 @@ aws docdb create-db-subnet-group --cli-input-json "{\"DBSubnetGroupName\":\"robo
 # aws docdb modify-db-cluster-parameter-group \
 #     --db-cluster-parameter-group-name tls-disabled-docdb50-parameter-group \
 #     --parameters "ParameterName=tls,ParameterValue=disabled,ApplyMethod=pending-reboot"
-
+echo "\nCreate DocumentDB..."
 ## Create Cluster
 aws docdb create-db-cluster \
   --db-cluster-identifier robotshopdocdb-cluster \
@@ -89,6 +94,9 @@ aws docdb create-db-cluster \
   --no-deletion-protection \
   --region us-east-1
 
+sleep 60
+
+echo "\nAdd DocumentDB Instance in DocumentDB..."
 aws docdb create-db-instance \
   --db-instance-identifier robotshopdocdb-instance \
   --db-instance-class db.t3.medium \
@@ -96,6 +104,7 @@ aws docdb create-db-instance \
   --db-cluster-identifier robotshopdocdb-cluster \
   --region us-east-1
 
+echo "\nWait for DocumentDB Instance..."
 aws docdb wait db-instance-available --db-instance-identifier robotshopdocdb-instance --region us-east-1
 
 export MONGODB_HOST=$(aws docdb describe-db-clusters --db-cluster-identifier robotshopdocdb-cluster --region us-east-1 --query 'DBClusters[*].Endpoint' --output text)
