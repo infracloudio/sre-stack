@@ -28,7 +28,7 @@ setup-observability:
 	kubectl apply -f ./monitoring/istio-addons/grafana-vs.yaml
 	helm upgrade --install loki grafana/loki-stack -n monitoring --create-namespace
 	helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/  && helm repo update
-	helm upgrade --install metrics-server metrics-server/metrics-server --values ./monitoring/chart-values/metric-server.yaml
+	helm upgrade --install metrics-server metrics-server/metrics-server --values ./monitoring/chart-values/metric-server.yaml -n monitoring --create-namespace
 
 setup-apm:
 	helm repo add signoz https://charts.signoz.io && helm repo updates
