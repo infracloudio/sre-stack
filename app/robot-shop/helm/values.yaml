@@ -6,7 +6,8 @@ image:
   pullPolicy: IfNotPresent
 
 amqp_host: "rabbitmq-cluster"
-
+mysql_host: "robotshopmysql.chh4lgwsalzi.us-east-1.rds.amazonaws.com"
+mongo_url: "mongodb://roboadmin:docdb3421z@robotshopdocdb-cluster.cluster-chh4lgwsalzi.us-east-1.docdb.amazonaws.com:27017/?replicaSet=rs0&readPreference=secondaryPreferred&retryWrites=false"
 # EUM configuration
 # Provide your key and set the endpoint
 eum:
@@ -158,10 +159,10 @@ shipping:
   resources:
     limits:
       cpu: 200m
-      memory: 100Mi
+      memory: 2Gi
     requests:
       cpu: 100m
-      memory: 50Mi
+      memory: 1Gi
   affinity:
     podAntiAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:

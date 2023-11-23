@@ -26,7 +26,14 @@ spec:
         # it's Java it needs lots of memory
         resources:
           {{- toYaml .Values.shipping.resources | nindent 12 }}
-        readinessProbe:
+        env:
+          - name: JAVA_OPTS
+            value: -Xms1000M
+          - name: JAVA_OPTS
+            value: -Xmx2000M
+          - name: DB_HOST
+            value:  {{ .Values.mysql_host }}
+        readinessProbe: 
           httpGet:
             path: /health
             port: 8080
