@@ -27,6 +27,8 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: status.hostIP
+          - name: AMQP_HOST
+            value: {{ .Values.amqp_host }}
         resources:
           {{- toYaml .Values.catalogue.resources | nindent 12 }}
       restartPolicy: Always
