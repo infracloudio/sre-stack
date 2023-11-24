@@ -7,6 +7,7 @@ image:
 
 amqp_host: "rabbitmq-cluster"
 mysql_host: "robotshopmysql.chh4lgwsalzi.us-east-1.rds.amazonaws.com"
+mysql_password: "docdb3421z"
 mongo_url: "mongodb://roboadmin:docdb3421z@robotshopdocdb-cluster.cluster-chh4lgwsalzi.us-east-1.docdb.amazonaws.com:27017/?replicaSet=rs0&readPreference=secondaryPreferred&retryWrites=false"
 # EUM configuration
 # Provide your key and set the endpoint
@@ -154,8 +155,10 @@ redis:
   # Storage class to use with redis statefulset.
   storageClassName: gp2
 
+
+
 shipping:
-  replicas: 3
+  replicas: 1
   resources:
     limits:
       cpu: 200m
@@ -172,6 +175,15 @@ shipping:
         topologyKey: "kubernetes.io/hostname"
   nodeSelector:
     workload: app
+
+mysqlseeder:
+  resources:
+    limits:
+      cpu: 200m
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 500Mi
 
 user: 
   replicas: 3
