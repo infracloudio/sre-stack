@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-echo "Seeding is still a WIP"
+echo "Seeding in progress"
 
 MYSQL_USER="${MYSQL_USER}"
 MYSQL_PASSWORD="${MYSQL_PASSWORD}"
@@ -12,3 +12,5 @@ for seed_file in *.sql; do
   echo "Adding file: $seed_file"
   MYSQL_PWD=$MYSQL_PASSWORD mysql -h "${MYSQL_HOST:-localhost}" -u $MYSQL_USER < $seed_file
 done
+
+echo "Seeding is complete"

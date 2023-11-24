@@ -9,8 +9,8 @@ ENV MYSQL_DATABASE="<default>"
 ## Add the wait script to the image
 ADD https://github.com/ufoscout/docker-compose-wait/releases/download/2.7.3/wait /wait
 
-COPY ../seeds/* /opt/seeds/
-COPY --chmod=775 ../bin/seeder.sh /opt/seeds/seeder.sh
+COPY ./seeds/* /opt/seeds/
+COPY --chmod=775 ./bin/seeder.sh /opt/seeds/seeder.sh
 
 RUN mkdir -p /usr/share/man/man1 /usr/share/man/man2 \
     && apt-get update \
