@@ -13,8 +13,8 @@ aws ec2 authorize-security-group-ingress \
 
 ## Create subnet group
 echo "\nCreate DB subnet group..."
-aws rds create-db-subnet-group --db-subnet-group-name robotshop-mysql-subnet-group --db-subnet-group-description "robotsho pmysql subnet group" --subnet-ids $SUBNET --region us-east-1
-# aws rds create-db-subnet-group -cli-input-json "{\"DBSubnetGroupName\":\"robotshop-mysql-subnet-group\",\"DBSubnetGroupDescription\":\"robotsho pmysql subnet group\",\"SubnetIds\":$SUBNET}" --region us-east-1
+# aws rds create-db-subnet-group --db-subnet-group-name robotshop-mysql-subnet-group --db-subnet-group-description "robotsho pmysql subnet group" --subnet-ids $SUBNET --region us-east-1
+aws rds create-db-subnet-group -cli-input-json "{\"DBSubnetGroupName\":\"robotshop-mysql-subnet-group\",\"DBSubnetGroupDescription\":\"robotsho pmysql subnet group\",\"SubnetIds\":$SUBNET}" --region us-east-1
 
 ######## Create mysql db 
 echo "\nCreate MYSQL DB..."
