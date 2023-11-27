@@ -1,7 +1,5 @@
 #!/bin/bash
 
-source ../common.sh
-
 RDS_VPC_ID=$(aws eks describe-cluster --name prod-eks-cluster --region us-east-1 --query "cluster.resourcesVpcConfig.vpcId" --output text)
 
 echo "\nCreate security group..."

@@ -1,5 +1,8 @@
 #!/bin/bash
 
+GIT_TLD=`git rev-parse --show-toplevel`
+source ${GIT_TLD}/scripts/dbs/rds/common.sh
+
 source ../common.sh
 
 echo "\nAdd security mmysql doucumentdb security group rules"
