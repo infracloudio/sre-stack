@@ -1,0 +1,51 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mysql-seeder
+  labels:
+    service: mysql-seeder
+spec:
+  template:
+    spec:
+      containers:
+      - name: mysql-seeder
+        image: hashfyre/robotshop-mysql-seeder
+        args:
+          - /bin/bash
+          - -c
+          - /wait && /opt/seeds/seeder.sh
+        env:
+          - name: MYSQL_HOST
+            value: {{ .Values.mysql_host }}
+          - name: MYSQL_PASSWORD
+            value: {{ .Values.mysql_password }}
+          - name: MYSQL_PORT
+            value: "3306"
+          - name: MYSQL_USER
+            value: admin
+          - name: TIMEOUT
+            value: "600"
+          - name: WAIT_HOSTS
+            value: {{ .Values.mysql_host }}:3306
+          - name: WAIT_HOSTS_TIMEOUT
+            value: "300"
+          - name: WAIT_HOST_CONNECT_TIMEOUT
+            value: "30"
+          - name: WAIT_SLEEP_INTERVAL
+            value: "30"
+        resources:
+          {{- toYaml .Values.mysqlseeder.resources | nindent 12 }}
+      restartPolicy: OnFailure
+      {{- with .Values.shipping.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.shipping.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.shipping.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  backoffLimit: 4      
