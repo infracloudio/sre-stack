@@ -1,32 +1,26 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: mysql-seeder
+  name: mongodb-seeder
   labels:
-    service: mysql-seeder
+    service: mongodb-seeder
 spec:
   template:
     spec:
       containers:
-      - name: mysql-seeder
-        image: hashfyre/robotshop-seeder
+      - name: mongodb-seeder
+        image: hashfyre/robotshop-mongodb-seeder
         args:
           - /bin/bash
           - -c
           - /wait && /opt/seeds/seeder.sh
         env:
-          - name: MYSQL_HOST
-            value: {{ .Values.mysql_host }}
-          - name: MYSQL_PASSWORD
-            value: {{ .Values.mysql_password }}
-          - name: MYSQL_PORT
-            value: "3306"
-          - name: MYSQL_USER
-            value: admin
+          - name: MONGO_URL
+            value: {{ .Values.mongo_url }}
           - name: TIMEOUT
             value: "600"
           - name: WAIT_HOSTS
-            value: {{ .Values.mysql_host }}:3306
+            value: {{ .Values.mongo_url }}:3306
           - name: WAIT_HOSTS_TIMEOUT
             value: "300"
           - name: WAIT_HOST_CONNECT_TIMEOUT
@@ -34,17 +28,17 @@ spec:
           - name: WAIT_SLEEP_INTERVAL
             value: "30"
         resources:
-          {{- toYaml .Values.mysqlseeder.resources | nindent 12 }}
+          {{- toYaml .Values.mongodbseeder.resources | nindent 12 }}
       restartPolicy: OnFailure
-      {{- with .Values.shipping.affinity }}
+      {{- with .Values.users.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.shipping.nodeSelector }}
+      {{- with .Values.users.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.shipping.tolerations }}
+      {{- with .Values.users.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
