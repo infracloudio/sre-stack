@@ -1,0 +1,20 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: yace-monitor
+  # If labels are defined in spec.serviceMonitorSelector.matchLabels of your deployed Prometheus object, make sure to include them here.
+  labels:
+    release: prometheus-stack
+spec:
+  endpoints:
+  - port: http
+    scheme: http
+    path: /metrics
+    interval: 15s
+    scrapeTimeout: 14s
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: yace
+  namespaceSelector:
+    matchNames:
+    - monitoring
