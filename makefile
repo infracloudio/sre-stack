@@ -32,7 +32,9 @@ setup-observability:
 	helm upgrade --install loki grafana/loki-stack -n monitoring --create-namespace
 	helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/  && helm repo update
 	helm upgrade --install metrics-server metrics-server/metrics-server --values ./monitoring/chart-values/metric-server.yaml -n monitoring --create-namespace
-
+	helm repo add yace https://nerdswords.github.io/helm-charts
+	helm upgrade --install yace yace/yet-another-cloudwatch-exporter -f monitoring/chart-values/yace.yaml -n monitoring	
+	
 setup-apm:
 	helm repo add signoz https://charts.signoz.io && helm repo updates
 	helm upgrade --install install apm-platform signoz/signoz -n monitoring --create-namespace

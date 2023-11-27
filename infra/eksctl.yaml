@@ -4,6 +4,7 @@ kind: ClusterConfig
 metadata:
   name: prod-eks-cluster
   region: us-east-1
+  version: "1.27"
 
 addons:
 - name: aws-ebs-csi-driver
@@ -23,6 +24,12 @@ managedNodeGroups:
     tags:
       Name: prod-cluster
     iam:
+      attachPolicyARNs:
+        - arn:aws:iam::813864300626:policy/yace-cloudwatch-policy
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
       withAddonPolicies:
         autoScaler: true
         externalDNS: true
@@ -49,6 +56,12 @@ managedNodeGroups:
         value: "true"
         effect: NoSchedule
     iam:
+      attachPolicyARNs:
+        - arn:aws:iam::813864300626:policy/yace-cloudwatch-policy
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
       withAddonPolicies:
         autoScaler: true
         externalDNS: true
