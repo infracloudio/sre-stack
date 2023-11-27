@@ -32,6 +32,7 @@ aws rds create-db-instance \
   --db-subnet-group-name "robotshop-mysql-subnet-group" \
   --backup-retention-period 0 \
   --region us-east-1 \
+  --tags Key=name,Value=robotshopmysql \
   --port 3306 
 
 echo "\n Wait for MYSQL DB..."
