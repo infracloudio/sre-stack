@@ -1,0 +1,13 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: catalogue
+spec:
+  hosts:
+  - catalogue
+  http:
+  - route:
+    - destination:
+        host: catalogue
+        port:
+          number: 8080
