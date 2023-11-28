@@ -1,7 +1,7 @@
 #!/bin/bash
 
 GIT_TLD=`git rev-parse --show-toplevel`
-source ${GIT_TLD}/scripts/dbs/rds/common.sh
+source ${GIT_TLD}/infra/scripts/dbs/rds/common.sh
 
 echo "\nAdd security mmysql security group rules"
 aws ec2 authorize-security-group-ingress \
