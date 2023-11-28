@@ -15,7 +15,7 @@ help:
 	@echo "	Clenaup cluster via:			make cleanup-cluster"
 	@echo "	Clenaup all via:			make cleanup"
 
-setup: setup-cluster setup-cluster-autoscaler setup-istio setup-observability setup-istio-observability-addons setup-dbs-rds setup-rabbitmq-operator setup-app setup-gateway setup-keda
+setup: setup-cluster setup-cluster-autoscaler setup-istio setup-observability setup-dbs-rds setup-rabbitmq-operator setup-app setup-gateway setup-keda
 
 cleanup: destroy-istio-gateway destroy-dbs-rds cleanup-cluster
 
@@ -52,16 +52,13 @@ setup-observability:
 	helm repo add grafana https://grafana.github.io/helm-charts
 	helm repo update
 	helm upgrade --install prometheus-stack prometheus-community/kube-prometheus-stack --values ./monitoring/chart-values/prometheus-values.yaml -n monitoring --create-namespace --version 52.0.0
-	kubectl apply -f ./monitoring/dashboard.yaml
-	kubectl apply -f ./monitoring/dashboard-rabbitmq.yaml
 	helm upgrade --install loki grafana/loki-stack -n monitoring --create-namespace
 	helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/  && helm repo update
 	helm upgrade --install metrics-server metrics-server/metrics-server --values ./monitoring/chart-values/metric-server.yaml -n monitoring --create-namespace
 	helm repo add yace https://nerdswords.github.io/helm-charts
-	helm upgrade --install yace yace/yet-another-cloudwatch-exporter -f monitoring/chart-values/yace.yaml -n monitoring	
-	
-setup-istio-observability-addons:
+	helm upgrade --install yace yace/yet-another-cloudwatch-exporter -f monitoring/chart-values/yace.yaml -n monitoring
 	kubectl apply -f  monitoring/istio-observability-addons/
+	kubectl apply -f ./monitoring/dashboards/
 
 setup-db-rds-mysql:
 	./infra/scripts/dbs/rds/mysql/create.sh
