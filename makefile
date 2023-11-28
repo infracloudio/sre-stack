@@ -52,8 +52,6 @@ setup-observability:
 	helm repo add grafana https://grafana.github.io/helm-charts
 	helm repo update
 	helm upgrade --install prometheus-stack prometheus-community/kube-prometheus-stack --values ./monitoring/chart-values/prometheus-values.yaml -n monitoring --create-namespace --version 52.0.0
-	kubectl apply -f ./monitoring/istio-addons/prometheus-vs.yaml
-	kubectl apply -f ./monitoring/istio-addons/grafana-vs.yaml
 	kubectl apply -f ./monitoring/dashboard.yaml
 	kubectl apply -f ./monitoring/dashboard-rabbitmq.yaml
 	helm upgrade --install loki grafana/loki-stack -n monitoring --create-namespace
