@@ -93,7 +93,7 @@ destroy-db-rds-documentdb:
 	./infra/scripts/dbs/rds/documentdb/destroy.sh
 
 destroy-db-rds-sg:
-	./infra/scripts/dbs/rds/destroy-sg.sh
+	./infra/scripts/dbs/rds/sg-destroy.sh
 
 destroy-istio-gateway:
 	helm uninstall istio-ingressgateway -n istio-system 
