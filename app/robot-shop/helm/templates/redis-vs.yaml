@@ -1,0 +1,13 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: redis
+spec:
+  hosts:
+  - redis
+  http:
+  - route:
+    - destination:
+        host: redis
+        port:
+          number: 6379

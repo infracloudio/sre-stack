@@ -1,0 +1,13 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: mongodb
+spec:
+  hosts:
+  - mongodb
+  http:
+  - route:
+    - destination:
+        host: mongodb
+        port:
+          number: 27017

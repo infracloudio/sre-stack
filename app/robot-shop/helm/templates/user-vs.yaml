@@ -1,0 +1,13 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: user
+spec:
+  hosts:
+  - user
+  http:
+  - route:
+    - destination:
+        host: user
+        port:
+          number: 8080
