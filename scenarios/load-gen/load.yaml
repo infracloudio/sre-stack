@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    service: load
+  name: load
+  namespace: loadgen
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: load
+  template:
+    metadata:
+      labels:
+        service: load
+    spec:
+      containers:
+        - env:
+            - name: HOST
+              value: http://web.prod-robot-shop.svc.cluster.local:8080
+            - name: NUM_CLIENTS
+              value: "2000"
+            - name: RUN_TIME
+              value: 1h
+          image: 'robotshop/rs-load:2.1.0'
+          name: load
+          resources: {}
+      restartPolicy: Always
