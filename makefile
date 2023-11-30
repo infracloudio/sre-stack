@@ -15,9 +15,9 @@ help:
 	@echo "	Clenaup cluster via:			make cleanup-cluster"
 	@echo "	Clenaup all via:			make cleanup"
 
-setup: setup-cluster setup-cluster-autoscaler setup-istio setup-observability setup-dbs-rds setup-rabbitmq-operator setup-app setup-gateway setup-keda
+setup: setup-cluster setup-cluster-autoscaler setup-istio setup-observability setup-dbs-rds setup-rabbitmq-operator setup-app setup-gateway setup-keda setup-loadgen
 
-cleanup: destroy-istio-gateway destroy-dbs-rds cleanup-cluster
+cleanup: destroy-istio-gateway destroy-dbs-rds cleanup-cluster destroy-loadgen
 
 setup-cluster:
 	eksctl create cluster -f infra/eksctl.yaml
@@ -86,6 +86,10 @@ setup-keda:
 	helm upgrade --install keda kedacore/keda --namespace keda --create-namespace --values ./infra/chart-values/keda-values.yaml --version 2.11.1 ; \
 	kubectl apply -f infra/keda-policy/scaled-obj-ratings.yaml
 
+setup-loadgen:
+	kubectl create ns loadgen --dry-run=client -o yaml | kubectl apply -f -
+	kubectl apply -f scenarios/load-gen/load.yaml
+
 destroy-db-rds-mysql:
 	./infra/scripts/dbs/rds/mysql/destroy.sh
 
@@ -99,6 +103,9 @@ destroy-istio-gateway:
 	helm uninstall istio-ingressgateway -n istio-system 
 
 destroy-dbs-rds: destroy-db-rds-mysql destroy-db-rds-documentdb destroy-db-rds-sg
+
+destroy-loadgen:
+	kubectl delete -f scenarios/load-gen/load.yaml
 
 cleanup-cluster:
 	eksctl delete cluster --region=us-east-1 --name=prod-eks-cluster --wait
