@@ -74,9 +74,14 @@ setup-rabbitmq-operator:
 
 setup-app:
 	make setup-rabbitmq-operator
+	make setup-loadgen
 	kubectl create namespace prod-robot-shop --dry-run=client -o yaml | kubectl apply -f -
 	kubectl label namespace prod-robot-shop istio-injection=enabled
 	helm upgrade --install roboshop -n prod-robot-shop --create-namespace ./app/robot-shop/helm/ --wait --timeout 2m0s
+
+setup-loadgen:
+	kubectl create ns loadgen --dry-run=client -o yaml | kubectl apply -f -
+	kubectl apply -f scenarios/load-gen/load.yaml
 
 setup-gateway:
 	kubectl apply -f ./app/robot-shop/Istio/gateway.yaml -n prod-robot-shop
