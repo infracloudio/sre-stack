@@ -30,6 +30,7 @@ aws rds create-db-instance \
   --no-publicly-accessible \
   --vpc-security-group-ids ${RDS_VPC_SECURITY_GROUP_ID} \
   --db-subnet-group-name "robotshop-mysql-subnet-group" \
+  --db-parameter-group-name sre-stack-mysql57 \
   --backup-retention-period 0 \
   --region us-east-1 \
   --tags Key=name,Value=robotshopmysql \
