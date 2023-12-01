@@ -78,7 +78,13 @@ alertmanager:
     workload: o11y
 ###kube-prometheus-stack###
 grafana:
-  grafana.ini:
+  replicas: 2
+  grafana.ini: 
+    database:
+      type: postgres
+      host: postgres
+      user: postgres
+      password: postgres
   enabled: true
   env:
     GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s:/grafana"
