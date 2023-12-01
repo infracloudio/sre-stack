@@ -32,7 +32,7 @@ data:
       "fiscalYearStartMonth": 0,
       "gnetId": 7639,
       "graphTooltip": 0,
-      "id": 29,
+      "id": 35,
       "links": [],
       "liveNow": false,
       "panels": [
@@ -911,7 +911,7 @@ data:
         {
           "datasource": {
             "type": "loki",
-            "uid": "loki"
+            "uid": "P8E80F9AEF21F6940"
           },
           "gridPos": {
             "h": 8,
@@ -926,7 +926,7 @@ data:
             "prettifyLogMessage": false,
             "showCommonLabels": false,
             "showLabels": false,
-            "showTime": false,
+            "showTime": true,
             "sortOrder": "Descending",
             "wrapLogMessage": false
           },
@@ -935,33 +935,22 @@ data:
             {
               "datasource": {
                 "type": "loki",
-                "uid": "loki"
-              },
-              "editorMode": "code",
-              "expr": "{app=\"reviews\"} |~ \".*Error.*\"",
-              "hide": true,
-              "queryType": "range",
-              "refId": "A"
-            },
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
+                "uid": "P8E80F9AEF21F6940"
               },
               "editorMode": "builder",
-              "expr": "{app=\"reviews\"} |= ``",
+              "expr": "{app=\"web\"} |~ `(?i)error`",
               "hide": false,
               "queryType": "range",
-              "refId": "B"
+              "refId": "A"
             }
           ],
-          "title": "reviews service log",
+          "title": "Web Service Error Logs",
           "type": "logs"
         },
         {
           "datasource": {
             "type": "loki",
-            "uid": "loki"
+            "uid": "P982945308D3682D1"
           },
           "fieldConfig": {
             "defaults": {
@@ -996,7 +985,7 @@ data:
                   "mode": "none"
                 },
                 "thresholdsStyle": {
-                  "mode": "off"
+                  "mode": "line"
                 }
               },
               "mappings": [],
@@ -1012,12 +1001,62 @@ data:
                     "value": 80
                   }
                 ]
-              }
+              },
+              "unit": "none"
             },
-            "overrides": []
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byFrameRefID",
+                  "options": "A"
+                },
+                "properties": [
+                  {
+                    "id": "displayName",
+                    "value": "Web"
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byFrameRefID",
+                  "options": "F"
+                },
+                "properties": [
+                  {
+                    "id": "displayName",
+                    "value": "Dispatch"
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byFrameRefID",
+                  "options": "G"
+                },
+                "properties": [
+                  {
+                    "id": "displayName",
+                    "value": "Shipping"
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byFrameRefID",
+                  "options": "H"
+                },
+                "properties": [
+                  {
+                    "id": "displayName",
+                    "value": "Ratings"
+                  }
+                ]
+              }
+            ]
           },
           "gridPos": {
-            "h": 8,
+            "h": 16,
             "w": 12,
             "x": 12,
             "y": 18
@@ -1025,7 +1064,9 @@ data:
           "id": 123,
           "options": {
             "legend": {
-              "calcs": [],
+              "calcs": [
+                "lastNotNull"
+              ],
               "displayMode": "list",
               "placement": "bottom",
               "showLegend": true
@@ -1041,19 +1082,102 @@ data:
                 "type": "loki",
                 "uid": "loki"
               },
-              "editorMode": "code",
-              "expr": "sum (rate({app=\"reviews\"} |~ \".*Error.*\" [1m]))",
+              "editorMode": "builder",
+              "expr": "sum(rate({app=\"web\"} |~ `(?i)error` [1m]))",
+              "legendFormat": "{{web}}",
               "queryType": "range",
               "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "P982945308D3682D1"
+              },
+              "editorMode": "builder",
+              "expr": "sum(rate({app=\"catalogue\"} |~ `(?i)error` [1m]))",
+              "hide": false,
+              "legendFormat": "{{catalogue}}",
+              "queryType": "range",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "P982945308D3682D1"
+              },
+              "editorMode": "builder",
+              "expr": "sum(rate({app=\"user\"} |~ `(?i)error` [1m]))",
+              "hide": false,
+              "queryType": "range",
+              "refId": "C"
+            },
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "P982945308D3682D1"
+              },
+              "editorMode": "builder",
+              "expr": "sum(rate({app=\"cart\"} |~ `(?i)error` [1m]))",
+              "hide": false,
+              "queryType": "range",
+              "refId": "D"
+            },
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "P982945308D3682D1"
+              },
+              "editorMode": "builder",
+              "expr": "sum(rate({app=\"payment\"} |~ `(?i)error` [1m]))",
+              "hide": false,
+              "legendFormat": "{{payment}}",
+              "queryType": "range",
+              "refId": "E"
+            },
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "P982945308D3682D1"
+              },
+              "editorMode": "builder",
+              "expr": "sum(rate({app=\"dispatch\"} |~ `(?i)error` [1m]))",
+              "hide": false,
+              "legendFormat": "{{dispatch}}",
+              "queryType": "range",
+              "refId": "F"
+            },
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "P982945308D3682D1"
+              },
+              "editorMode": "builder",
+              "expr": "sum(rate({app=\"shipping\"} |~ `(?i)error` [1m]))",
+              "hide": false,
+              "legendFormat": "{{shipping}}",
+              "queryType": "range",
+              "refId": "G"
+            },
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "P982945308D3682D1"
+              },
+              "editorMode": "builder",
+              "expr": "sum(rate({app=\"ratings\"} |~ `(?i)error` [1m]))",
+              "hide": false,
+              "legendFormat": "{{ratings}}",
+              "queryType": "range",
+              "refId": "H"
             }
           ],
-          "title": "review service error count in 1 min",
+          "title": "Service error counts per min",
           "type": "timeseries"
         },
         {
           "datasource": {
             "type": "loki",
-            "uid": "loki"
+            "uid": "P982945308D3682D1"
           },
           "gridPos": {
             "h": 8,
@@ -1068,7 +1192,7 @@ data:
             "prettifyLogMessage": false,
             "showCommonLabels": false,
             "showLabels": false,
-            "showTime": false,
+            "showTime": true,
             "sortOrder": "Descending",
             "wrapLogMessage": false
           },
@@ -1078,118 +1202,237 @@ data:
                 "type": "loki",
                 "uid": "loki"
               },
-              "editorMode": "code",
-              "expr": "{app=\"ratings\"} |~ \".*Error.*\"",
-              "hide": true,
-              "queryType": "range",
-              "refId": "A"
-            },
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
               "editorMode": "builder",
-              "expr": "{app=\"ratings\"} |= ``",
+              "expr": "{app=\"ratings\"} |~ `(?i)error`",
               "hide": false,
               "queryType": "range",
-              "refId": "B"
+              "refId": "A"
             }
           ],
-          "title": "Ratings service log",
+          "title": "Ratings Service  Error Logs",
           "type": "logs"
         },
         {
           "datasource": {
             "type": "loki",
-            "uid": "loki"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 0,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
+            "uid": "P8E80F9AEF21F6940"
           },
           "gridPos": {
             "h": 8,
             "w": 12,
-            "x": 12,
-            "y": 26
+            "x": 0,
+            "y": 34
           },
-          "id": 124,
+          "id": 126,
           "options": {
-            "legend": {
-              "calcs": [],
-              "displayMode": "list",
-              "placement": "bottom",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "single",
-              "sort": "none"
-            }
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "prettifyLogMessage": false,
+            "showCommonLabels": false,
+            "showLabels": false,
+            "showTime": false,
+            "sortOrder": "Descending",
+            "wrapLogMessage": false
           },
           "targets": [
             {
               "datasource": {
                 "type": "loki",
-                "uid": "loki"
+                "uid": "P8E80F9AEF21F6940"
               },
-              "editorMode": "code",
-              "expr": "sum (rate({app=\"ratings\"} |~ \".*Error.*\" [1m]))",
+              "editorMode": "builder",
+              "expr": "{app=\"catalogue\"} |~ `(?i)error`",
               "queryType": "range",
               "refId": "A"
             }
           ],
-          "title": "Ratings service error count rate in 1 min",
-          "type": "timeseries"
+          "title": "Catalogue Service Error Logs",
+          "type": "logs"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "P8E80F9AEF21F6940"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 34
+          },
+          "id": 127,
+          "options": {
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "prettifyLogMessage": false,
+            "showCommonLabels": false,
+            "showLabels": false,
+            "showTime": false,
+            "sortOrder": "Descending",
+            "wrapLogMessage": false
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "P8E80F9AEF21F6940"
+              },
+              "editorMode": "builder",
+              "expr": "{app=\"dispatch\"} |~ `(?i)error`",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Dispatch Service Error Logs",
+          "type": "logs"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "P8E80F9AEF21F6940"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 42
+          },
+          "id": 128,
+          "options": {
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "prettifyLogMessage": false,
+            "showCommonLabels": false,
+            "showLabels": false,
+            "showTime": true,
+            "sortOrder": "Descending",
+            "wrapLogMessage": false
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "P8E80F9AEF21F6940"
+              },
+              "editorMode": "builder",
+              "expr": "{app=\"payment\"} |~ `(?i)error`",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Payment Service Error Logs ",
+          "type": "logs"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "P8E80F9AEF21F6940"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 42
+          },
+          "id": 129,
+          "options": {
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "prettifyLogMessage": false,
+            "showCommonLabels": false,
+            "showLabels": false,
+            "showTime": true,
+            "sortOrder": "Descending",
+            "wrapLogMessage": false
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "P8E80F9AEF21F6940"
+              },
+              "editorMode": "builder",
+              "expr": "{app=\"cart\"} |~ `(?i)error`",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Cart Service Error Logs",
+          "type": "logs"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "P8E80F9AEF21F6940"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 50
+          },
+          "id": 130,
+          "options": {
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "prettifyLogMessage": false,
+            "showCommonLabels": false,
+            "showLabels": false,
+            "showTime": true,
+            "sortOrder": "Descending",
+            "wrapLogMessage": false
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "P8E80F9AEF21F6940"
+              },
+              "editorMode": "builder",
+              "expr": "{app=\"user\"} |~ `(?i)error`",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "User Service Error Logs",
+          "type": "logs"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "P8E80F9AEF21F6940"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 50
+          },
+          "id": 131,
+          "options": {
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "prettifyLogMessage": false,
+            "showCommonLabels": false,
+            "showLabels": false,
+            "showTime": true,
+            "sortOrder": "Descending",
+            "wrapLogMessage": false
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "P8E80F9AEF21F6940"
+              },
+              "editorMode": "builder",
+              "expr": "{app=\"shipping\"} |~ `(?i)error`",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Shipping Service Error Logs",
+          "type": "logs"
         },
         {
           "datasource": {
@@ -1254,7 +1497,7 @@ data:
             "h": 16,
             "w": 24,
             "x": 0,
-            "y": 34
+            "y": 58
           },
           "id": 122,
           "options": {
@@ -1350,7 +1593,7 @@ data:
             "h": 16,
             "w": 24,
             "x": 0,
-            "y": 50
+            "y": 74
           },
           "id": 125,
           "options": {
@@ -1411,7 +1654,7 @@ data:
         ]
       },
       "time": {
-        "from": "now-3h",
+        "from": "now-15m",
         "to": "now"
       },
       "timepicker": {
@@ -1442,10 +1685,6 @@ data:
       "timezone": "browser",
       "title": "Application Dashboard",
       "uid": "G8wLrJIZk",
-      "version": 3,
+      "version": 9,
       "weekStart": ""
     }
-
-   
- 
- 
