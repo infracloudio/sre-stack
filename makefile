@@ -15,7 +15,7 @@ help:
 	@echo "	Clenaup cluster via:			make cleanup-cluster"
 	@echo "	Clenaup all via:			make cleanup"
 
-setup: setup-cluster setup-cluster-autoscaler setup-istio setup-observability setup-dbs-rds setup-rabbitmq-operator setup-app setup-gateway setup-keda setup-loadgen
+setup: setup-cluster setup-cluster-autoscaler setup-istio setup-psql setup-observability setup-dbs-rds setup-rabbitmq-operator setup-app setup-gateway setup-keda setup-loadgen
 
 cleanup: destroy-istio-gateway destroy-dbs-rds cleanup-cluster destroy-loadgen
 
@@ -89,6 +89,10 @@ setup-keda:
 setup-loadgen:
 	kubectl create ns loadgen --dry-run=client -o yaml | kubectl apply -f -
 	kubectl apply -f scenarios/load-gen/load.yaml
+
+setup-psql:
+	kubectl create ns monitoring --dry-run=client -o yaml | kubectl apply -f -
+	kubectl apply -f monitoring/grafana-postgres/statefulset.yaml
 
 destroy-db-rds-mysql:
 	./infra/scripts/dbs/rds/mysql/destroy.sh
