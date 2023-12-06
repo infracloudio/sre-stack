@@ -13,3 +13,9 @@ set-scenario-case1:
 set-scenario-case2:
 	kubectl apply -f ./ratings-probe.yaml -n bookinfo-prod
 	kubectl apply -f ./ratings-vs.yaml -n bookinfo-prod
+
+start-scenario-case1:
+	sh ./scripts/inject-vs-fault.sh
+
+start-scenario-case2:
+	sh ./scripts/mis-config-health-probs.sh
