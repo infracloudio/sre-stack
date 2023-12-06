@@ -18,7 +18,8 @@ managedNodeGroups:
     minSize: 3
     maxSize: 6
     privateNetworking: true
-    labels: {workload: app}
+    labels:
+      workload: app
     volumeSize: 50
     spot: true
     tags:
@@ -46,13 +47,47 @@ managedNodeGroups:
     minSize: 2
     maxSize: 2
     privateNetworking: true
-    labels: {workload: rabbitmq}
+    labels:
+      workload: rabbitmq
     volumeSize: 50
     spot: true
     tags:
       Name: prod-cluster
     taints:
       - key: rabbitmq
+        value: "true"
+        effect: NoSchedule
+    iam:
+      attachPolicyARNs:
+        - arn:aws:iam::813864300626:policy/yace-cloudwatch-policy
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+      withAddonPolicies:
+        autoScaler: true
+        externalDNS: true
+        certManager: true
+        appMesh: true
+        ebs: true
+        fsx: true
+        efs: true
+        awsLoadBalancerController: true
+        cloudWatch: true
+
+  - name: observability-ng
+    instanceType: t3.xlarge
+    minSize: 2
+    maxSize: 3
+    privateNetworking: true
+    labels:
+      workload: o11y
+    volumeSize: 50
+    spot: true
+    tags:
+      Name: prod-cluster
+    taints:
+      - key: o11y
         value: "true"
         effect: NoSchedule
     iam:

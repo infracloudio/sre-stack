@@ -134,3 +134,10 @@ resources:
   # limits:
   #   cpu:
   #   memory:
+
+tolerations:
+  - key: o11y
+    value: "true"
+    effect: NoSchedule 
+nodeSelector:
+  workload: o11y

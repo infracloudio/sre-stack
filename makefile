@@ -52,7 +52,7 @@ setup-observability:
 	helm repo add grafana https://grafana.github.io/helm-charts
 	helm repo update
 	helm upgrade --install prometheus-stack prometheus-community/kube-prometheus-stack --values ./monitoring/chart-values/prometheus-values.yaml -n monitoring --create-namespace --version 52.0.0
-	helm upgrade --install loki grafana/loki-stack -n monitoring --create-namespace
+	helm upgrade --install loki grafana/loki-stack -n monitoring --create-namespace --values ./monitoring/chart-values/loki.yaml
 	helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/  && helm repo update
 	helm upgrade --install metrics-server metrics-server/metrics-server --values ./monitoring/chart-values/metric-server.yaml -n monitoring --create-namespace
 	helm repo add yace https://nerdswords.github.io/helm-charts
