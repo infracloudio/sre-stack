@@ -40,7 +40,7 @@ additionalPrometheusRulesMap:
           description: error found in details service
 
 alertmanager:
-  enabled: true
+  enabled: false
   alertmanagerSpec:
     loglevel: debug
     # configSecret: promalertmanager
@@ -70,7 +70,12 @@ alertmanager:
         # text:
     # templates:
     #   - '/etc/alertmanager/config/*.tmpl'
-
+  tolerations:
+    - key: o11y
+      value: "true"
+      effect: NoSchedule 
+  nodeSelector:
+    workload: o11y
 ###kube-prometheus-stack###
 grafana:
   grafana.ini:
@@ -78,6 +83,12 @@ grafana:
   env:
     GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s:/grafana"
     GF_SERVER_SERVE_FROM_SUB_PATH: 'true'
+  tolerations:
+    - key: o11y
+      value: "true"
+      effect: NoSchedule 
+  nodeSelector:
+    workload: o11y
 
   sidecar:
     dashboards:
@@ -144,7 +155,13 @@ grafana:
         uid: alertmanager
         handleGrafanaManagedAlerts: false
         implementation: prometheus
-
+  resources:
+    limits:
+      cpu: 1
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
   extraConfigmapMounts: 
 
 
@@ -325,3 +342,9 @@ prometheus:
         selector:
           matchLabels:
             app.kubernetes.io/name: yet-another-cloudwatch-exporter
+  tolerations:
+    - key: o11y
+      value: "true"
+      effect: NoSchedule 
+  nodeSelector:
+    workload: o11y
