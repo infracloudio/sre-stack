@@ -1,0 +1,15 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-grafana-database
+  namespace: monitoring
+spec:
+  template:
+    metadata:
+      name: create-grafana-database
+    spec:
+      containers:
+        - name: create-grafana-database
+          image: postgres:16.1-bullseye # Use the same PostgreSQL image
+          command: ["/bin/bash", "-c", "PGPASSWORD=postgres psql -h postgres -U postgres -c 'CREATE DATABASE grafana;'"]
+      restartPolicy: Never
