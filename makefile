@@ -93,6 +93,8 @@ setup-loadgen:
 setup-psql:
 	kubectl create ns monitoring --dry-run=client -o yaml | kubectl apply -f -
 	kubectl apply -f monitoring/grafana-postgres/statefulset.yaml
+	kubectl wait --for=condition=ready pod -l app=postgresql --timeout=300s -n monitoring
+	kubectl apply -f monitoring/grafana-postgres/job.yaml
 
 destroy-db-rds-mysql:
 	./infra/scripts/dbs/rds/mysql/destroy.sh
