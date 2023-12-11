@@ -22,10 +22,12 @@ spec:
         image: {{ .Values.image.repo }}/rs-catalogue:{{ .Values.image.version }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         env:
+        {{- if .Values.instana.enabled }}
           - name: INSTANA_AGENT_HOST
             valueFrom:
               fieldRef:
                 fieldPath: status.hostIP
+        {{- end }}
           # - name: MONGO_URL
           #   value: {{ .Values.mongo_url }}/catalogue
         ports:

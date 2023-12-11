@@ -26,10 +26,12 @@ spec:
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         # agent networking access
         env:
+        {{- if .Values.instana.enabled }}
           - name: INSTANA_AGENT_HOST
             valueFrom:
               fieldRef:
                 fieldPath: status.hostIP
+        {{- end }}
           - name: AMQP_HOST
             value: {{ .Values.amqp_host }}
           {{- if .Values.payment.gateway }}

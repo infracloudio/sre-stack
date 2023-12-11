@@ -23,10 +23,12 @@ spec:
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         # agent networking access
         env:
+        {{- if .Values.instana.enabled }}
           - name: INSTANA_AGENT_HOST
             valueFrom:
               fieldRef:
                 fieldPath: status.hostIP
+        {{- end }}
         ports:
         - containerPort: 8080
         resources:
