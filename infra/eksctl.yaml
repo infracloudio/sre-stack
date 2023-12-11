@@ -5,6 +5,8 @@ metadata:
   name: prod-eks-cluster
   region: us-east-1
   version: "1.27"
+  tags:
+    karpenter.sh/discovery: prod-eks-cluster
 
 addons:
 - name: aws-ebs-csi-driver

@@ -96,6 +96,40 @@ setup-psql:
 	kubectl wait --for=condition=ready pod -l app=postgresql --timeout=300s -n monitoring
 	kubectl apply -f monitoring/grafana-postgres/job.yaml
 
+setup-karpenter:
+	aws cloudformation deploy \
+		--stack-name "Karpenter-prod-eks-cluster" \
+		--template-file "infra/karpenter/cloudformation/karpenter/v0.33.0/cloudformation.yaml" \
+		--capabilities CAPABILITY_NAMED_IAM \
+		--parameter-overrides "ClusterName=prod-eks-cluster" \
+		--no-cli-pager
+
+		eksctl create iamserviceaccount \
+		--region=us-east-1 --name karpenter \
+		--namespace kube-system \
+		--cluster prod-eks-cluster \
+		--role-name prod-eks-cluster-karpenter-role \
+		--attach-policy-arn "arn:aws:iam::813864300626:policy/KarpenterControllerPolicy-prod-eks-cluster" \
+		--approve \
+		--role-only \
+		--override-existing-serviceaccounts
+
+		eksctl create iamidentitymapping \
+		--region=us-east-1 --cluster=prod-eks-cluster \
+		--arn="arn:aws:iam::813864300626:role/KarpenterNodeRole-prod-eks-cluster" \
+		--username="system:node:{{EC2PrivateDNSName}}" \
+		--group="system:bootstrappers,system:nodes"
+
+		helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter --version "v0.33.0" --namespace "kube-system" \
+		--set "serviceAccount.annotations.eks\.amazonaws\.com/role-arn=arn:aws:iam::813864300626:role/prod-eks-cluster-karpenter-role" \
+		--set "settings.clusterName=prod-eks-cluster" \
+		--set "settings.interruptionQueue=prod-eks-cluster" \
+		--set controller.resources.requests.cpu=1 \
+		--set controller.resources.requests.memory=1Gi \
+		--set controller.resources.limits.cpu=1 \
+		--set controller.resources.limits.memory=1Gi \
+		--wait
+
 destroy-db-rds-mysql:
 	./infra/scripts/dbs/rds/mysql/destroy.sh
 
@@ -112,6 +146,14 @@ destroy-dbs-rds: destroy-db-rds-mysql destroy-db-rds-documentdb destroy-db-rds-s
 
 destroy-loadgen:
 	kubectl delete -f scenarios/load-gen/load.yaml
+
+destroy-karpenter:
+	eksctl delete iamidentitymapping --region=us-east-1 --cluster=prod-eks-cluster \
+		--arn="arn:aws:iam::813864300626:role/KarpenterNodeRole-prod-eks-cluster" 
+
+	eksctl delete iamserviceaccount --region=us-east-1 --name karpenter --namespace kube-system --cluster prod-eks-cluster 
+
+	aws cloudformation delete-stack --stack-name Karpenter-prod-eks-cluster --no-cli-pager 
 
 cleanup-cluster:
 	eksctl delete cluster --region=us-east-1 --name=prod-eks-cluster --wait
