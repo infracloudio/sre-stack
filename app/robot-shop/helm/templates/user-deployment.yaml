@@ -22,11 +22,12 @@ spec:
         image: {{ .Values.image.repo }}/rs-user:{{ .Values.image.version }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         env:
-          # agent networking access
+        {{- if .Values.instana.enabled }}
           - name: INSTANA_AGENT_HOST
             valueFrom:
               fieldRef:
                 fieldPath: status.hostIP
+        {{- end }}
           # - name: MONGO_URL
           #   value: {{ .Values.mongo_url }}/user
         ports:
