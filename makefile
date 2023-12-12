@@ -148,6 +148,8 @@ destroy-loadgen:
 	kubectl delete -f scenarios/load-gen/load.yaml
 
 destroy-karpenter:
+	helm uninstall karpenter -n kube-system
+
 	eksctl delete iamidentitymapping --region=us-east-1 --cluster=prod-eks-cluster \
 		--arn="arn:aws:iam::813864300626:role/KarpenterNodeRole-prod-eks-cluster" 
 
