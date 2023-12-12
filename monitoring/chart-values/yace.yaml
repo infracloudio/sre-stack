@@ -184,7 +184,7 @@ prometheusRule:
 
 config: |-
   apiVersion: v1alpha1
-  sts-region: us-east-1
+  sts-region: us-west-2
   discovery:
     # exportedTagsOnMetrics:
     #   ec2:
@@ -194,7 +194,7 @@ config: |-
     jobs:
     - type: AWS/RDS
       regions:
-        - us-east-1
+        - us-west-2
       searchTags:
         - key: name
           value: robotshopmysql
