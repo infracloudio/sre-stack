@@ -15,7 +15,7 @@ help:
 	@echo "	Clenaup cluster via:			make cleanup-cluster"
 	@echo "	Clenaup all via:			make cleanup"
 
-setup: setup-cluster setup-cluster-autoscaler setup-istio setup-psql setup-observability setup-dbs-rds setup-rabbitmq-operator setup-app setup-gateway setup-keda setup-loadgen
+setup: setup-cluster setup-cluster-autoscaler setup-istio setup-rds-psql setup-observability setup-dbs-rds setup-rabbitmq-operator setup-app setup-gateway setup-keda setup-loadgen
 
 cleanup: destroy-istio-gateway destroy-dbs-rds cleanup-cluster destroy-loadgen
 
@@ -90,10 +90,9 @@ setup-loadgen:
 	kubectl create ns loadgen --dry-run=client -o yaml | kubectl apply -f -
 	kubectl apply -f scenarios/load-gen/load.yaml
 
-setup-psql:
+setup-rds-psql:
+	./infra/scripts/dbs/rds/psql/create.sh
 	kubectl create ns monitoring --dry-run=client -o yaml | kubectl apply -f -
-	kubectl apply -f monitoring/grafana-postgres/statefulset.yaml
-	kubectl wait --for=condition=ready pod -l app=postgresql --timeout=300s -n monitoring
 	kubectl apply -f monitoring/grafana-postgres/job.yaml
 
 destroy-db-rds-mysql:
@@ -108,10 +107,13 @@ destroy-db-rds-sg:
 destroy-istio-gateway:
 	helm uninstall istio-ingressgateway -n istio-system 
 
-destroy-dbs-rds: destroy-db-rds-mysql destroy-db-rds-documentdb destroy-db-rds-sg
+destroy-dbs-rds: destroy-db-rds-mysql destroy-rds-psql destroy-db-rds-sg
 
 destroy-loadgen:
 	kubectl delete -f scenarios/load-gen/load.yaml
+
+destroy-rds-psql:
+	./infra/scripts/dbs/rds/psql/destroy.sh
 
 cleanup-cluster:
 	eksctl delete cluster --region=us-east-1 --name=prod-eks-cluster --wait
