@@ -11,5 +11,5 @@ spec:
       containers:
         - name: create-grafana-database
           image: postgres:16.1-bullseye # Use the same PostgreSQL image
-          command: ["/bin/bash", "-c", "PGPASSWORD=postgres psql -h postgres -U postgres -c 'CREATE DATABASE grafana;'"]
+          command: ["/bin/bash", "-c", "PGPASSWORD=postgres psql -h grafanapsql.cn9m6m4s8zo0.us-west-2.rds.amazonaws.com -U grafana -d postgres -c 'CREATE DATABASE grafana;'"]
       restartPolicy: Never
