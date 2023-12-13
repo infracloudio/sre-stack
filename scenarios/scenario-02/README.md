@@ -2,21 +2,26 @@
 
 ## Description:
 
-A ecommerce application hosted on Managed kubernetes cluster which stores all the user related important data in MySQL server, which is shared with some other operational and analytical microservices as well. 
+A ecommerce application [instana/robot-shop](https://github.com/instana/robot-shop) hosted on Managed kubernetes cluster which stores all the user related important data in MySQL server, which is shared with some other operational and analytical microservices as well. 
 
-One day, ecommerce application started facing high page load time and some time backend microservices where unable to fetch data from the MySQL server.
+One day, Robot-shop started facing high page load time and at the same time Shipping service was unable to fetch data from the MySQL server, Causing the system to have severely degraded performance.
 
 ### Diagram
 
-![Application](https://github.com/infracloudio/sre-stack/blob/main/etc/image/scenario-2-application-arch.png?raw=true)
+![robot-shop-mysql-conn-outage](https://github.com/infracloudio/sre-stack/assets/581287/a5221a2c-ce91-4e6b-b2a3-b606333ab43c)
+
+
+
 
 
 ## What steps did we perform to identify/detect outages?
 
 To find the real cause of this outage:
-
+- High API latencies were noticed from shipping service
 - We started checking logs of application.
-- Checked status of microservices in dashboard.
+- Checked status of microservices in Kiali dashboard for Istio-service-mesh.
+- We checked on MySQL DB connection metrics
+- Debugged MySQL connections by logging into RDS
 
 ### Possible causes:
 
@@ -26,4 +31,5 @@ To find the real cause of this outage:
 2. Bug in application which open connection and leave.
     - We checked open connection via SQL query.
     `show status where `variable_name` = 'Threads_connected';`
+
 
