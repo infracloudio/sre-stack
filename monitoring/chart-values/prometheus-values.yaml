@@ -82,8 +82,8 @@ grafana:
   grafana.ini: 
     database:
       type: postgres
-      host: postgres
-      user: postgres
+      host: grafanapsql.cn9m6m4s8zo0.us-west-2.rds.amazonaws.com
+      user: grafana
       password: postgres
   enabled: true
   env:
