@@ -11,11 +11,11 @@ aws ec2 authorize-security-group-ingress \
   --protocol tcp \
   --port 27017 \
   --source-group ${CLUSTER_SG} \
-  --region us-east-1
+  --region ${AWS_REGION}
 
 ## create subnet group
 echo "\nCreate DocumentDB subnet group..."
-aws docdb create-db-subnet-group --cli-input-json "{\"DBSubnetGroupName\":\"robotshop-docdb-subnet-group\",\"DBSubnetGroupDescription\":\"robotshop docdb subnet group\",\"SubnetIds\":$SUBNET}" --region us-east-1
+aws docdb create-db-subnet-group --cli-input-json "{\"DBSubnetGroupName\":\"robotshop-docdb-subnet-group\",\"DBSubnetGroupDescription\":\"robotshop docdb subnet group\",\"SubnetIds\":$SUBNET}" --region ${AWS_REGION}
 
 ## documentDB Parameter Group
 # crate if not exists
@@ -45,7 +45,7 @@ aws docdb create-db-cluster \
   --master-username roboadmin \
   --master-user-password docdb3421z \
   --no-deletion-protection \
-  --region us-east-1
+  --region ${AWS_REGION}
 
 sleep 60
 
@@ -55,9 +55,9 @@ aws docdb create-db-instance \
   --db-instance-class db.t3.medium \
   --engine docdb \
   --db-cluster-identifier robotshopdocdb-cluster \
-  --region us-east-1
+  --region ${AWS_REGION}
 
 echo "\nWait for DocumentDB Instance..."
-aws docdb wait db-instance-available --db-instance-identifier robotshopdocdb-instance --region us-east-1
+aws docdb wait db-instance-available --db-instance-identifier robotshopdocdb-instance --region ${AWS_REGION}
 
-export MONGODB_HOST=$(aws docdb describe-db-clusters --db-cluster-identifier robotshopdocdb-cluster --region us-east-1 --query 'DBClusters[*].Endpoint' --output text)
+export MONGODB_HOST=$(aws docdb describe-db-clusters --db-cluster-identifier robotshopdocdb-cluster --region ${AWS_REGION} --query 'DBClusters[*].Endpoint' --output text)

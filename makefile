@@ -15,22 +15,24 @@ help:
 	@echo "	Clenaup cluster via:			make cleanup-cluster"
 	@echo "	Clenaup all via:			make cleanup"
 
+AWS_REGION=us-west-2
+
 setup: setup-cluster setup-cluster-autoscaler setup-istio setup-psql setup-observability setup-dbs-rds setup-rabbitmq-operator setup-app setup-gateway setup-keda setup-loadgen
 
-cleanup: destroy-istio-gateway destroy-dbs-rds cleanup-cluster destroy-loadgen
+cleanup: destroy-istio-gateway destroy-dbs-rds cleanup-cluster
 
 setup-cluster:
 	eksctl create cluster -f infra/eksctl.yaml
 
 setup-cluster-autoscaler:
 	eksctl utils associate-iam-oidc-provider \
-	--region=us-east-1 --cluster prod-eks-cluster \
+	--region=$(AWS_REGION) --cluster prod-eks-cluster \
 	--approve
 	aws iam create-policy  \
 	--policy-name k8s-asg-policy \
 	--policy-document file://./infra/asg-policy.json
 	eksctl create iamserviceaccount \
-	--region=us-east-1 --name cluster-autoscaler \
+	--region=$(AWS_REGION) --name cluster-autoscaler \
 	--namespace kube-system \
 	--cluster prod-eks-cluster \
 	--attach-policy-arn "arn:aws:iam::813864300626:policy/k8s-asg-policy" \
@@ -66,14 +68,13 @@ setup-db-rds-mysql:
 setup-db-rds-documentdb:
 	./infra/scripts/dbs/rds/documentdb/create.sh
 
-setup-dbs-rds: setup-db-rds-mysql setup-db-rds-documentdb
+setup-dbs-rds: setup-db-rds-mysql
 
 setup-rabbitmq-operator:
 	helm repo add bitnami https://charts.bitnami.com/bitnami && helm repo update
 	helm upgrade --install rabbitmq-operator bitnami/rabbitmq-cluster-operator -f infra/chart-values/rabbitmq-values.yaml -n rabbitmq-operator --create-namespace --version 3.10.4 --wait
 
 setup-app:
-	make setup-rabbitmq-operator
 	kubectl create namespace prod-robot-shop --dry-run=client -o yaml | kubectl apply -f -
 	kubectl label namespace prod-robot-shop istio-injection=enabled
 	helm upgrade --install roboshop -n prod-robot-shop --create-namespace ./app/robot-shop/helm/ --wait --timeout 2m0s
@@ -108,13 +109,13 @@ destroy-db-rds-sg:
 destroy-istio-gateway:
 	helm uninstall istio-ingressgateway -n istio-system 
 
-destroy-dbs-rds: destroy-db-rds-mysql destroy-db-rds-documentdb destroy-db-rds-sg
+destroy-dbs-rds: destroy-db-rds-mysql destroy-db-rds-sg
 
 destroy-loadgen:
 	kubectl delete -f scenarios/load-gen/load.yaml
 
 cleanup-cluster:
-	eksctl delete cluster --region=us-east-1 --name=prod-eks-cluster --wait
+	eksctl delete cluster --region=$(AWS_REGION) --name=prod-eks-cluster --wait
 	aws iam delete-policy --policy-arn arn:aws:iam::813864300626:policy/k8s-asg-policy
 
 
