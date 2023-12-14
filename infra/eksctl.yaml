@@ -3,7 +3,7 @@ kind: ClusterConfig
 
 metadata:
   name: prod-eks-cluster
-  region: us-east-1
+  region: us-west-2
   version: "1.27"
 
 addons:
