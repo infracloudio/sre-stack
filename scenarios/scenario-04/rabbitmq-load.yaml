@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pending-orders-recreation
+  labels:
+    service: pending-orders-recreation
+  namespace:  pending-orders
+spec:
+  replicas: 400
+  selector:
+    matchLabels:
+      app: pending-orders-recreation
+  template:
+    metadata:
+      labels:
+        app: pending-orders-recreation
+    spec:
+      containers:
+      - name: pending-orders-recreation
+        image: saurabh3460/rabbitmqadmin:latest
+        command: ["/bin/bash", "-c"]
+        args: 
+          - |
+            while : ; do 
+              /rabbitmqadmin -H rabbitmq-cluster.prod-robot-shop.svc.cluster.local publish exchange='robot-shop' \
+              routing_key='orders' payload_encoding='string' \
+              payload='{"orderid":"978fe997-648b-4136-9a69-fb1298880b17","user":"anonymous-4","cart":{"total":1093.55,"tax":182.25833333333333,"items":[{"qty":1,"sku":"RED","name":"ResponsiveEnforcerDroid","price":700,"subtotal":700},{"qty":1,"sku":"SHIP","name":"shippingtoIndiaDelhi","price":393.55,"subtotal":393.55}]}}' \
+              properties='{"headers":{}}';
+            done
+      nodeSelector:
+        workload: loadgen
+      tolerations:
+      - key: "loadgen"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
