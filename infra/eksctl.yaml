@@ -107,3 +107,36 @@ managedNodeGroups:
         efs: true
         awsLoadBalancerController: true
         cloudWatch: true
+
+  - name: loadgen-ng
+    instanceType: c5.xlarge
+    minSize: 1
+    maxSize: 1
+    privateNetworking: true
+    labels:
+      workload: loadgen
+    volumeSize: 20
+    spot: true
+    tags:
+      Name: loadgen
+    taints:
+      - key: loadgen
+        value: "true"
+        effect: NoSchedule
+    iam:
+      attachPolicyARNs:
+        - arn:aws:iam::813864300626:policy/yace-cloudwatch-policy
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+      withAddonPolicies:
+        autoScaler: true
+        externalDNS: true
+        certManager: true
+        appMesh: true
+        ebs: true
+        fsx: true
+        efs: true
+        awsLoadBalancerController: true
+        cloudWatch: true
