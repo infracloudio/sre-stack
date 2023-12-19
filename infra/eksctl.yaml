@@ -48,13 +48,13 @@ managedNodeGroups:
     maxSize: 2
     privateNetworking: true
     labels:
-      workload: rabbitmq
+      workload: persistent
     volumeSize: 50
     spot: true
     tags:
       Name: prod-cluster
     taints:
-      - key: rabbitmq
+      - key: persistent
         value: "true"
         effect: NoSchedule
     iam:
