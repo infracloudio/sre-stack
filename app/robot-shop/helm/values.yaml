@@ -107,7 +107,14 @@ mongodb:
     workload: persistent
 
 
-mysql: {}
+mysql:
+  tolerations:
+    - key: "persistent"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+  nodeSelector:
+    workload: persistent
 
 payment:
   # Alternative payment gateway URL
