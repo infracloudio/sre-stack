@@ -2858,8 +2858,8 @@ data:
           {
             "current": {
               "selected": false,
-              "text": "catalogue.prod-robot-shop.svc.cluster.local",
-              "value": "catalogue.prod-robot-shop.svc.cluster.local"
+              "text": "catalogue.robot-shop.svc.cluster.local",
+              "value": "catalogue.robot-shop.svc.cluster.local"
             },
             "datasource": {
               "type": "prometheus",

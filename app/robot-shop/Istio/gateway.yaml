@@ -27,6 +27,6 @@ spec:
   # default route
   - route:
     - destination:
-        host: web.prod-robot-shop.svc.cluster.local
+        host: web.robot-shop.svc.cluster.local
         port:
           number: 8080

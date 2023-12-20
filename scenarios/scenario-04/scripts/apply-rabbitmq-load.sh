@@ -1,6 +1,6 @@
 GIT_TLD=`git rev-parse --show-toplevel`
 LOAD_NS=pending-orders
-RMQ_CLUSTER_NS=prod-robot-shop
+RMQ_CLUSTER_NS=robot-shop
 SCENARIO_TIMEOUT=5m
 WAIT_TIMEOUT=5m
 AWS_REGION=us-west-2

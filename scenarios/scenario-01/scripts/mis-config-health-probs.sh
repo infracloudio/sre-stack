@@ -1,7 +1,7 @@
 #!/bin/bash
 
 GIT_TLD=`git rev-parse --show-toplevel`
-NS=prod-robot-shop
+NS=robot-shop
 SCENARIO_TIMEOUT=10m
 
 echo "Injecting mis-configured health probes..."

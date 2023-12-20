@@ -18,7 +18,7 @@ spec:
       containers:
         - env:
             - name: HOST
-              value: http://web.prod-robot-shop.svc.cluster.local:8080
+              value: http://web.robot-shop.svc.cluster.local:8080
             - name: NUM_CLIENTS
               value: "10"
             - name: RUN_TIME
