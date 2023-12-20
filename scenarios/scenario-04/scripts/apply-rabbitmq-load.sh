@@ -5,7 +5,7 @@ SCENARIO_TIMEOUT=5m
 WAIT_TIMEOUT=5m
 AWS_REGION=us-west-2
 MAX_NODE=8
-CLUSTER_NAME=prod-eks-cluster
+CLUSTER_NAME=sre-stack
 
 echo "\n Scale up loadgen-ng nodegroup... \n "
 eksctl scale nodegroup --cluster=${CLUSTER_NAME} --nodes=${MAX_NODE} --name=loadgen-ng --nodes-max=${MAX_NODE} --wait --region ${AWS_REGION}

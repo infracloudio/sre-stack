@@ -26,7 +26,7 @@ setup-cluster:
 
 setup-cluster-autoscaler:
 	eksctl utils associate-iam-oidc-provider \
-	--region=$(AWS_REGION) --cluster prod-eks-cluster \
+	--region=$(AWS_REGION) --cluster sre-stack \
 	--approve
 	aws iam create-policy  \
 	--policy-name k8s-asg-policy \
@@ -34,7 +34,7 @@ setup-cluster-autoscaler:
 	eksctl create iamserviceaccount \
 	--region=$(AWS_REGION) --name cluster-autoscaler \
 	--namespace kube-system \
-	--cluster prod-eks-cluster \
+	--cluster sre-stack \
 	--attach-policy-arn "arn:aws:iam::813864300626:policy/k8s-asg-policy" \
 	--approve \
 	--override-existing-serviceaccounts
@@ -115,7 +115,7 @@ destroy-loadgen:
 	kubectl delete -f scenarios/load-gen/load.yaml
 
 cleanup-cluster:
-	eksctl delete cluster --region=$(AWS_REGION) --name=prod-eks-cluster --wait
+	eksctl delete cluster --region=$(AWS_REGION) --name=sre-stack --wait
 	aws iam delete-policy --policy-arn arn:aws:iam::813864300626:policy/k8s-asg-policy
 
 

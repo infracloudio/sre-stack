@@ -2,7 +2,7 @@ apiVersion: eksctl.io/v1alpha5
 kind: ClusterConfig
 
 metadata:
-  name: prod-eks-cluster
+  name: sre-stack
   region: us-west-2
   version: "1.27"
 
@@ -52,7 +52,7 @@ managedNodeGroups:
     volumeSize: 50
     spot: true
     tags:
-      Name: prod-cluster
+      Name: sre-stack
     taints:
       - key: persistent
         value: "true"
