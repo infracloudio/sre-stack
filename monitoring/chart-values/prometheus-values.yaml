@@ -43,6 +43,12 @@ alertmanager:
   enabled: false
   alertmanagerSpec:
     loglevel: debug
+    tolerations:
+      - key: o11y
+        value: "true"
+        effect: NoSchedule 
+    nodeSelector:
+      workload: o11y
     # configSecret: promalertmanager
   config:
     global:
@@ -70,12 +76,7 @@ alertmanager:
         # text:
     # templates:
     #   - '/etc/alertmanager/config/*.tmpl'
-  tolerations:
-    - key: o11y
-      value: "true"
-      effect: NoSchedule 
-  nodeSelector:
-    workload: o11y
+
 ###kube-prometheus-stack###
 grafana:
   replicas: 2
@@ -336,6 +337,12 @@ prometheus:
         - source_labels: [__meta_kubernetes_pod_container_port_name]
           action: keep
           regex: '.*-envoy-prom'
+    tolerations:
+      - key: o11y
+        value: "true"
+        effect: NoSchedule 
+    nodeSelector:
+      workload: o11y
   additionalServiceMonitors:
       - name: prometheus-operator-cloudwatch
         endpoints:
@@ -348,6 +355,16 @@ prometheus:
         selector:
           matchLabels:
             app.kubernetes.io/name: yet-another-cloudwatch-exporter
+
+prometheusOperator:
+  tolerations:
+    - key: o11y
+      value: "true"
+      effect: NoSchedule 
+  nodeSelector:
+    workload: o11y
+
+kube-state-metrics:
   tolerations:
     - key: o11y
       value: "true"

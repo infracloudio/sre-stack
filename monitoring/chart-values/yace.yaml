@@ -78,11 +78,16 @@ resources: {}
   #   cpu: 100m
   #   memory: 128Mi
 
-nodeSelector: {}
+nodeSelector: 
+  workload: "o11y"
 
 priorityClassName:
 
-tolerations: []
+tolerations:
+  - key: "o11y"
+    value: "true"
+    effect: "NoSchedule"
+
 
 affinity: {}
 

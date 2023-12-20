@@ -13,3 +13,9 @@ spec:
           image: postgres:16.1-bullseye # Use the same PostgreSQL image
           command: ["/bin/bash", "-c", "PGPASSWORD=postgres psql -h postgres -U postgres -c 'CREATE DATABASE grafana;'"]
       restartPolicy: Never
+      tolerations:
+        - key: "o11y"
+          value: "true"
+          effect: "NoSchedule"
+      nodeSelector:
+        workload: "o11y"

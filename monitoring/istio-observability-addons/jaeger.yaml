@@ -53,6 +53,12 @@ spec:
       volumes:
         - name: data
           emptyDir: {}
+      tolerations:
+        - key: "o11y"
+          value: "true"
+          effect: "NoSchedule"
+      nodeSelector:
+        workload: "o11y"
 ---
 apiVersion: v1
 kind: Service
