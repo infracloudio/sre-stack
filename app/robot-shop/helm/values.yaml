@@ -97,9 +97,24 @@ dispatch:
   nodeSelector:
     workload: app
 
-mongodb: {}
+mongodb:
+  tolerations:
+    - key: "persistent"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+  nodeSelector:
+    workload: persistent
 
-mysql: {}
+
+mysql:
+  tolerations:
+    - key: "persistent"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+  nodeSelector:
+    workload: persistent
 
 payment:
   # Alternative payment gateway URL
@@ -135,12 +150,12 @@ rabbitmq:
       cpu: 1
       memory: 2Gi
   tolerations:
-    - key: "rabbitmq"
+    - key: "persistent"
       operator: "Equal"
       value: "true"
       effect: "NoSchedule"
   nodeSelector:
-    workload: rabbitmq
+    workload: persistent
 
 ratings:
   replicas: 3
@@ -164,7 +179,13 @@ ratings:
 redis:
   # Storage class to use with redis statefulset.
   storageClassName: gp2
-
+  tolerations:
+    - key: "persistent"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+  nodeSelector:
+    workload: persistent
 
 
 shipping:

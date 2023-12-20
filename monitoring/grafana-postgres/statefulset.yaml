@@ -38,6 +38,12 @@ spec:
               value: "postgres" # Username
             - name: POSTGRES_PASSWORD
               value: "postgres" # Password
+      tolerations:
+        - key: "o11y"
+          value: "true"
+          effect: "NoSchedule"
+      nodeSelector:
+        workload: "o11y"
   volumeClaimTemplates:
     - metadata:
         name: data

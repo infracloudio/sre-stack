@@ -26,7 +26,7 @@ setup-cluster:
 
 setup-cluster-autoscaler:
 	eksctl utils associate-iam-oidc-provider \
-	--region=$(AWS_REGION) --cluster prod-eks-cluster \
+	--region=$(AWS_REGION) --cluster sre-stack \
 	--approve
 	aws iam create-policy  \
 	--policy-name k8s-asg-policy \
@@ -34,7 +34,7 @@ setup-cluster-autoscaler:
 	eksctl create iamserviceaccount \
 	--region=$(AWS_REGION) --name cluster-autoscaler \
 	--namespace kube-system \
-	--cluster prod-eks-cluster \
+	--cluster sre-stack \
 	--attach-policy-arn "arn:aws:iam::813864300626:policy/k8s-asg-policy" \
 	--approve \
 	--override-existing-serviceaccounts
@@ -75,12 +75,12 @@ setup-rabbitmq-operator:
 	helm upgrade --install rabbitmq-operator bitnami/rabbitmq-cluster-operator -f infra/chart-values/rabbitmq-values.yaml -n rabbitmq-operator --create-namespace --version 3.10.4 --wait
 
 setup-app:
-	kubectl create namespace prod-robot-shop --dry-run=client -o yaml | kubectl apply -f -
-	kubectl label namespace prod-robot-shop istio-injection=enabled
-	helm upgrade --install roboshop -n prod-robot-shop --create-namespace ./app/robot-shop/helm/ --wait --timeout 2m0s
+	kubectl create namespace robot-shop --dry-run=client -o yaml | kubectl apply -f -
+	kubectl label namespace robot-shop istio-injection=enabled
+	helm upgrade --install roboshop -n robot-shop --create-namespace ./app/robot-shop/helm/ --wait --timeout 2m0s
 
 setup-gateway:
-	kubectl apply -f ./app/robot-shop/Istio/gateway.yaml -n prod-robot-shop
+	kubectl apply -f ./app/robot-shop/Istio/gateway.yaml -n robot-shop
 
 setup-keda:
 	helm repo add kedacore https://kedacore.github.io/charts && helm repo update ; \
@@ -115,7 +115,7 @@ destroy-loadgen:
 	kubectl delete -f scenarios/load-gen/load.yaml
 
 cleanup-cluster:
-	eksctl delete cluster --region=$(AWS_REGION) --name=prod-eks-cluster --wait
+	eksctl delete cluster --region=$(AWS_REGION) --name=sre-stack --wait
 	aws iam delete-policy --policy-arn arn:aws:iam::813864300626:policy/k8s-asg-policy
 
 

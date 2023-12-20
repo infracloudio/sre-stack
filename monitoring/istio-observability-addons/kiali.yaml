@@ -565,4 +565,9 @@ spec:
         configMap:
           name: kiali-cabundle
           optional: true
-...
+      tolerations:
+        - key: "o11y"
+          value: "true"
+          effect: "NoSchedule"
+      nodeSelector:
+        workload: "o11y"

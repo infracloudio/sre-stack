@@ -294,12 +294,12 @@ clusterOperator:
   ## ref: https://kubernetes.io/docs/user-guide/node-selection/
   ##
   nodeSelector: 
-    workload: rabbitmq
+    workload: persistent
   ## @param clusterOperator.tolerations Tolerations for RabbitMQ Cluster Operator pods assignment
   ## ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
   ##
   tolerations:
-    - key: "rabbitmq"
+    - key: "persistent"
       operator: "Equal"
       value: "true"
       effect: "NoSchedule"
@@ -768,12 +768,12 @@ msgTopologyOperator:
   ## ref: https://kubernetes.io/docs/user-guide/node-selection/
   ##
   nodeSelector: 
-    workload: rabbitmq
+    workload: persistent
   ## @param msgTopologyOperator.tolerations Tolerations for RabbitMQ Messaging Topology Operator pods assignment
   ## ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
   ##
   tolerations: 
-    - key: "rabbitmq"
+    - key: "persistent"
       operator: "Equal"
       value: "true"
       effect: "NoSchedule"

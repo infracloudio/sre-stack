@@ -18,7 +18,7 @@ spec:
       containers:
         - env:
             - name: HOST
-              value: http://web.prod-robot-shop.svc.cluster.local:8080
+              value: http://web.robot-shop.svc.cluster.local:8080
             - name: NUM_CLIENTS
               value: "10"
             - name: RUN_TIME
@@ -27,3 +27,10 @@ spec:
           name: load
           resources: {}
       restartPolicy: Always
+      nodeSelector:
+        workload: loadgen
+      tolerations:
+      - key: "loadgen"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"

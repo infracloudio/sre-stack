@@ -7,7 +7,7 @@ spec:
   hosts:
   - "*"
   gateways:
-  - prod-robot-shop/robotshop-gateway
+  - robot-shop/robotshop-gateway
   http:
   - match:
     - uri:

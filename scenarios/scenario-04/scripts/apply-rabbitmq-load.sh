@@ -1,13 +1,14 @@
 GIT_TLD=`git rev-parse --show-toplevel`
 LOAD_NS=pending-orders
-RMQ_CLUSTER_NS=prod-robot-shop
+RMQ_CLUSTER_NS=robot-shop
 SCENARIO_TIMEOUT=5m
 WAIT_TIMEOUT=5m
 AWS_REGION=us-west-2
 MAX_NODE=8
+CLUSTER_NAME=sre-stack
 
 echo "\n Scale up loadgen-ng nodegroup... \n "
-eksctl scale nodegroup --cluster=prod-eks-cluster --nodes=${MAX_NODE} --name=loadgen-ng --nodes-max=${MAX_NODE} --wait --region ${AWS_REGION}
+eksctl scale nodegroup --cluster=${CLUSTER_NAME} --nodes=${MAX_NODE} --name=loadgen-ng --nodes-max=${MAX_NODE} --wait --region ${AWS_REGION}
 
 echo "\n Creating $LOAD_NS namespace... \n"
 kubectl create namespace $LOAD_NS --dry-run=client -o yaml | kubectl apply -f -
@@ -38,7 +39,7 @@ echo "\n Removing RabbitMQ Load.... \n"
 kubectl delete -f ${GIT_TLD}/scenarios/scenario-04/rabbitmq-load.yaml -n $LOAD_NS
 
 echo "\n Scale down loadgen-ng nodegroup... \n "
-eksctl scale nodegroup --cluster=prod-eks-cluster --nodes=1 --name=loadgen-ng --nodes-max=1 --wait --region ${AWS_REGION}
+eksctl scale nodegroup --cluster=${CLUSTER_NAME} --nodes=1 --name=loadgen-ng --nodes-max=1 --wait --region ${AWS_REGION}
 
 echo "\n Undo RabbitMQ cluster resources.... \n"
 kubectl patch rabbitmqcluster rabbitmq-cluster --type='json' \

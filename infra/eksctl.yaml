@@ -2,7 +2,7 @@ apiVersion: eksctl.io/v1alpha5
 kind: ClusterConfig
 
 metadata:
-  name: prod-eks-cluster
+  name: sre-stack
   region: us-west-2
   version: "1.27"
 
@@ -13,7 +13,7 @@ addons:
   - arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
   
 managedNodeGroups:
-  - name: prod-cluster
+  - name: app-ng
     instanceType: c6a.large
     minSize: 3
     maxSize: 6
@@ -23,7 +23,7 @@ managedNodeGroups:
     volumeSize: 50
     spot: true
     tags:
-      Name: prod-cluster
+      Name: app
     iam:
       attachPolicyARNs:
         - arn:aws:iam::813864300626:policy/yace-cloudwatch-policy
@@ -48,13 +48,13 @@ managedNodeGroups:
     maxSize: 2
     privateNetworking: true
     labels:
-      workload: rabbitmq
+      workload: persistent
     volumeSize: 50
     spot: true
     tags:
-      Name: prod-cluster
+      Name: sre-stack
     taints:
-      - key: rabbitmq
+      - key: persistent
         value: "true"
         effect: NoSchedule
     iam:
