@@ -30,7 +30,8 @@ setup-cluster-autoscaler:
 	--approve
 	aws iam create-policy  \
 	--policy-name k8s-asg-policy \
-	--policy-document file://./infra/asg-policy.json
+	--policy-document file://./infra/asg-policy.json \
+	--no-cli-pager
 	eksctl create iamserviceaccount \
 	--region=$(AWS_REGION) --name cluster-autoscaler \
 	--namespace kube-system \
@@ -84,8 +85,7 @@ setup-gateway:
 
 setup-keda:
 	helm repo add kedacore https://kedacore.github.io/charts && helm repo update ; \
-	helm upgrade --install keda kedacore/keda --namespace keda --create-namespace --values ./infra/chart-values/keda-values.yaml --version 2.11.1 ; \
-	kubectl apply -f infra/keda-policy/scaled-obj-ratings.yaml
+	helm upgrade --install keda kedacore/keda --namespace keda --create-namespace --values ./infra/chart-values/keda-values.yaml --version 2.11.1 ;
 
 setup-loadgen:
 	kubectl create ns loadgen --dry-run=client -o yaml | kubectl apply -f -
