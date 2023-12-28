@@ -1,0 +1,30 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: dispatch-scale-up
+  namespace: robot-shop
+spec:
+  scaleTargetRef:
+    kind: Deployment                                       # Optional. Default: Deployment
+    name: dispatch                                         # Mandatory. Must be in the same namespace as the ScaledObject
+  pollingInterval:  10                                     # Optional. Default: 30 seconds
+  cooldownPeriod:   300                                    # Optional. Default: 300 seconds
+  minReplicaCount: 3                                       # Optional. Default: 0
+  maxReplicaCount: 10                                      # Optional. Default: 100
+  advanced:                                                # Optional. Section to specify advanced options
+    restoreToOriginalReplicaCount: true
+    horizontalPodAutoscalerConfig:                   # Optional. Section to specify HPA related options
+      behavior:                                      # Optional. Use to modify HPA's scaling behavior
+        scaleUp:
+          stabilizationWindowSeconds: 0
+          policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 1
+  triggers:
+  - type: prometheus
+    metadata:
+      serverAddress: http://prometheus-stack-kube-prom-prometheus.monitoring.svc.cluster.local:9090
+      query: |
+        sum(rate(rabbitmq_global_messages_received_total[60s]))
+      threshold: '10'
