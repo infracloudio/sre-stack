@@ -3,8 +3,6 @@
 GIT_TLD=`git rev-parse --show-toplevel`
 source ${GIT_TLD}/infra/scripts/dbs/rds/common.sh
 
-source ../common.sh
-
 echo "\nAdd security mmysql doucumentdb security group rules"
 aws ec2 authorize-security-group-ingress \
   --group-id ${RDS_VPC_SECURITY_GROUP_ID}\

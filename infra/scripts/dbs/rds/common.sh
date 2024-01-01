@@ -1,6 +1,7 @@
 #!/bin/bash
-AWS_REGION=us-west-2
-CLUSTER_NAME=sre-stack
+GIT_TLD=`git rev-parse --show-toplevel`
+source ${GIT_TLD}/.env
+
 RDS_VPC_ID=$(aws eks describe-cluster --name ${CLUSTER_NAME} --region ${AWS_REGION} --query "cluster.resourcesVpcConfig.vpcId" --output text)
 
 echo "\nCreate security group..."

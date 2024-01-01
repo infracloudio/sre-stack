@@ -1,6 +1,7 @@
 #!/bin/bash
 
-AWS_REGION=us-west-2
+GIT_TLD=`git rev-parse --show-toplevel`
+source ${GIT_TLD}/.env
 
 aws rds delete-db-instance --db-instance-identifier robotshopmysql --skip-final-snapshot  --region ${AWS_REGION} --no-cli-pager
 aws rds wait db-instance-deleted --db-instance-identifier robotshopmysql  --region ${AWS_REGION} --no-cli-pager
