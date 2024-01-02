@@ -13,7 +13,7 @@ aws ec2 authorize-security-group-ingress \
 
 ## create subnet group
 echo "\nCreate DocumentDB subnet group..."
-aws docdb create-db-subnet-group --cli-input-json "{\"DBSubnetGroupName\":\"robotshop-docdb-subnet-group\",\"DBSubnetGroupDescription\":\"robotshop docdb subnet group\",\"SubnetIds\":$SUBNET}" --region ${AWS_REGION}
+aws docdb create-db-subnet-group --cli-input-json "{\"DBSubnetGroupName\":\"${DOC_DB_SUBNET_GROUP_NAME}\",\"DBSubnetGroupDescription\":\"robotshop docdb subnet group\",\"SubnetIds\":$SUBNET}" --region ${AWS_REGION}
 
 ## documentDB Parameter Group
 # crate if not exists
@@ -33,15 +33,15 @@ aws docdb create-db-subnet-group --cli-input-json "{\"DBSubnetGroupName\":\"robo
 echo "\nCreate DocumentDB..."
 ## Create Cluster
 aws docdb create-db-cluster \
-  --db-cluster-identifier robotshopdocdb-cluster \
+  --db-cluster-identifier ${DOC_DB_CLUSTER_NAME} \
   --vpc-security-group-ids ${RDS_VPC_SECURITY_GROUP_ID} \
-  --db-subnet-group-name robotshop-docdb-subnet-group \
-  --db-cluster-parameter-group-name tls-disabled-docdb50-parameter-group \
+  --db-subnet-group-name ${DOC_DB_SUBNET_GROUP_NAME} \
+  --db-cluster-parameter-group-name ${DOC_DB_PARAMETER_GROUP_NAME} \
   --engine docdb \
-  --engine-version "5.0.0" \
+  --engine-version ${DOC_DB_ENGINE_VERSION} \
   --deletion-protection \
-  --master-username roboadmin \
-  --master-user-password docdb3421z \
+  --master-username ${DOC_DB_MASTER_USERNAME} \
+  --master-user-password ${DOC_DB_MASTER_PASSWORD} \
   --no-deletion-protection \
   --region ${AWS_REGION}
 
@@ -49,13 +49,13 @@ sleep 60
 
 echo "\nAdd DocumentDB Instance in DocumentDB..."
 aws docdb create-db-instance \
-  --db-instance-identifier robotshopdocdb-instance \
-  --db-instance-class db.t3.medium \
+  --db-instance-identifier ${DOC_DB_INSTANCE_NAME} \
+  --db-instance-class ${DOC_DB_INSTANCE_CLASS} \
   --engine docdb \
-  --db-cluster-identifier robotshopdocdb-cluster \
+  --db-cluster-identifier ${DOC_DB_CLUSTER_NAME} \
   --region ${AWS_REGION}
 
 echo "\nWait for DocumentDB Instance..."
-aws docdb wait db-instance-available --db-instance-identifier robotshopdocdb-instance --region ${AWS_REGION}
+aws docdb wait db-instance-available --db-instance-identifier ${DOC_DB_INSTANCE_NAME} --region ${AWS_REGION}
 
-export MONGODB_HOST=$(aws docdb describe-db-clusters --db-cluster-identifier robotshopdocdb-cluster --region ${AWS_REGION} --query 'DBClusters[*].Endpoint' --output text)
+export MONGODB_HOST=$(aws docdb describe-db-clusters --db-cluster-identifier ${DOC_DB_CLUSTER_NAME} --region ${AWS_REGION} --query 'DBClusters[*].Endpoint' --output text)
