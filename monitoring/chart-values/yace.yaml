@@ -189,7 +189,7 @@ prometheusRule:
 
 config: |-
   apiVersion: v1alpha1
-  sts-region: us-west-2
+  sts-region: {{ .Values.aws_region }}
   discovery:
     # exportedTagsOnMetrics:
     #   ec2:
@@ -199,10 +199,10 @@ config: |-
     jobs:
     - type: AWS/RDS
       regions:
-        - us-west-2
+        - {{ .Values.aws_region }}
       searchTags:
         - key: name
-          value: robotshopmysql
+          value: {{ .Values.db_name }}
       period: 300
       length: 300
       metrics:
