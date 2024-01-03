@@ -15,7 +15,13 @@ help:
 	@echo "	Clenaup cluster via:			make cleanup-cluster"
 	@echo "	Clenaup all via:			make cleanup"
 
-AWS_REGION=us-west-2
+include .env
+
+REQUIRED_VARS := AWS_REGION CLUSTER_NAME RDS_MYSQL_DB_NAME AUTO_SCALING_GROUP_POLICY_NAME MONITORING_NS RABBITMQ_NS APP_NS RDS_MYSQL_DB_MASTER_PASSWORD APP_RELEASE_NAME APP_SETUP_TIMEOUT
+AWS_ACCOUNT_ID=$(shell aws sts get-caller-identity --query "Account" --output text --no-cli-pager)
+MYSQL_HOST=$(shell aws rds describe-db-instances --db-instance-identifier $(RDS_MYSQL_DB_NAME)  --region $(AWS_REGION) --query 'DBInstances[*].Endpoint.Address' --output text --no-cli-pager)
+
+$(foreach var,$(REQUIRED_VARS),$(if $(value $(var)),,$(error $(var) is not set)))
 
 setup: setup-cluster setup-cluster-autoscaler setup-istio setup-psql setup-observability setup-dbs-rds setup-rabbitmq-operator setup-app setup-gateway setup-keda setup-loadgen
 
@@ -26,17 +32,17 @@ setup-cluster:
 
 setup-cluster-autoscaler:
 	eksctl utils associate-iam-oidc-provider \
-	--region=$(AWS_REGION) --cluster sre-stack \
+	--region=$(AWS_REGION) --cluster $(CLUSTER_NAME) \
 	--approve
 	aws iam create-policy  \
-	--policy-name k8s-asg-policy \
+	--policy-name $(AUTO_SCALING_GROUP_POLICY_NAME) \
 	--policy-document file://./infra/asg-policy.json \
 	--no-cli-pager
 	eksctl create iamserviceaccount \
 	--region=$(AWS_REGION) --name cluster-autoscaler \
 	--namespace kube-system \
-	--cluster sre-stack \
-	--attach-policy-arn "arn:aws:iam::813864300626:policy/k8s-asg-policy" \
+	--cluster $(CLUSTER_NAME) \
+	--attach-policy-arn "arn:aws:iam::$(AWS_ACCOUNT_ID):policy/$(AUTO_SCALING_GROUP_POLICY_NAME)" \
 	--approve \
 	--override-existing-serviceaccounts
 	kubectl apply -f infra/cluster-autoscale.yaml
@@ -54,12 +60,12 @@ setup-observability:
 	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 	helm repo add grafana https://grafana.github.io/helm-charts
 	helm repo update
-	helm upgrade --install prometheus-stack prometheus-community/kube-prometheus-stack --values ./monitoring/chart-values/prometheus-values.yaml -n monitoring --create-namespace --version 52.0.0
-	helm upgrade --install loki grafana/loki-stack -n monitoring --create-namespace --values ./monitoring/chart-values/loki.yaml
+	helm upgrade --install prometheus-stack prometheus-community/kube-prometheus-stack --values ./monitoring/chart-values/prometheus-values.yaml -n $(MONITORING_NS) --create-namespace --version 52.0.0
+	helm upgrade --install loki grafana/loki-stack -n $(MONITORING_NS) --create-namespace --values ./monitoring/chart-values/loki.yaml
 	helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/  && helm repo update
-	helm upgrade --install metrics-server metrics-server/metrics-server --values ./monitoring/chart-values/metric-server.yaml -n monitoring --create-namespace
+	helm upgrade --install metrics-server metrics-server/metrics-server --values ./monitoring/chart-values/metric-server.yaml -n $(MONITORING_NS) --create-namespace
 	helm repo add yace https://nerdswords.github.io/helm-charts
-	helm upgrade --install yace yace/yet-another-cloudwatch-exporter -f monitoring/chart-values/yace.yaml -n monitoring
+	helm upgrade --install yace yace/yet-another-cloudwatch-exporter -f monitoring/chart-values/yace.yaml --set aws_region=$(AWS_REGION) --set db_name=$(RDS_MYSQL_DB_NAME) -n $(MONITORING_NS)
 	kubectl apply -f  monitoring/istio-observability-addons/
 	kubectl apply -f ./monitoring/dashboards/
 
@@ -73,15 +79,15 @@ setup-dbs-rds: setup-db-rds-mysql
 
 setup-rabbitmq-operator:
 	helm repo add bitnami https://charts.bitnami.com/bitnami && helm repo update
-	helm upgrade --install rabbitmq-operator bitnami/rabbitmq-cluster-operator -f infra/chart-values/rabbitmq-values.yaml -n rabbitmq-operator --create-namespace --version 3.10.4 --wait
+	helm upgrade --install rabbitmq-operator bitnami/rabbitmq-cluster-operator -f infra/chart-values/rabbitmq-values.yaml -n $(RABBITMQ_NS) --create-namespace --version 3.10.4 --wait
 
 setup-app:
 	kubectl create namespace robot-shop --dry-run=client -o yaml | kubectl apply -f -
 	kubectl label namespace robot-shop istio-injection=enabled
-	helm upgrade --install roboshop -n robot-shop --create-namespace ./app/robot-shop/helm/ --wait --timeout 2m0s
+	helm upgrade --install $(APP_RELEASE_NAME) -n $(APP_NS) --create-namespace ./app/robot-shop/helm/ --set mysql_host=$(MYSQL_HOST) --set mysql_password=$(RDS_MYSQL_DB_MASTER_PASSWORD) --wait --timeout $(APP_SETUP_TIMEOUT)
 
 setup-gateway:
-	kubectl apply -f ./app/robot-shop/Istio/gateway.yaml -n robot-shop
+	kubectl apply -f ./app/robot-shop/Istio/gateway.yaml -n $(APP_NS)
 
 setup-keda:
 	helm repo add kedacore https://kedacore.github.io/charts && helm repo update ; \
@@ -94,7 +100,7 @@ setup-loadgen:
 setup-psql:
 	kubectl create ns monitoring --dry-run=client -o yaml | kubectl apply -f -
 	kubectl apply -f monitoring/grafana-postgres/statefulset.yaml
-	kubectl wait --for=condition=ready pod -l app=postgresql --timeout=300s -n monitoring
+	kubectl wait --for=condition=ready pod -l app=postgresql --timeout=300s -n $(MONITORING_NS)
 	kubectl apply -f monitoring/grafana-postgres/job.yaml
 
 destroy-db-rds-mysql:
@@ -115,8 +121,8 @@ destroy-loadgen:
 	kubectl delete -f scenarios/load-gen/load.yaml
 
 cleanup-cluster:
-	eksctl delete cluster --region=$(AWS_REGION) --name=sre-stack --wait
-	aws iam delete-policy --policy-arn arn:aws:iam::813864300626:policy/k8s-asg-policy
+	eksctl delete cluster --region=$(AWS_REGION) --name=$(CLUSTER_NAME) --wait
+	aws iam delete-policy --policy-arn arn:aws:iam::$(AWS_ACCOUNT_ID):policy/$(AUTO_SCALING_GROUP_POLICY_NAME)
 
 
 ## TBD integrations
@@ -125,8 +131,8 @@ cleanup-cluster:
 
 # setup-apm:
 # 	helm repo add signoz https://charts.signoz.io && helm repo updates
-# 	helm upgrade --install install apm-platform signoz/signoz -n monitoring --create-namespace
-# 	kubectl get svc svc/apm-platform-frontend -n monitoring | grep "3301"
+# 	helm upgrade --install install apm-platform signoz/signoz -n $(MONITORING_NS) --create-namespace
+# 	kubectl get svc svc/apm-platform-frontend -n $(MONITORING_NS) | grep "3301"
 
 # setup-litmus:
 # 	helm repo add litmuschaos https://litmuschaos.github.io/litmus-helm/
