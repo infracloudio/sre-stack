@@ -26,7 +26,6 @@ managedNodeGroups:
       Name: app
     iam:
       attachPolicyARNs:
-        - arn:aws:iam::813864300626:policy/yace-cloudwatch-policy
         - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
         - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
@@ -59,7 +58,6 @@ managedNodeGroups:
         effect: NoSchedule
     iam:
       attachPolicyARNs:
-        - arn:aws:iam::813864300626:policy/yace-cloudwatch-policy
         - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
         - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
@@ -92,7 +90,6 @@ managedNodeGroups:
         effect: NoSchedule
     iam:
       attachPolicyARNs:
-        - arn:aws:iam::813864300626:policy/yace-cloudwatch-policy
         - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
         - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
@@ -125,7 +122,6 @@ managedNodeGroups:
         effect: NoSchedule
     iam:
       attachPolicyARNs:
-        - arn:aws:iam::813864300626:policy/yace-cloudwatch-policy
         - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
         - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
