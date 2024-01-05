@@ -1,0 +1,172 @@
+# RunWhen Local is intended to run with a single replica, as multiple instances
+# will continue to perform discovery against your clusters
+replicaCount: 1
+
+image:
+  repository: ghcr.io/runwhen-contrib/runwhen-local
+  pullPolicy: Always
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+
+serviceAccountRoles:
+  namespaceRole:
+    enabled: false
+    namespaces: []
+    rules:
+    - apiGroups: [""]
+      resources: ["*"]
+      verbs: ["get", "watch", "list"]
+  clusterRoleView:
+    enabled: true
+  advancedClusterRole:
+    enabled: false
+    rules: []
+    # - apiGroups: [""]
+    #   resources: ["pods", "pods/log", "events", "configmaps", "services", "replicationcontrollers"]
+    #   verbs: ["get", "watch", "list"]
+    # - apiGroups: ["batch"]
+    #   resources: ["*"]
+    #   verbs: ["get", "watch", "list"]
+
+
+podAnnotations: {}
+
+
+service:
+  type: ClusterIP
+  port: 8081
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "250m"
+  limits:
+    memory: "1024Mi"
+    cpu: "1"
+
+nodeSelector: 
+  workload: "o11y"
+
+tolerations:
+  - key: "o11y"
+    value: "true"
+    effect: "NoSchedule"
+
+affinity: {}
+
+# RunWhen Local requires a kubeconfig to discover resouces from 1 or more
+# clusters.
+#
+# Using inClusterAuth works for the local cluster only.
+# If discoverying multiple clusters, set inClusterAuth.enabled=false
+# and mount a secret with a kubeconfig that contains all
+# cluster contexts to be discovered
+
+discoveryKubeconfig:
+  inClusterAuth:
+    enabled: true
+  secretProvided:
+    enabled: false
+    # secretName: runwhen-local-kubeconfig
+    # secretKey: kubeconfig
+    # secretPath: kubeconfig
+
+### RunWhen Local Runtime Configuration
+# autoRun: start discovery on deployment, and re-run discovery evey discoveryInterval seconds
+# also supports upload configuration for continuous updates of RunWhen Platform Workspace
+# upload is disabled by default; requires a valid uploadInfo.yaml
+autoRun:
+  discoveryInterval: 14400                 # seconds to wait until a new discovery
+  uploadEnabled: false                     # upload configuration to RunWhen Platform
+  uploadMergeMode: "keep-uploaded"         # 'keep-uploaded' or 'keep-existing'
+
+
+# terminal: Enable or disable the in-browser terminal (unauthentication connection to container shell)
+terminal:
+  disabled: true
+
+###### Upload configuration
+# The upload configuration applies only to users to leverage RunWhen Local as an
+# onboarding tool into RunWhen Platform (https://www.runwhen.com for more details)
+# When uploading discovered resources and configuration information to RunWhen Platform,
+# workspaceName, token, workspaceOwnerEmail, defaultLocation and papiURL are mandtatory
+# can can be obtained immediately after creating a RunWhen Platform workspace.
+
+uploadInfo:
+  workspaceName: undefined
+  token: undefined
+  workspaceOwnerEmail: tester@my-company.com
+  papiURL: undefined
+  defaultLocation: undefined
+
+
+###### workspaceInfo
+# Currently this holds details such as custom variables & upload configuration
+# Note: This section will soon be split into two separate configuration files
+#
+###### Custom Variables
+# Custom variables are used to help tailor the generated content when we can't
+# automatically infer from the discovered resources (such as specifying a prometheus
+# provider, cloud provider, or kubernetes distribution & binary (mostly for oc vs
+# kubectl users))
+
+workspaceInfo:
+  defaultLocation: undefined
+  workspaceName: undefined
+  workspaceOwnerEmail: tester@my-company.com
+  defaultLOD: 2                 # This setting will discover all namespaces not specified in namespaceLODs with the greatest level of detail/depth
+  namespaceLODs:                # Specific discovery depth overrides on a per-namespace basis. 0 = ignore, 1 = simple/basic discovery, 2 = detailed discovery
+    kube-system: 0
+    kube-public: 0
+    kube-node-lease: 0
+  custom:
+    kubernetes_distribution: Kubernetes
+    kubernetes_distribution_binary: kubectl
+
+    # Possible values are gcp, aws, azure, none
+    # cloud_provider: gcp
+
+    # Possible values are gmp, promql, none
+    # prometheus_provider: gmp
+
+    # If using GCP and wanting to use GCP integrations
+    # gcp_project_id: undefined
+
+    #### RunWhen Platform only
+    # Secret names are used when integrating the RunWhen Platform
+    # with your enviornment. Configuration data will reference these
+    # secret names - and so secrets uploaded to RunWhen Platform must
+    # be given the same name
+    kubeconfig_secret_name: kubeconfig
+    # gcp_ops_suite_sa: ops-suite-sa
+
