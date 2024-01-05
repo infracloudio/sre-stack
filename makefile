@@ -20,15 +20,23 @@ include .env
 REQUIRED_VARS := AWS_REGION CLUSTER_NAME RDS_MYSQL_DB_NAME AUTO_SCALING_GROUP_POLICY_NAME MONITORING_NS RABBITMQ_NS APP_NS RDS_MYSQL_DB_MASTER_PASSWORD APP_RELEASE_NAME APP_SETUP_TIMEOUT
 AWS_ACCOUNT_ID=$(shell aws sts get-caller-identity --query "Account" --output text --no-cli-pager)
 MYSQL_HOST=$(shell aws rds describe-db-instances --db-instance-identifier $(RDS_MYSQL_DB_NAME)  --region $(AWS_REGION) --query 'DBInstances[*].Endpoint.Address' --output text --no-cli-pager)
+OBSERVABILITY_NODEGROUP_ROLE_NAME=$(shell eksctl get nodegroup --cluster $(CLUSTER_NAME) --region $(AWS_REGION) --output json | jq '.[] | select(.Name == "$(OBSERVABILITY_NODEGROUP_NAME)") | .NodeInstanceRoleARN | split("/") | .[1]')
 
 $(foreach var,$(REQUIRED_VARS),$(if $(value $(var)),,$(error $(var) is not set)))
 
-setup: setup-cluster setup-cluster-autoscaler setup-istio setup-psql setup-observability setup-dbs-rds setup-rabbitmq-operator setup-app setup-gateway setup-keda setup-loadgen
+setup: setup-cluster setup-cluster-autoscaler setup-yace-cloudwatch-policy setup-istio setup-psql setup-observability setup-dbs-rds setup-rabbitmq-operator setup-app setup-gateway setup-keda setup-loadgen
 
 cleanup: destroy-istio-gateway destroy-dbs-rds cleanup-cluster
 
 setup-cluster:
 	eksctl create cluster -f infra/eksctl.yaml
+
+setup-yace-cloudwatch-policy:
+	aws iam create-policy  \
+	--policy-name $(YACE_CLOUDWATCH_POLICY_NAME) \
+	--policy-document file://./infra/yace-policy.json \
+	--no-cli-pager
+	aws iam attach-role-policy --role-name $(OBSERVABILITY_NODEGROUP_ROLE_NAME) --policy-arn arn:aws:iam::$(AWS_ACCOUNT_ID):policy/$(YACE_CLOUDWATCH_POLICY_NAME)
 
 setup-cluster-autoscaler:
 	eksctl utils associate-iam-oidc-provider \
@@ -123,7 +131,7 @@ destroy-loadgen:
 cleanup-cluster:
 	eksctl delete cluster --region=$(AWS_REGION) --name=$(CLUSTER_NAME) --wait
 	aws iam delete-policy --policy-arn arn:aws:iam::$(AWS_ACCOUNT_ID):policy/$(AUTO_SCALING_GROUP_POLICY_NAME)
-
+	aws iam delete-policy --policy-arn arn:aws:iam::$(AWS_ACCOUNT_ID):policy/$(YACE_CLOUDWATCH_POLICY_NAME)
 
 ## TBD integrations
 #	@echo "	Setup Litmus-3 chaos tool via:		make setup-litmus"
