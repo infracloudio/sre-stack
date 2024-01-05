@@ -24,7 +24,7 @@ OBSERVABILITY_NODEGROUP_ROLE_NAME=$(shell eksctl get nodegroup --cluster $(CLUST
 
 $(foreach var,$(REQUIRED_VARS),$(if $(value $(var)),,$(error $(var) is not set)))
 
-setup: setup-cluster setup-cluster-autoscaler setup-yace-cloudwatch-policy setup-istio setup-psql setup-observability setup-dbs-rds setup-rabbitmq-operator setup-app setup-gateway setup-keda setup-loadgen
+setup: setup-cluster setup-cluster-autoscaler setup-yace-cloudwatch-policy setup-istio setup-psql setup-observability setup-dbs-rds setup-rabbitmq-operator setup-app setup-gateway setup-keda setup-loadgen setup-runwhen
 
 cleanup: destroy-istio-gateway destroy-dbs-rds cleanup-cluster
 
@@ -110,6 +110,17 @@ setup-psql:
 	kubectl apply -f monitoring/grafana-postgres/statefulset.yaml
 	kubectl wait --for=condition=ready pod -l app=postgresql --timeout=300s -n $(MONITORING_NS)
 	kubectl apply -f monitoring/grafana-postgres/job.yaml
+
+setup-runwhen:
+	helm repo add runwhen-contrib https://runwhen-contrib.github.io/helm-charts && helm repo update
+	helm template runwhen-local runwhen-contrib/runwhen-local \
+	-f ./monitoring/chart-values/runwhen-values.yaml \
+	--set uploadInfo.workspaceName=$(RUNWHEN_WORKSPACE_NAME) \
+	--set uploadInfo.token=$(RUNWHEN_TOKEN) \
+	--set uploadInfo.workspaceOwnerEmail=$(RUNWHEN_WORKSPACE_OWNER_EMAIL) \
+	--set uploadInfo.papiURL=$(RUNWHEN_PAPIURL) \
+	--set uploadInfo.defaultLocation=$(RUNWHEN_DEFAULTLOCATION) \
+	-n $(MONITORING_NS)
 
 destroy-db-rds-mysql:
 	./infra/scripts/dbs/rds/mysql/destroy.sh
