@@ -34,7 +34,7 @@ setup-cluster:
 setup-yace-cloudwatch-policy:
 	aws iam create-policy  \
 	--policy-name $(YACE_CLOUDWATCH_POLICY_NAME) \
-	--policy-document file://./infra/yace-policy.json \
+	--policy-document file://./infra/yace-cloudwatch-policy.json \
 	--no-cli-pager
 	aws iam attach-role-policy --role-name $(OBSERVABILITY_NODEGROUP_ROLE_NAME) --policy-arn arn:aws:iam::$(AWS_ACCOUNT_ID):policy/$(YACE_CLOUDWATCH_POLICY_NAME)
 
