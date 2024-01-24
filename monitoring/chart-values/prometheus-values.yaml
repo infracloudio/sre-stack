@@ -315,7 +315,31 @@ prometheus:
       port: 9090
       ## Service type
       # type: LoadBalancer
+  serviceAccount:
+    create: false
+    name: thanos-sa
+  thanosService:
+    enabled: true
   prometheusSpec:
+    replicas: 3
+    disableCompaction: true
+    containers: 
+      - name: prometheus
+        args:
+        - --web.console.templates=/etc/prometheus/consoles
+        - --web.console.libraries=/etc/prometheus/console_libraries
+        - --config.file=/etc/prometheus/config_out/prometheus.env.yaml
+        - --web.enable-lifecycle
+        - --web.enable-remote-write-receiver
+        - --web.external-url=https://localhost:9090/prometheus/
+        - --web.route-prefix=/
+        - --storage.tsdb.retention.time=10d
+        - --storage.tsdb.path=/prometheus
+        - --storage.tsdb.wal-compression
+        - --web.config.file=/etc/prometheus/web_config/web-config.yaml
+        - --storage.tsdb.max-block-duration=2h
+        - --storage.tsdb.min-block-duration=2h
+
     enableRemoteWriteReceiver: true
     externalUrl: "https://localhost:9090/prometheus/"
     additionalScrapeConfigs:
@@ -343,6 +367,22 @@ prometheus:
         effect: NoSchedule 
     nodeSelector:
       workload: o11y
+    thanos:
+      # ObjectStorageConfig configures object storage in Thanos.
+      objectStorageConfig:
+        # use existing secret, if configured, objectStorageConfig.secret will not be used
+        existingSecret: 
+          key: thanos-storage-config.yaml
+          name: thanos-storage-config
+        # will render objectStorageConfig secret data and configure it to be used by Thanos custom resource,
+        # ignored when prometheusspec.thanos.objectStorageConfig.existingSecret is set
+        # https://thanos.io/tip/thanos/storage.md/#s3
+        # secret:
+        #   type: S3
+        #   config:
+        #     bucket: "prom-thanos-kube"
+        #     endpoint: "s3.us-west-2.amazonaws.com"
+        #     region: "us-west-1"
   additionalServiceMonitors:
       - name: prometheus-operator-cloudwatch
         endpoints:
@@ -371,3 +411,31 @@ kube-state-metrics:
       effect: NoSchedule 
   nodeSelector:
     workload: o11y
+
+thanosRuler:
+  enabled: true
+  serviceAccount:
+    create: false
+    name: thanos-sa
+  thanosRulerSpec:
+    queryEndpoints: 
+    - dnssrv+_http._tcp.thanos-query.monitoring.svc.cluster.local
+    objectStorageConfig:
+      # use existing secret, if configured, objectStorageConfig.secret will not be used
+      existingSecret:
+          key: thanos-storage-config.yaml
+          name: thanos-storage-config
+      # will render objectStorageConfig secret data and configure it to be used by Thanos Ruler custom resource, ignored when objectStorageConfig.existingSecret is set
+      # https://thanos.io/tip/thanos/storage.md/#s3
+      # secret:
+      #   type: S3
+      #   config:
+      #     bucket: "prom-thanos-kube"
+      #     endpoint: "s3.us-west-2.amazonaws.com"
+      #     region: "us-west-2"
+    tolerations:
+      - key: o11y
+        value: "true"
+        effect: NoSchedule 
+    nodeSelector:
+      workload: o11y

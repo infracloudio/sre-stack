@@ -38,6 +38,20 @@ setup-yace-cloudwatch-policy:
 	--no-cli-pager
 	aws iam attach-role-policy --role-name $(OBSERVABILITY_NODEGROUP_ROLE_NAME) --policy-arn arn:aws:iam::$(AWS_ACCOUNT_ID):policy/$(YACE_CLOUDWATCH_POLICY_NAME)
 
+setup-thanos-s3-bucket-policy:
+	kubectl create ns $(MONITORING_NS) --dry-run=client -o yaml | kubectl apply -f -
+	aws iam create-policy  \
+	--policy-name $(THANOS_S3_BUCKET_POLICY_NAME) \
+	--policy-document file://./infra/thanos-s3-bucket-policy.json \
+	--no-cli-pager
+	eksctl create iamserviceaccount \
+	--region=$(AWS_REGION) --name $(THANOS_SERVICE_ACCOUNT_NAME) \
+	--namespace $(MONITORING_NS) \
+	--cluster $(CLUSTER_NAME) \
+	--attach-policy-arn "arn:aws:iam::$(AWS_ACCOUNT_ID):policy/$(THANOS_S3_BUCKET_POLICY_NAME)" \
+	--approve \
+	--override-existing-serviceaccounts
+
 setup-cluster-autoscaler:
 	eksctl utils associate-iam-oidc-provider \
 	--region=$(AWS_REGION) --cluster $(CLUSTER_NAME) \
@@ -69,6 +83,7 @@ setup-observability:
 	helm repo add grafana https://grafana.github.io/helm-charts
 	helm repo update
 	helm upgrade --install prometheus-stack prometheus-community/kube-prometheus-stack --values ./monitoring/chart-values/prometheus-values.yaml -n $(MONITORING_NS) --create-namespace --version 52.0.0
+	kubectl apply -f monitoring/manifests/thanos -n $(MONITORING_NS) 
 	helm upgrade --install loki grafana/loki-stack -n $(MONITORING_NS) --create-namespace --values ./monitoring/chart-values/loki.yaml
 	helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/  && helm repo update
 	helm upgrade --install metrics-server metrics-server/metrics-server --values ./monitoring/chart-values/metric-server.yaml -n $(MONITORING_NS) --create-namespace
