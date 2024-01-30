@@ -96,6 +96,8 @@ grafana:
       effect: NoSchedule 
   nodeSelector:
     workload: o11y
+  plugins:
+    - novatec-sdg-panel
 
   sidecar:
     dashboards:
