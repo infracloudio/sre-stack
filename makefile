@@ -21,10 +21,11 @@ REQUIRED_VARS := AWS_REGION CLUSTER_NAME RDS_MYSQL_DB_NAME AUTO_SCALING_GROUP_PO
 AWS_ACCOUNT_ID=$(shell aws sts get-caller-identity --query "Account" --output text --no-cli-pager)
 MYSQL_HOST=$(shell aws rds describe-db-instances --db-instance-identifier $(RDS_MYSQL_DB_NAME)  --region $(AWS_REGION) --query 'DBInstances[*].Endpoint.Address' --output text --no-cli-pager)
 OBSERVABILITY_NODEGROUP_ROLE_NAME=$(shell eksctl get nodegroup --cluster $(CLUSTER_NAME) --region $(AWS_REGION) --output json | jq '.[] | select(.Name == "$(OBSERVABILITY_NODEGROUP_NAME)") | .NodeInstanceRoleARN | split("/") | .[1]')
+LB_ENDPOINT=$(shell kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 
 $(foreach var,$(REQUIRED_VARS),$(if $(value $(var)),,$(error $(var) is not set)))
 
-setup: setup-cluster setup-cluster-autoscaler setup-yace-cloudwatch-policy setup-istio setup-psql setup-observability setup-dbs-rds setup-rabbitmq-operator setup-app setup-gateway setup-keda setup-loadgen
+setup: setup-cluster setup-cluster-autoscaler setup-yace-cloudwatch-policy setup-istio setup-psql setup-observability setup-dbs-rds setup-rabbitmq-operator setup-app setup-gateway setup-keda setup-loadgen get-services-endpoint
 
 cleanup: destroy-istio-gateway destroy-dbs-rds cleanup-cluster
 
@@ -110,6 +111,13 @@ setup-psql:
 	kubectl apply -f monitoring/grafana-postgres/statefulset.yaml
 	kubectl wait --for=condition=ready pod -l app=postgresql --timeout=300s -n $(MONITORING_NS)
 	kubectl apply -f monitoring/grafana-postgres/job.yaml
+
+get-services-endpoint:
+	@echo "---------------------------- Services endpoint ----------------------------"
+	@echo "Visit Robot shop http://$(LB_ENDPOINT)"
+	@echo "Visit Grafana dashboard http://$(LB_ENDPOINT)/grafana"
+	@echo "Visit Istio kiali http://$(LB_ENDPOINT)/kiali"
+	@echo "----------------------------------------------------------------------------"
 
 destroy-db-rds-mysql:
 	./infra/scripts/dbs/rds/mysql/destroy.sh
