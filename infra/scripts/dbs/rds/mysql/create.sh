@@ -17,6 +17,17 @@ echo "\nCreate DB subnet group..."
 # aws rds create-db-subnet-group --db-subnet-group-name robotshop-mysql-subnet-group --db-subnet-group-description "robotsho pmysql subnet group" --subnet-ids $SUBNET --region ${AWS_REGION}
 aws rds create-db-subnet-group --cli-input-json "{\"DBSubnetGroupName\":\"${RDS_MYSQL_DB_SUBNET_GROUP_NAME}\",\"DBSubnetGroupDescription\":\"robotshop mysql subnet group\",\"SubnetIds\":$SUBNET}" --region ${AWS_REGION} --no-cli-pager
 
+# Check if the parameter group exists
+result=$(aws rds describe-db-parameter-groups --db-parameter-group-name "${RDS_MYSQL_DB_PARAMETER_GROUP_NAME}" --region "${AWS_REGION}" --output text --query 'DBParameterGroups[0].DBParameterGroupName' --no-cli-pager 2>/dev/null)
+
+if [ -n "$result" ]; then
+    echo "Parameter group '${RDS_MYSQL_DB_PARAMETER_GROUP_NAME}' exists."
+else
+    echo "Parameter group '${RDS_MYSQL_DB_PARAMETER_GROUP_NAME}' does not exist."
+    echo "Creating parameter group ${RDS_MYSQL_DB_PARAMETER_GROUP_NAME} in ${AWS_REGION}"
+    aws rds create-db-parameter-group --db-parameter-group-name ${RDS_MYSQL_DB_PARAMETER_GROUP_NAME} --db-parameter-group-family ${RDS_MYSQL_DB_PARAMETER_GROUP_FAMILY} --description "sre-stack mysql rds parameter group" --no-cli-pager --region ${AWS_REGION}
+fi
+
 ######## Create mysql db 
 echo "\nCreate MYSQL DB..."
 aws rds create-db-instance \
