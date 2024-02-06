@@ -32,7 +32,7 @@ data:
     "fiscalYearStartMonth": 0,
     "gnetId": 7639,
     "graphTooltip": 0,
-    "id": 95,
+    "id": 37,
     "links": [],
     "liveNow": false,
     "panels": [
@@ -637,12 +637,13 @@ data:
               "uid": "Prometheus"
             },
             "editorMode": "code",
-            "expr": "increase(istio_requests_total{source_workload=~\"reviews-.*\", source_app=\"reviews\",reporter=\"source\" ,response_code!=\"200\"}[1m])",
+            "expr": "increase(istio_requests_total{reporter=\"source\" ,response_code!=\"200\"}[1m])",
             "legendFormat": "{{destination_service_name}} ->{{source_app}}",
             "range": true,
             "refId": "A"
           }
         ],
+        "title": "Non-2xx Responses by Service",
         "type": "stat"
       },
       {
@@ -1701,6 +1702,6 @@ data:
     "timezone": "browser",
     "title": "Application Dashboard",
     "uid": "G8wLrJIZk",
-    "version": 9,
+    "version": 2,
     "weekStart": ""
   }
