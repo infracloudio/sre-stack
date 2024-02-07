@@ -107,7 +107,7 @@ managedNodeGroups:
 
   - name: loadgen-ng
     instanceType: c5.xlarge
-    minSize: 1
+    minSize: 0
     maxSize: 1
     privateNetworking: true
     labels:
