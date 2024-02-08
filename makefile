@@ -25,7 +25,9 @@ LB_ENDPOINT=$(shell kubectl get svc istio-ingressgateway -n istio-system -o json
 
 $(foreach var,$(REQUIRED_VARS),$(if $(value $(var)),,$(error $(var) is not set)))
 
-setup: setup-cluster setup-cluster-autoscaler setup-yace-cloudwatch-policy setup-istio setup-psql setup-observability setup-dbs-rds setup-rabbitmq-operator setup-app setup-gateway setup-keda setup-loadgen get-services-endpoint
+setup: setup-cluster setup-cluster-autoscaler setup-yace-cloudwatch-policy setup-istio setup-psql setup-observability setup-dbs-rds setup-rabbitmq-operator setup-app setup-gateway get-services-endpoint
+
+optional-setup: setup-keda setup-loadgen
 
 cleanup: destroy-istio-gateway destroy-dbs-rds cleanup-cluster
 
