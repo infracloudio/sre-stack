@@ -20,7 +20,7 @@ managedNodeGroups:
     privateNetworking: true
     labels:
       workload: app
-    volumeSize: 50
+    volumeSize: 15
     spot: true
     tags:
       Name: app
@@ -48,7 +48,7 @@ managedNodeGroups:
     privateNetworking: true
     labels:
       workload: persistent
-    volumeSize: 50
+    volumeSize: 15
     spot: true
     tags:
       Name: sre-stack
@@ -80,7 +80,7 @@ managedNodeGroups:
     privateNetworking: true
     labels:
       workload: o11y
-    volumeSize: 50
+    volumeSize: 15
     spot: true
     tags:
       Name: prod-cluster
@@ -112,7 +112,7 @@ managedNodeGroups:
     privateNetworking: true
     labels:
       workload: loadgen
-    volumeSize: 20
+    volumeSize: 15
     spot: true
     tags:
       Name: loadgen
