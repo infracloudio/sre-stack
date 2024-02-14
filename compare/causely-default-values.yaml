@@ -160,7 +160,7 @@ victoriametrics:
   affinity: {}
   nodeSelector: {}
   tolerations: []
-  storage: 50Gi
+  storage: 1Gi
   podSecurityContext: {}
   args:
     - "-search.maxConcurrentRequests=128"
@@ -222,11 +222,11 @@ scrapers:
     secretName: ""
 
   prometheus:
-    enabled: true
+    enabled: false
     endpoint: http://prometheus-stack-kube-prom-prometheus.monitoring.svc.cluster.local:9090
 
   istio:
-    enabled: true
+    enabled: false
     prometheus:
       endpoint: http://prometheus-stack-kube-prom-prometheus.monitoring.svc.cluster.local:9090
 
