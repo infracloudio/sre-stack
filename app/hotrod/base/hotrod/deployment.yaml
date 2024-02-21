@@ -20,10 +20,8 @@ spec:
         name: hotrod
         args: ["all"]
         env:
-          - name: JAEGER_AGENT_HOST
-            value: localhost
-          - name: JAEGER_AGENT_PORT
-            value: "6831"
+          - name: OTEL_EXPORTER_OTLP_ENDPOINT
+            value: http://opentelemetry-collector.monitoring:4318
         ports:
           - containerPort: 8080
             name: frontend
@@ -38,3 +36,5 @@ spec:
           requests:
             cpu: 100m
             memory: 100M
+      nodeSelector:
+        workload: app
