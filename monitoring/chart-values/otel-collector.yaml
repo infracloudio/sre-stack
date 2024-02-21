@@ -85,11 +85,40 @@ configMap:
 # Supports templating. To escape existing instances of {{ }}, use {{` <original content> `}}.
 # For example, {{ REDACTED_EMAIL }} becomes {{` {{ REDACTED_EMAIL }} `}}.
 config:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: ${env:MY_POD_IP}:4317
+        http:
+          endpoint: ${env:MY_POD_IP}:4318
+    # jaeger:
+    #   protocols:
+    #     grpc:
+    #       endpoint: ${env:MY_POD_IP}:14250
+    #     thrift_http:
+    #       endpoint: ${env:MY_POD_IP}:14268
+    #     thrift_compact:
+    #       endpoint: ${env:MY_POD_IP}:6831
+    # prometheus:
+    #   config:
+    #     scrape_configs:
+    #       - job_name: opentelemetry-collector
+    #         scrape_interval: 10s
+    #         static_configs:
+    #           - targets:
+    #               - ${env:MY_POD_IP}:8888
+    # zipkin:
+    #   endpoint: ${env:MY_POD_IP}:9411
+  processors:
+    batch: {}
+    # If set to null, will be overridden with values based on k8s resource limits
+    memory_limiter: null
   exporters:
     debug: {}
-    # Will be removed in a future release.
-    # Use the debug exporter instead.
-    logging: {}
+    # # Will be removed in a future release.
+    # # Use the debug exporter instead.
+    # logging: {}
     otlp:
       endpoint: http://tempo.monitoring:4317
       tls:
@@ -101,35 +130,6 @@ config:
     health_check:
       endpoint: ${env:MY_POD_IP}:13133
     memory_ballast: {}
-  processors:
-    batch: {}
-    # If set to null, will be overridden with values based on k8s resource limits
-    memory_limiter: null
-  receivers:
-    jaeger:
-      protocols:
-        grpc:
-          endpoint: ${env:MY_POD_IP}:14250
-        thrift_http:
-          endpoint: ${env:MY_POD_IP}:14268
-        thrift_compact:
-          endpoint: ${env:MY_POD_IP}:6831
-    otlp:
-      protocols:
-        grpc:
-          endpoint: ${env:MY_POD_IP}:4317
-        http:
-          endpoint: ${env:MY_POD_IP}:4318
-    prometheus:
-      config:
-        scrape_configs:
-          - job_name: opentelemetry-collector
-            scrape_interval: 10s
-            static_configs:
-              - targets:
-                  - ${env:MY_POD_IP}:8888
-    zipkin:
-      endpoint: ${env:MY_POD_IP}:9411
   service:
     telemetry:
       metrics:
@@ -138,23 +138,23 @@ config:
       - health_check
       - memory_ballast
     pipelines:
-      logs:
-        exporters:
-          - debug
-        processors:
-          - memory_limiter
-          - batch
-        receivers:
-          - otlp
-      metrics:
-        exporters:
-          - debug
-        processors:
-          - memory_limiter
-          - batch
-        receivers:
-          - otlp
-          - prometheus
+      # logs:
+      #   exporters:
+      #     - debug
+      #   processors:
+      #     - memory_limiter
+      #     - batch
+      #   receivers:
+      #     - otlp
+      # metrics:
+      #   exporters:
+      #     - debug
+      #   processors:
+      #     - memory_limiter
+      #     - batch
+      #   receivers:
+      #     - otlp
+      #     - prometheus
       traces:
         exporters:
           - debug
@@ -164,15 +164,15 @@ config:
           - batch
         receivers:
           - otlp
-          - jaeger
-          - zipkin
+          # - jaeger
+          # - zipkin
 
 image:
   # If you want to use the core image `otel/opentelemetry-collector`, you also need to change `command.name` value to `otelcol`.
   repository: otel/opentelemetry-collector-contrib
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: ""
+  tag: "0.94.0"
   # When digest is set to a non-empty value, images will be pulled by digest (regardless of tag value).
   digest: ""
 imagePullSecrets: []
@@ -296,11 +296,10 @@ ports:
     protocol: TCP
 
 # Resource limits & requests. Update according to your own use case as these values might be too low for a typical deployment.
-resources: {}
-# resources:
-#   limits:
-#     cpu: 250m
-#     memory: 512Mi
+resources:
+  limits:
+    cpu: 250m
+    memory: 512Mi
 
 podAnnotations: {}
 
