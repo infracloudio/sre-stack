@@ -187,6 +187,12 @@ grafana:
     type: loki
     url: http://loki:3100
     version: 1
+  - name: Tempo
+    type: tempo
+    uid: EbPG8fYoz
+    url: http://tempo.monitoring:3100
+    access: proxy
+    basicAuth: false
   # - name: prometheus-sample
   #   access: proxy
   #   basicAuth: true
