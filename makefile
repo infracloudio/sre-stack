@@ -28,13 +28,13 @@ $(foreach var,$(REQUIRED_VARS),$(if $(value $(var)),,$(error $(var) is not set))
 setup:
 
 ifeq ($(APP_STACK),hotrod)
-setup: setup-otel setup-hotrod setup-cluster setup-cluster-autoscaler setup-istio setup-psql setup-observability setup-gateway get-services-endpoint
+setup: setup-cluster setup-cluster-autoscaler setup-istio setup-psql setup-prometheus-stack setup-otel setup-hotrod setup-gateway get-services-endpoint
 else ifeq ($(APP_STACK),sre-stack)
-setup: setup-cluster setup-cluster-autoscaler setup-yace-cloudwatch-policy setup-istio setup-psql setup-observability setup-dbs-rds setup-rabbitmq-operator setup-robot-shop setup-gateway get-services-endpoint
+setup: setup-cluster setup-cluster-autoscaler setup-yace-cloudwatch-policy setup-istio setup-psql setup-prometheus-stack setup-observability setup-dbs-rds setup-rabbitmq-operator setup-robot-shop setup-gateway get-services-endpoint
 else ifeq ($(APP_STACK),all)
-setup: setup-cluster setup-cluster-autoscaler setup-yace-cloudwatch-policy setup-istio setup-psql setup-observability setup-dbs-rds setup-rabbitmq-operator setup-robot-shop setup-hotrod setup-gateway get-services-endpoint
+setup: setup-cluster setup-cluster-autoscaler setup-yace-cloudwatch-policy setup-istio setup-psql setup-prometheus-stack setup-observability setup-dbs-rds setup-rabbitmq-operator setup-robot-shop setup-otel setup-hotrod setup-gateway get-services-endpoint
 else 
-	thing to setup"
+	@echo "Nothing to setup"
 endif
 
 optional-setup: setup-keda setup-loadgen
@@ -78,10 +78,8 @@ setup-istio:
 	helm upgrade --install istio-ingressgateway istio/gateway -n istio-system --version 1.17.2 --wait --timeout 2m0s
 
 setup-observability:
-	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 	helm repo add grafana https://grafana.github.io/helm-charts
 	helm repo update
-	helm upgrade --install prometheus-stack prometheus-community/kube-prometheus-stack --values ./monitoring/chart-values/prometheus-values.yaml -n $(MONITORING_NS) --create-namespace --version 52.0.0
 	helm upgrade --install loki grafana/loki-stack -n $(MONITORING_NS) --create-namespace --values ./monitoring/chart-values/loki.yaml
 	helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/  && helm repo update
 	helm upgrade --install metrics-server metrics-server/metrics-server --values ./monitoring/chart-values/metric-server.yaml -n $(MONITORING_NS) --create-namespace
@@ -90,11 +88,17 @@ setup-observability:
 	kubectl apply -f  monitoring/istio-observability-addons/
 	kubectl apply -f ./monitoring/dashboards/
 
+setup-prometheus-stack:
+	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+	helm repo update
+	helm upgrade --install prometheus-stack prometheus-community/kube-prometheus-stack --values ./monitoring/chart-values/prometheus-values.yaml -n $(MONITORING_NS) --create-namespace --version 52.0.0
+
 setup-otel:
 	kubectl create ns monitoring --dry-run=client -o yaml | kubectl apply -f -
 	helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
 	helm repo update
 	helm upgrade --install opentelemetry-collector open-telemetry/opentelemetry-collector --values ./monitoring/chart-values/otel-collector.yaml -n $(MONITORING_NS)
+	helm upgrade --install tempo grafana/tempo --values ./monitoring/chart-values/tempo.yaml -n $(MONITORING_NS)
 
 setup-db-rds-mysql:
 	./infra/scripts/dbs/rds/mysql/create.sh
