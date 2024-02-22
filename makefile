@@ -7,7 +7,7 @@ help:
 	@echo "	Setup istio and ingress via:		make setup-istio"
 	@echo "	Setup RDS - mysql, documentdb:		make setup-dbs-rds"
 	@echo "	Setup rabbitmq-operator:			make setup-rabbitmq-operator"
-	@echo "	Deploy application via:			make setup-app"
+	@echo "	Deploy application via:			make setup-robot-shop"
 	@echo "	Setup Ingress gateway:		make setup-gateway"
 	@echo "	Setup kiali and jaeger via:		make setup-istio-observability-addons"
 	@echo ""
@@ -17,7 +17,7 @@ help:
 
 include .env
 
-REQUIRED_VARS := AWS_REGION CLUSTER_NAME RDS_MYSQL_DB_NAME AUTO_SCALING_GROUP_POLICY_NAME MONITORING_NS RABBITMQ_NS APP_NS RDS_MYSQL_DB_MASTER_PASSWORD APP_RELEASE_NAME APP_SETUP_TIMEOUT
+REQUIRED_VARS := AWS_REGION CLUSTER_NAME RDS_MYSQL_DB_NAME AUTO_SCALING_GROUP_POLICY_NAME MONITORING_NS RABBITMQ_NS APP_NS RDS_MYSQL_DB_MASTER_PASSWORD APP_RELEASE_NAME APP_SETUP_TIMEOUT APP_STACK
 AWS_ACCOUNT_ID=$(shell aws sts get-caller-identity --query "Account" --output text --no-cli-pager)
 MYSQL_HOST=$(shell aws rds describe-db-instances --db-instance-identifier $(RDS_MYSQL_DB_NAME)  --region $(AWS_REGION) --query 'DBInstances[*].Endpoint.Address' --output text --no-cli-pager)
 OBSERVABILITY_NODEGROUP_ROLE_NAME=$(shell eksctl get nodegroup --cluster $(CLUSTER_NAME) --region $(AWS_REGION) --output json | jq '.[] | select(.Name == "$(OBSERVABILITY_NODEGROUP_NAME)") | .NodeInstanceRoleARN | split("/") | .[1]')
@@ -25,7 +25,17 @@ LB_ENDPOINT=$(shell kubectl get svc istio-ingressgateway -n istio-system -o json
 
 $(foreach var,$(REQUIRED_VARS),$(if $(value $(var)),,$(error $(var) is not set)))
 
-setup: setup-cluster setup-cluster-autoscaler setup-yace-cloudwatch-policy setup-istio setup-psql setup-observability setup-dbs-rds setup-rabbitmq-operator setup-app setup-gateway get-services-endpoint
+setup:
+
+ifeq ($(APP_STACK),hotrod)
+setup: setup-cluster setup-cluster-autoscaler setup-istio setup-psql setup-prometheus-stack setup-otel setup-hotrod setup-gateway get-services-endpoint
+else ifeq ($(APP_STACK),sre-stack)
+setup: setup-cluster setup-cluster-autoscaler setup-yace-cloudwatch-policy setup-istio setup-psql setup-prometheus-stack setup-observability setup-dbs-rds setup-rabbitmq-operator setup-robot-shop setup-gateway get-services-endpoint
+else ifeq ($(APP_STACK),all)
+setup: setup-cluster setup-cluster-autoscaler setup-yace-cloudwatch-policy setup-istio setup-psql setup-prometheus-stack setup-observability setup-dbs-rds setup-rabbitmq-operator setup-robot-shop setup-otel setup-hotrod setup-gateway get-services-endpoint
+else 
+	@echo "Nothing to setup"
+endif
 
 optional-setup: setup-keda setup-loadgen
 
@@ -68,10 +78,8 @@ setup-istio:
 	helm upgrade --install istio-ingressgateway istio/gateway -n istio-system --version 1.17.2 --wait --timeout 2m0s
 
 setup-observability:
-	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 	helm repo add grafana https://grafana.github.io/helm-charts
 	helm repo update
-	helm upgrade --install prometheus-stack prometheus-community/kube-prometheus-stack --values ./monitoring/chart-values/prometheus-values.yaml -n $(MONITORING_NS) --create-namespace --version 52.0.0
 	helm upgrade --install loki grafana/loki-stack -n $(MONITORING_NS) --create-namespace --values ./monitoring/chart-values/loki.yaml
 	helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/  && helm repo update
 	helm upgrade --install metrics-server metrics-server/metrics-server --values ./monitoring/chart-values/metric-server.yaml -n $(MONITORING_NS) --create-namespace
@@ -79,6 +87,18 @@ setup-observability:
 	helm upgrade --install yace yace/yet-another-cloudwatch-exporter -f monitoring/chart-values/yace.yaml --set aws_region=$(AWS_REGION) --set db_name=$(RDS_MYSQL_DB_NAME) -n $(MONITORING_NS)
 	kubectl apply -f  monitoring/istio-observability-addons/
 	kubectl apply -f ./monitoring/dashboards/
+
+setup-prometheus-stack:
+	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+	helm repo update
+	helm upgrade --install prometheus-stack prometheus-community/kube-prometheus-stack --values ./monitoring/chart-values/prometheus-values.yaml -n $(MONITORING_NS) --create-namespace --version 52.0.0
+
+setup-otel:
+	kubectl create ns monitoring --dry-run=client -o yaml | kubectl apply -f -
+	helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+	helm repo update
+	helm upgrade --install opentelemetry-collector open-telemetry/opentelemetry-collector --values ./monitoring/chart-values/otel-collector.yaml -n $(MONITORING_NS)
+	helm upgrade --install tempo grafana/tempo --values ./monitoring/chart-values/tempo.yaml -n $(MONITORING_NS)
 
 setup-db-rds-mysql:
 	./infra/scripts/dbs/rds/mysql/create.sh
@@ -92,10 +112,13 @@ setup-rabbitmq-operator:
 	helm repo add bitnami https://charts.bitnami.com/bitnami && helm repo update
 	helm upgrade --install rabbitmq-operator bitnami/rabbitmq-cluster-operator -f infra/chart-values/rabbitmq-values.yaml -n $(RABBITMQ_NS) --create-namespace --version 3.10.4 --wait
 
-setup-app:
+setup-robot-shop:
 	kubectl create namespace robot-shop --dry-run=client -o yaml | kubectl apply -f -
 	kubectl label namespace robot-shop istio-injection=enabled
 	helm upgrade --install $(APP_RELEASE_NAME) -n $(APP_NS) --create-namespace ./app/robot-shop/helm/ --set mysql_host=$(MYSQL_HOST) --set mysql_password=$(RDS_MYSQL_DB_MASTER_PASSWORD) --wait --timeout $(APP_SETUP_TIMEOUT)
+
+setup-hotrod:
+	kustomize build app/hotrod | kubectl apply -f -	
 
 setup-gateway:
 	kubectl apply -f ./app/robot-shop/Istio/gateway.yaml -n $(APP_NS)
@@ -115,11 +138,28 @@ setup-psql:
 	kubectl apply -f monitoring/grafana-postgres/job.yaml
 
 get-services-endpoint:
-	@echo "---------------------------- Services endpoint ----------------------------"
+ifeq ($(APP_STACK),hotrod)
+	@echo "---------------------------- $(APP_STACK) services endpoint ----------------------------"
+	@echo "----------------------------------------------------------------------------------------"
+else ifeq ($(APP_STACK),sre-stack)
+	@echo "---------------------------- $(APP_STACK) services endpoint ----------------------------"
 	@echo "Visit Robot shop http://$(LB_ENDPOINT)"
 	@echo "Visit Grafana dashboard http://$(LB_ENDPOINT)/grafana"
 	@echo "Visit Istio kiali http://$(LB_ENDPOINT)/kiali"
-	@echo "----------------------------------------------------------------------------"
+	@echo "----------------------------------------------------------------------------------------"
+else ifeq ($(APP_STACK),all)
+	@echo "---------------------------- $(APP_STACK) services endpoint ----------------------------"
+	@echo "----------------------------------------------------------------------------------------"
+	@echo ""
+	@echo "---------------------------- $(APP_STACK) services endpoint ----------------------------"
+	@echo "Visit Robot shop http://$(LB_ENDPOINT)"
+	@echo "Visit Grafana dashboard http://$(LB_ENDPOINT)/grafana"
+	@echo "Visit Istio kiali http://$(LB_ENDPOINT)/kiali"
+	@echo "----------------------------------------------------------------------------------------"
+else 
+	@echo "---------------------------- No services endpoint --------------------------------------"
+endif
+
 
 destroy-db-rds-mysql:
 	./infra/scripts/dbs/rds/mysql/destroy.sh
