@@ -28,7 +28,7 @@ $(foreach var,$(REQUIRED_VARS),$(if $(value $(var)),,$(error $(var) is not set))
 setup:
 
 ifeq ($(APP_STACK),hotrod)
-setup: setup-cluster setup-cluster-autoscaler setup-istio setup-psql setup-prometheus-stack setup-otel setup-hotrod setup-gateway get-services-endpoint
+setup: setup-cluster setup-cluster-autoscaler setup-istio setup-psql setup-prometheus-stack setup-otel setup-tempo setup-hotrod setup-gateway get-services-endpoint
 else ifeq ($(APP_STACK),sre-stack)
 setup: setup-cluster setup-cluster-autoscaler setup-yace-cloudwatch-policy setup-istio setup-psql setup-prometheus-stack setup-observability setup-dbs-rds setup-rabbitmq-operator setup-robot-shop setup-gateway get-services-endpoint
 else ifeq ($(APP_STACK),all)
@@ -98,6 +98,10 @@ setup-otel:
 	helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
 	helm repo update
 	helm upgrade --install opentelemetry-collector open-telemetry/opentelemetry-collector --values ./monitoring/chart-values/otel-collector.yaml -n $(MONITORING_NS)
+	
+setup-tempo:
+	helm repo add grafana https://grafana.github.io/helm-charts
+	helm repo update
 	helm upgrade --install tempo grafana/tempo --values ./monitoring/chart-values/tempo.yaml -n $(MONITORING_NS)
 
 setup-db-rds-mysql:
