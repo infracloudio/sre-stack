@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: beyla-config
+data:
+  beyla-config.yml: |
+    routes:
+      unmatched: heuristic
+    ignored_patterns:
+      - /healthz
+      - /stats
+      - /metrics
+    discovery:
+      services:
+      - k8s_namespace: robot-shop

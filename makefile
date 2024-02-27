@@ -30,7 +30,7 @@ setup:
 ifeq ($(APP_STACK),hotrod)
 setup: setup-cluster setup-cluster-autoscaler setup-istio setup-psql setup-prometheus-stack setup-otel setup-tempo setup-hotrod setup-gateway get-services-endpoint
 else ifeq ($(APP_STACK),sre-stack)
-setup: setup-cluster setup-cluster-autoscaler setup-yace-cloudwatch-policy setup-istio setup-psql setup-prometheus-stack setup-observability setup-dbs-rds setup-rabbitmq-operator setup-robot-shop setup-gateway get-services-endpoint
+setup: setup-cluster setup-cluster-autoscaler setup-yace-cloudwatch-policy setup-istio setup-psql setup-prometheus-stack setup-observability setup-tempo setup-beyla setup-dbs-rds setup-rabbitmq-operator setup-robot-shop setup-gateway get-services-endpoint
 else ifeq ($(APP_STACK),all)
 setup: setup-cluster setup-cluster-autoscaler setup-yace-cloudwatch-policy setup-istio setup-psql setup-prometheus-stack setup-observability setup-dbs-rds setup-rabbitmq-operator setup-robot-shop setup-otel setup-hotrod setup-gateway get-services-endpoint
 else 
@@ -94,7 +94,7 @@ setup-prometheus-stack:
 	helm upgrade --install prometheus-stack prometheus-community/kube-prometheus-stack --values ./monitoring/chart-values/prometheus-values.yaml -n $(MONITORING_NS) --create-namespace --version 52.0.0
 
 setup-otel:
-	kubectl create ns monitoring --dry-run=client -o yaml | kubectl apply -f -
+	kubectl create ns $(MONITORING_NS) --dry-run=client -o yaml | kubectl apply -f -
 	helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
 	helm repo update
 	helm upgrade --install opentelemetry-collector open-telemetry/opentelemetry-collector --values ./monitoring/chart-values/otel-collector.yaml -n $(MONITORING_NS)
@@ -103,6 +103,10 @@ setup-tempo:
 	helm repo add grafana https://grafana.github.io/helm-charts
 	helm repo update
 	helm upgrade --install tempo grafana/tempo --values ./monitoring/chart-values/tempo.yaml -n $(MONITORING_NS)
+
+setup-beyla:
+	kubectl create ns $(MONITORING_NS) --dry-run=client -o yaml | kubectl apply -f -
+	kubectl apply -f monitoring/beyla -n $(MONITORING_NS)
 
 setup-db-rds-mysql:
 	./infra/scripts/dbs/rds/mysql/create.sh
@@ -136,7 +140,7 @@ setup-loadgen:
 	kubectl apply -f scenarios/load-gen/load.yaml
 
 setup-psql:
-	kubectl create ns monitoring --dry-run=client -o yaml | kubectl apply -f -
+	kubectl create ns $(MONITORING_NS) --dry-run=client -o yaml | kubectl apply -f -
 	kubectl apply -f monitoring/grafana-postgres/statefulset.yaml
 	kubectl wait --for=condition=ready pod -l app=postgresql --timeout=300s -n $(MONITORING_NS)
 	kubectl apply -f monitoring/grafana-postgres/job.yaml
