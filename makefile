@@ -30,7 +30,7 @@ setup:
 ifeq ($(APP_STACK),hotrod)
 setup: setup-cluster setup-cluster-autoscaler setup-istio setup-psql setup-prometheus-stack setup-otel setup-tempo setup-hotrod setup-gateway get-services-endpoint
 else ifeq ($(APP_STACK),sre-stack)
-setup: setup-cluster setup-cluster-autoscaler setup-yace-cloudwatch-policy setup-istio setup-psql setup-prometheus-stack setup-observability setup-dbs-rds setup-rabbitmq-operator setup-robot-shop setup-gateway get-services-endpoint
+setup: setup-cluster setup-cluster-autoscaler setup-yace-cloudwatch-policy setup-istio setup-psql setup-prometheus-stack setup-observability setup-tempo setup-beyla setup-dbs-rds setup-rabbitmq-operator setup-robot-shop setup-gateway get-services-endpoint
 else ifeq ($(APP_STACK),all)
 setup: setup-cluster setup-cluster-autoscaler setup-yace-cloudwatch-policy setup-istio setup-psql setup-prometheus-stack setup-observability setup-dbs-rds setup-rabbitmq-operator setup-robot-shop setup-otel setup-hotrod setup-gateway get-services-endpoint
 else 
