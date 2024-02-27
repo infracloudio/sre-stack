@@ -1,0 +1,55 @@
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: beyla
+  labels:
+    app: beyla
+spec:
+  selector:
+    matchLabels:
+      app: beyla
+  template:
+    metadata:
+      labels:
+        app: beyla
+    spec:
+      hostPID: true # Required to access the processes on the host
+      serviceAccountName: beyla # required if you want kubernetes metadata decoration
+      containers:
+        - name: autoinstrument
+          image: grafana/beyla:1.3.0
+          securityContext:
+            privileged: true
+          env:
+            # Select the executable by its name instead of BEYLA_OPEN_PORT
+            # - name: BEYLA_EXECUTABLE_NAME
+            #   value: "goblog"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://tempo.monitoring:4317"
+              # required if you want kubernetes metadata decoration
+            - name: BEYLA_KUBE_METADATA_ENABLE
+              value: "true"
+            # tell beyla where to find the configuration file
+            - name: BEYLA_CONFIG_PATH
+              value: "/config/beyla-config.yml"
+          volumeMounts:
+            - mountPath: /config
+              name: beyla-config
+            - mountPath: /var/run/beyla
+              name: var-run-beyla
+            - name: security-volume
+              mountPath: /sys/kernel/security
+      tolerations: 
+        - key: "o11y"
+          value: "true"
+          effect: "NoSchedule"
+      volumes:
+        - name: beyla-config
+          configMap:
+            name: beyla-config
+        - name: var-run-beyla
+          emptyDir: {}
+        - name: security-volume
+          hostPath: 
+            path: /sys/kernel/security
