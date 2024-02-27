@@ -108,6 +108,11 @@ setup-beyla:
 	kubectl create ns $(MONITORING_NS) --dry-run=client -o yaml | kubectl apply -f -
 	kubectl apply -f monitoring/beyla -n $(MONITORING_NS)
 
+setup-caretta:
+	helm repo add groundcover https://helm.groundcover.com
+	helm repo update
+	helm upgrade --install caretta groundcover/caretta --values ./monitoring/chart-values/caretta.yaml --create-namespace -n $(MONITORING_NS)
+
 setup-db-rds-mysql:
 	./infra/scripts/dbs/rds/mysql/create.sh
 
