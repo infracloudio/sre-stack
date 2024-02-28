@@ -32,10 +32,66 @@ data:
     "fiscalYearStartMonth": 0,
     "gnetId": 7639,
     "graphTooltip": 0,
-    "id": 37,
+    "id": 85,
     "links": [],
     "liveNow": false,
     "panels": [
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "gridPos": {
+          "h": 23,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        },
+        "id": 132,
+        "options": {
+          "nodes": {
+            "arcs": [
+              {
+                "color": "#5794F2",
+                "field": "arc__color"
+              }
+            ]
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "editorMode": "code",
+            "exemplar": false,
+            "expr": "increase((sum by (id, title, subTitle, detail__kind, arc__color) (label_replace((label_replace(label_replace(label_replace(label_replace((caretta_links_observed{client_namespace=~\"$namespace\", client_kind=~\"$kind\", client_name=~\"$workload\", server_port=~\"$port\"} or caretta_links_observed{server_namespace=~\"$namespace\", server_kind=~\"$kind\", server_name=~\"$workload\", server_port=~\"$port\"}), \"detail__kind\", \"$1\", \"server_kind\", \"(.*)\"), \"subTitle\", \"$1\", \"server_namespace\", \"(.*)\"), \"title\", \"$1\", \"server_name\", \"(.*)\"), \"id\", \"$1\", \"server_id\", \"(.*)\") or label_replace(label_replace(label_replace(label_replace((caretta_links_observed{client_namespace=~\"$namespace\", client_kind=~\"$kind\", client_name=~\"$workload\", server_port=~\"$port\"} or caretta_links_observed{server_namespace=~\"$namespace\", server_kind=~\"$kind\", server_name=~\"$workload\", server_port=~\"$port\"}), \"detail__kind\", \"$1\", \"client_kind\", \"(.*)\"), \"subTitle\", \"$1\", \"client_namespace\", \"(.*)\"), \"title\", \"$1\", \"client_name\", \"(.*)\"), \"id\", \"$1\", \"client_id\", \"(.*)\")  ), \"arc__color\", \"1\", \"link_id\", \"(.*)\")) )[$__range:$__interval])  > 0",
+            "format": "table",
+            "instant": true,
+            "legendFormat": "__auto",
+            "range": false,
+            "refId": "Nodes"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "editorMode": "code",
+            "exemplar": false,
+            "expr": "increase((sum by (id, source, target, mainStat) ((label_replace(label_replace(label_replace(label_replace((caretta_links_observed{client_namespace=~\"$namespace\", client_kind=~\"$kind\", client_name=~\"$workload\", server_port=~\"$port\"} or caretta_links_observed{server_namespace=~\"$namespace\", server_kind=~\"$kind\", server_name=~\"$workload\", server_port=~\"$port\"}), \"id\", \"$1\", \"link_id\", \"(.*)\"), \"source\", \"$1\", \"client_id\", \"(.*)\"), \"target\", \"$1\", \"server_id\", \"(.*)\"), \"mainStat\", \"$1\", \"server_port\", \"(.*)\"))) )[$__range:$__interval]) > 0",
+            "format": "table",
+            "hide": false,
+            "instant": true,
+            "legendFormat": "__auto",
+            "range": false,
+            "refId": "edges"
+          }
+        ],
+        "title": "Service Map ☸️",
+        "type": "nodeGraph"
+      },
       {
         "datasource": {
           "type": "prometheus",
@@ -74,6 +130,12 @@ data:
             "unit": "ops"
           },
           "overrides": []
+        },
+        "gridPos": {
+          "h": 3,
+          "w": 6,
+          "x": 12,
+          "y": 0
         },
         "id": 20,
         "links": [],
@@ -134,6 +196,163 @@ data:
               "mode": "absolute",
               "steps": [
                 {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "none"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 3,
+          "w": 6,
+          "x": 18,
+          "y": 0
+        },
+        "id": 113,
+        "links": [],
+        "maxDataPoints": 100,
+        "options": {
+          "colorMode": "none",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto"
+        },
+        "pluginVersion": "10.1.5",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "Prometheus"
+            },
+            "expr": "max(pilot_k8s_cfg_events{type=\"VirtualService\", event=\"add\"}) - (max(pilot_k8s_cfg_events{type=\"VirtualService\", event=\"delete\"}) or max(up * 0))",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "refId": "A"
+          }
+        ],
+        "title": "Virtual Services",
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "Prometheus"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "fixedColor": "rgb(31, 120, 193)",
+              "mode": "fixed"
+            },
+            "mappings": [
+              {
+                "options": {
+                  "match": "null",
+                  "result": {
+                    "text": "N/A"
+                  }
+                },
+                "type": "special"
+              }
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "ops"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 3,
+          "w": 6,
+          "x": 12,
+          "y": 3
+        },
+        "id": 22,
+        "links": [],
+        "maxDataPoints": 100,
+        "options": {
+          "colorMode": "none",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "calcs": [
+              "mean"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto"
+        },
+        "pluginVersion": "10.1.5",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "Prometheus"
+            },
+            "expr": "sum(irate(istio_requests_total{reporter=\"source\", response_code=~\"4.*\"}[1m]))",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "refId": "A",
+            "step": 4
+          }
+        ],
+        "title": "4xxs",
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "Prometheus"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "fixedColor": "rgb(31, 120, 193)",
+              "mode": "fixed"
+            },
+            "mappings": [
+              {
+                "options": {
+                  "match": "null",
+                  "result": {
+                    "text": "N/A"
+                  }
+                },
+                "type": "special"
+              }
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
                   "color": "rgba(245, 54, 54, 0.9)",
                   "value": null
                 },
@@ -154,8 +373,8 @@ data:
         "gridPos": {
           "h": 3,
           "w": 6,
-          "x": 6,
-          "y": 0
+          "x": 18,
+          "y": 3
         },
         "id": 21,
         "links": [],
@@ -226,7 +445,7 @@ data:
                 }
               ]
             },
-            "unit": "ops"
+            "unit": "none"
           },
           "overrides": []
         },
@@ -234,9 +453,9 @@ data:
           "h": 3,
           "w": 6,
           "x": 12,
-          "y": 0
+          "y": 6
         },
-        "id": 22,
+        "id": 115,
         "links": [],
         "maxDataPoints": 100,
         "options": {
@@ -246,7 +465,7 @@ data:
           "orientation": "horizontal",
           "reduceOptions": {
             "calcs": [
-              "mean"
+              "lastNotNull"
             ],
             "fields": "",
             "values": false
@@ -260,14 +479,13 @@ data:
               "type": "prometheus",
               "uid": "Prometheus"
             },
-            "expr": "sum(irate(istio_requests_total{reporter=\"source\", response_code=~\"4.*\"}[1m]))",
+            "expr": "max(pilot_k8s_cfg_events{type=\"Gateway\", event=\"add\"}) - (max(pilot_k8s_cfg_events{type=\"Gateway\", event=\"delete\"}) or max(up * 0))",
             "format": "time_series",
             "intervalFactor": 1,
-            "refId": "A",
-            "step": 4
+            "refId": "A"
           }
         ],
-        "title": "4xxs",
+        "title": "Gateways",
         "type": "stat"
       },
       {
@@ -313,7 +531,7 @@ data:
           "h": 3,
           "w": 6,
           "x": 18,
-          "y": 0
+          "y": 6
         },
         "id": 23,
         "links": [],
@@ -391,86 +609,8 @@ data:
         "gridPos": {
           "h": 3,
           "w": 6,
-          "x": 0,
-          "y": 3
-        },
-        "id": 113,
-        "links": [],
-        "maxDataPoints": 100,
-        "options": {
-          "colorMode": "none",
-          "graphMode": "area",
-          "justifyMode": "auto",
-          "orientation": "horizontal",
-          "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
-            ],
-            "fields": "",
-            "values": false
-          },
-          "textMode": "auto"
-        },
-        "pluginVersion": "10.1.5",
-        "targets": [
-          {
-            "datasource": {
-              "type": "prometheus",
-              "uid": "Prometheus"
-            },
-            "expr": "max(pilot_k8s_cfg_events{type=\"VirtualService\", event=\"add\"}) - (max(pilot_k8s_cfg_events{type=\"VirtualService\", event=\"delete\"}) or max(up * 0))",
-            "format": "time_series",
-            "intervalFactor": 1,
-            "refId": "A"
-          }
-        ],
-        "title": "Virtual Services",
-        "type": "stat"
-      },
-      {
-        "datasource": {
-          "type": "prometheus",
-          "uid": "Prometheus"
-        },
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "fixedColor": "rgb(31, 120, 193)",
-              "mode": "fixed"
-            },
-            "mappings": [
-              {
-                "options": {
-                  "match": "null",
-                  "result": {
-                    "text": "N/A"
-                  }
-                },
-                "type": "special"
-              }
-            ],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green",
-                  "value": null
-                },
-                {
-                  "color": "red",
-                  "value": 80
-                }
-              ]
-            },
-            "unit": "none"
-          },
-          "overrides": []
-        },
-        "gridPos": {
-          "h": 3,
-          "w": 6,
-          "x": 6,
-          "y": 3
+          "x": 12,
+          "y": 9
         },
         "id": 114,
         "links": [],
@@ -512,84 +652,6 @@ data:
         },
         "fieldConfig": {
           "defaults": {
-            "color": {
-              "fixedColor": "rgb(31, 120, 193)",
-              "mode": "fixed"
-            },
-            "mappings": [
-              {
-                "options": {
-                  "match": "null",
-                  "result": {
-                    "text": "N/A"
-                  }
-                },
-                "type": "special"
-              }
-            ],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green",
-                  "value": null
-                },
-                {
-                  "color": "red",
-                  "value": 80
-                }
-              ]
-            },
-            "unit": "none"
-          },
-          "overrides": []
-        },
-        "gridPos": {
-          "h": 3,
-          "w": 6,
-          "x": 12,
-          "y": 3
-        },
-        "id": 115,
-        "links": [],
-        "maxDataPoints": 100,
-        "options": {
-          "colorMode": "none",
-          "graphMode": "area",
-          "justifyMode": "auto",
-          "orientation": "horizontal",
-          "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
-            ],
-            "fields": "",
-            "values": false
-          },
-          "textMode": "auto"
-        },
-        "pluginVersion": "10.1.5",
-        "targets": [
-          {
-            "datasource": {
-              "type": "prometheus",
-              "uid": "Prometheus"
-            },
-            "expr": "max(pilot_k8s_cfg_events{type=\"Gateway\", event=\"add\"}) - (max(pilot_k8s_cfg_events{type=\"Gateway\", event=\"delete\"}) or max(up * 0))",
-            "format": "time_series",
-            "intervalFactor": 1,
-            "refId": "A"
-          }
-        ],
-        "title": "Gateways",
-        "type": "stat"
-      },
-      {
-        "datasource": {
-          "type": "prometheus",
-          "uid": "Prometheus"
-        },
-        "fieldConfig": {
-          "defaults": {
             "mappings": [],
             "thresholds": {
               "mode": "absolute",
@@ -612,7 +674,7 @@ data:
           "h": 3,
           "w": 6,
           "x": 18,
-          "y": 3
+          "y": 9
         },
         "id": 118,
         "options": {
@@ -654,10 +716,10 @@ data:
         },
         "fontSize": "100%",
         "gridPos": {
-          "h": 12,
-          "w": 24,
-          "x": 0,
-          "y": 6
+          "h": 10,
+          "w": 12,
+          "x": 12,
+          "y": 12
         },
         "hideTimeOverride": false,
         "id": 73,
@@ -914,45 +976,6 @@ data:
           "type": "loki",
           "uid": "${lokidatasource}"
         },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 0,
-          "y": 18
-        },
-        "id": 121,
-        "options": {
-          "dedupStrategy": "none",
-          "enableLogDetails": true,
-          "prettifyLogMessage": false,
-          "showCommonLabels": false,
-          "showLabels": false,
-          "showTime": true,
-          "sortOrder": "Descending",
-          "wrapLogMessage": false
-        },
-        "pluginVersion": "9.5.3",
-        "targets": [
-          {
-            "datasource": {
-              "type": "loki",
-              "uid": "${lokidatasource}"
-            },
-            "editorMode": "builder",
-            "expr": "{app=\"web\"} |~ `(?i)error`",
-            "hide": false,
-            "queryType": "range",
-            "refId": "A"
-          }
-        ],
-        "title": "Web Service Error Logs",
-        "type": "logs"
-      },
-      {
-        "datasource": {
-          "type": "loki",
-          "uid": "${lokidatasource}"
-        },
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -1060,7 +1083,7 @@ data:
           "h": 16,
           "w": 12,
           "x": 12,
-          "y": 18
+          "y": 22
         },
         "id": 123,
         "options": {
@@ -1184,7 +1207,46 @@ data:
           "h": 8,
           "w": 12,
           "x": 0,
-          "y": 26
+          "y": 23
+        },
+        "id": 121,
+        "options": {
+          "dedupStrategy": "none",
+          "enableLogDetails": true,
+          "prettifyLogMessage": false,
+          "showCommonLabels": false,
+          "showLabels": false,
+          "showTime": true,
+          "sortOrder": "Descending",
+          "wrapLogMessage": false
+        },
+        "pluginVersion": "9.5.3",
+        "targets": [
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "${lokidatasource}"
+            },
+            "editorMode": "builder",
+            "expr": "{app=\"web\"} |~ `(?i)error`",
+            "hide": false,
+            "queryType": "range",
+            "refId": "A"
+          }
+        ],
+        "title": "Web Service Error Logs",
+        "type": "logs"
+      },
+      {
+        "datasource": {
+          "type": "loki",
+          "uid": "${lokidatasource}"
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 31
         },
         "id": 120,
         "options": {
@@ -1215,40 +1277,99 @@ data:
       },
       {
         "datasource": {
-          "type": "loki",
-          "uid": "${lokidatasource}"
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 0,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "s"
+          },
+          "overrides": []
         },
         "gridPos": {
-          "h": 8,
+          "h": 14,
           "w": 12,
-          "x": 0,
-          "y": 34
+          "x": 12,
+          "y": 38
         },
-        "id": 126,
+        "id": 122,
         "options": {
-          "dedupStrategy": "none",
-          "enableLogDetails": true,
-          "prettifyLogMessage": false,
-          "showCommonLabels": false,
-          "showLabels": false,
-          "showTime": false,
-          "sortOrder": "Descending",
-          "wrapLogMessage": false
+          "legend": {
+            "calcs": [
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "single",
+            "sort": "none"
+          }
         },
         "targets": [
           {
             "datasource": {
-              "type": "loki",
-              "uid": "${lokidatasource}"
+              "type": "prometheus",
+              "uid": "Prometheus"
             },
-            "editorMode": "builder",
-            "expr": "{app=\"catalogue\"} |~ `(?i)error`",
-            "queryType": "range",
+            "editorMode": "code",
+            "expr": "label_join((histogram_quantile(0.90, sum(rate(istio_request_duration_milliseconds_bucket{reporter=\"source\"}[5m])) by (le, destination_workload, destination_workload_namespace)) / 1000) or histogram_quantile(0.90, sum(rate(istio_request_duration_seconds_bucket{reporter=\"source\"}[5m])) by (le, destination_workload, destination_workload_namespace)), \"destination_workload_var\", \".\", \"destination_workload\", \"destination_workload_namespace\")",
+            "legendFormat": "{{destinatio_workload_var}}",
+            "range": true,
             "refId": "A"
           }
         ],
-        "title": "Catalogue Service Error Logs",
-        "type": "logs"
+        "title": "P90 latency",
+        "type": "timeseries"
       },
       {
         "datasource": {
@@ -1258,8 +1379,8 @@ data:
         "gridPos": {
           "h": 8,
           "w": 12,
-          "x": 12,
-          "y": 34
+          "x": 0,
+          "y": 39
         },
         "id": 127,
         "options": {
@@ -1296,118 +1417,7 @@ data:
           "h": 8,
           "w": 12,
           "x": 0,
-          "y": 42
-        },
-        "id": 128,
-        "options": {
-          "dedupStrategy": "none",
-          "enableLogDetails": true,
-          "prettifyLogMessage": false,
-          "showCommonLabels": false,
-          "showLabels": false,
-          "showTime": true,
-          "sortOrder": "Descending",
-          "wrapLogMessage": false
-        },
-        "targets": [
-          {
-            "datasource": {
-              "type": "loki",
-              "uid": "${lokidatasource}"
-            },
-            "editorMode": "builder",
-            "expr": "{app=\"payment\"} |~ `(?i)error`",
-            "queryType": "range",
-            "refId": "A"
-          }
-        ],
-        "title": "Payment Service Error Logs ",
-        "type": "logs"
-      },
-      {
-        "datasource": {
-          "type": "loki",
-          "uid": "${lokidatasource}"
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 12,
-          "y": 42
-        },
-        "id": 129,
-        "options": {
-          "dedupStrategy": "none",
-          "enableLogDetails": true,
-          "prettifyLogMessage": false,
-          "showCommonLabels": false,
-          "showLabels": false,
-          "showTime": true,
-          "sortOrder": "Descending",
-          "wrapLogMessage": false
-        },
-        "targets": [
-          {
-            "datasource": {
-              "type": "loki",
-              "uid": "${lokidatasource}"
-            },
-            "editorMode": "builder",
-            "expr": "{app=\"cart\"} |~ `(?i)error`",
-            "queryType": "range",
-            "refId": "A"
-          }
-        ],
-        "title": "Cart Service Error Logs",
-        "type": "logs"
-      },
-      {
-        "datasource": {
-          "type": "loki",
-          "uid": "${lokidatasource}"
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 0,
-          "y": 50
-        },
-        "id": 130,
-        "options": {
-          "dedupStrategy": "none",
-          "enableLogDetails": true,
-          "prettifyLogMessage": false,
-          "showCommonLabels": false,
-          "showLabels": false,
-          "showTime": true,
-          "sortOrder": "Descending",
-          "wrapLogMessage": false
-        },
-        "targets": [
-          {
-            "datasource": {
-              "type": "loki",
-              "uid": "${lokidatasource}"
-            },
-            "editorMode": "builder",
-            "expr": "{app=\"user\"} |~ `(?i)error`",
-            "queryType": "range",
-            "refId": "A"
-          }
-        ],
-        "title": "User Service Error Logs",
-        "type": "logs"
-      },
-      {
-        "datasource": {
-          "type": "loki",
-          "uid": "${lokidatasource}"
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 12,
-          "y": 50
+          "y": 47
         },
         "id": 131,
         "options": {
@@ -1481,7 +1491,8 @@ data:
               "mode": "absolute",
               "steps": [
                 {
-                  "color": "green"
+                  "color": "green",
+                  "value": null
                 },
                 {
                   "color": "red",
@@ -1494,105 +1505,10 @@ data:
           "overrides": []
         },
         "gridPos": {
-          "h": 16,
-          "w": 24,
-          "x": 0,
-          "y": 58
-        },
-        "id": 122,
-        "options": {
-          "legend": {
-            "calcs": [
-              "max"
-            ],
-            "displayMode": "table",
-            "placement": "bottom",
-            "showLegend": true
-          },
-          "tooltip": {
-            "mode": "single",
-            "sort": "none"
-          }
-        },
-        "targets": [
-          {
-            "datasource": {
-              "type": "prometheus",
-              "uid": "Prometheus"
-            },
-            "editorMode": "code",
-            "expr": "label_join((histogram_quantile(0.90, sum(rate(istio_request_duration_milliseconds_bucket{reporter=\"source\"}[5m])) by (le, destination_workload, destination_workload_namespace)) / 1000) or histogram_quantile(0.90, sum(rate(istio_request_duration_seconds_bucket{reporter=\"source\"}[5m])) by (le, destination_workload, destination_workload_namespace)), \"destination_workload_var\", \".\", \"destination_workload\", \"destination_workload_namespace\")",
-            "legendFormat": "{{destinatio_workload_var}}",
-            "range": true,
-            "refId": "A"
-          }
-        ],
-        "title": "P90 latency",
-        "type": "timeseries"
-      },
-      {
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "axisCenteredZero": false,
-              "axisColorMode": "text",
-              "axisLabel": "",
-              "axisPlacement": "auto",
-              "barAlignment": 0,
-              "drawStyle": "line",
-              "fillOpacity": 0,
-              "gradientMode": "none",
-              "hideFrom": {
-                "legend": false,
-                "tooltip": false,
-                "viz": false
-              },
-              "insertNulls": false,
-              "lineInterpolation": "linear",
-              "lineWidth": 1,
-              "pointSize": 5,
-              "scaleDistribution": {
-                "type": "linear"
-              },
-              "showPoints": "auto",
-              "spanNulls": false,
-              "stacking": {
-                "group": "A",
-                "mode": "none"
-              },
-              "thresholdsStyle": {
-                "mode": "off"
-              }
-            },
-            "mappings": [],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green"
-                },
-                {
-                  "color": "red",
-                  "value": 80
-                }
-              ]
-            },
-            "unit": "s"
-          },
-          "overrides": []
-        },
-        "gridPos": {
-          "h": 16,
-          "w": 24,
-          "x": 0,
-          "y": 74
+          "h": 14,
+          "w": 12,
+          "x": 12,
+          "y": 52
         },
         "id": 125,
         "options": {
@@ -1624,6 +1540,154 @@ data:
         ],
         "title": "P50 latency",
         "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "loki",
+          "uid": "${lokidatasource}"
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 55
+        },
+        "id": 129,
+        "options": {
+          "dedupStrategy": "none",
+          "enableLogDetails": true,
+          "prettifyLogMessage": false,
+          "showCommonLabels": false,
+          "showLabels": false,
+          "showTime": true,
+          "sortOrder": "Descending",
+          "wrapLogMessage": false
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "${lokidatasource}"
+            },
+            "editorMode": "builder",
+            "expr": "{app=\"cart\"} |~ `(?i)error`",
+            "queryType": "range",
+            "refId": "A"
+          }
+        ],
+        "title": "Cart Service Error Logs",
+        "type": "logs"
+      },
+      {
+        "datasource": {
+          "type": "loki",
+          "uid": "${lokidatasource}"
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 63
+        },
+        "id": 126,
+        "options": {
+          "dedupStrategy": "none",
+          "enableLogDetails": true,
+          "prettifyLogMessage": false,
+          "showCommonLabels": false,
+          "showLabels": false,
+          "showTime": false,
+          "sortOrder": "Descending",
+          "wrapLogMessage": false
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "${lokidatasource}"
+            },
+            "editorMode": "builder",
+            "expr": "{app=\"catalogue\"} |~ `(?i)error`",
+            "queryType": "range",
+            "refId": "A"
+          }
+        ],
+        "title": "Catalogue Service Error Logs",
+        "type": "logs"
+      },
+      {
+        "datasource": {
+          "type": "loki",
+          "uid": "${lokidatasource}"
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 71
+        },
+        "id": 128,
+        "options": {
+          "dedupStrategy": "none",
+          "enableLogDetails": true,
+          "prettifyLogMessage": false,
+          "showCommonLabels": false,
+          "showLabels": false,
+          "showTime": true,
+          "sortOrder": "Descending",
+          "wrapLogMessage": false
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "${lokidatasource}"
+            },
+            "editorMode": "builder",
+            "expr": "{app=\"payment\"} |~ `(?i)error`",
+            "queryType": "range",
+            "refId": "A"
+          }
+        ],
+        "title": "Payment Service Error Logs ",
+        "type": "logs"
+      },
+      {
+        "datasource": {
+          "type": "loki",
+          "uid": "${lokidatasource}"
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 79
+        },
+        "id": 130,
+        "options": {
+          "dedupStrategy": "none",
+          "enableLogDetails": true,
+          "prettifyLogMessage": false,
+          "showCommonLabels": false,
+          "showLabels": false,
+          "showTime": true,
+          "sortOrder": "Descending",
+          "wrapLogMessage": false
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "${lokidatasource}"
+            },
+            "editorMode": "builder",
+            "expr": "{app=\"user\"} |~ `(?i)error`",
+            "queryType": "range",
+            "refId": "A"
+          }
+        ],
+        "title": "User Service Error Logs",
+        "type": "logs"
       }
     ],
     "refresh": "5s",
@@ -1654,7 +1718,7 @@ data:
           "current": {
             "selected": false,
             "text": "loki",
-            "value": "loki"
+            "value": "P982945308D3682D1"
           },
           "description": "Variable for loki data source",
           "hide": 0,
@@ -1667,6 +1731,130 @@ data:
           "regex": "",
           "skipUrlSync": false,
           "type": "datasource"
+        },
+        {
+          "allValue": "(.*)",
+          "current": {
+            "selected": true,
+            "text": [
+              "robot-shop"
+            ],
+            "value": [
+              "robot-shop"
+            ]
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "definition": "query_result(caretta_links_observed)",
+          "hide": 0,
+          "includeAll": true,
+          "multi": true,
+          "name": "namespace",
+          "options": [],
+          "query": {
+            "query": "query_result(caretta_links_observed)",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "refresh": 1,
+          "regex": "/.*_namespace=\"([^\"]*).*/",
+          "skipUrlSync": false,
+          "sort": 1,
+          "type": "query"
+        },
+        {
+          "allValue": "(.*)",
+          "current": {
+            "selected": true,
+            "text": [
+              "Service"
+            ],
+            "value": [
+              "Service"
+            ]
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "definition": "query_result(caretta_links_observed)",
+          "hide": 0,
+          "includeAll": true,
+          "multi": true,
+          "name": "kind",
+          "options": [],
+          "query": {
+            "query": "query_result(caretta_links_observed)",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "refresh": 1,
+          "regex": "/.*_kind=\"([^\"]*).*/",
+          "skipUrlSync": false,
+          "sort": 0,
+          "type": "query"
+        },
+        {
+          "allValue": "(.*)",
+          "current": {
+            "selected": true,
+            "text": [
+              "All"
+            ],
+            "value": [
+              "$__all"
+            ]
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "definition": "query_result(caretta_links_observed)",
+          "hide": 0,
+          "includeAll": true,
+          "multi": true,
+          "name": "workload",
+          "options": [],
+          "query": {
+            "query": "query_result(caretta_links_observed)",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "refresh": 1,
+          "regex": "/.*_name=\"([^\"]*).*/",
+          "skipUrlSync": false,
+          "sort": 1,
+          "type": "query"
+        },
+        {
+          "current": {
+            "selected": true,
+            "text": [
+              "All"
+            ],
+            "value": [
+              "$__all"
+            ]
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "definition": "label_values(server_port)",
+          "hide": 0,
+          "includeAll": true,
+          "label": "server port",
+          "multi": true,
+          "name": "port",
+          "options": [],
+          "query": {
+            "query": "label_values(server_port)",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 0,
+          "type": "query"
         }
       ]
     },
@@ -1702,6 +1890,6 @@ data:
     "timezone": "browser",
     "title": "Application Dashboard",
     "uid": "G8wLrJIZk",
-    "version": 2,
+    "version": 4,
     "weekStart": ""
   }
