@@ -3078,6 +3078,32 @@ data:
             "tagsQuery": "",
             "type": "query",
             "useTags": false
+          },
+          {
+            "current": {
+              "selected": false,
+              "text": "user",
+              "value": "user"
+            },
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "definition": "query_result(sum(istio_requests_total{destination_service=~\"$service\"}) by (destination_service_name))",
+            "hide": 2,
+            "includeAll": false,
+            "multi": false,
+            "name": "service_name",
+            "options": [],
+            "query": {
+              "query": "query_result(sum(istio_requests_total{destination_service=~\"$service\"}) by (destination_service_name))",
+              "refId": "PrometheusVariableQueryEditor-VariableQuery"
+            },
+            "refresh": 1,
+            "regex": "/.*destination_service_name=\"([^\"]*).*/",
+            "skipUrlSync": false,
+            "sort": 0,
+            "type": "query"
           }
         ]
       },
@@ -3109,6 +3135,6 @@ data:
       "timezone": "",
       "title": "Istio Service Dashboard",
       "uid": "LJ_uJAvmk",
-      "version": 1,
+      "version": 2,
       "weekStart": ""
     }
