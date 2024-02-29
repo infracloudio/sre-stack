@@ -327,24 +327,6 @@ prometheus:
     enableRemoteWriteReceiver: true
     externalUrl: "https://localhost:9090/prometheus/"
     additionalScrapeConfigs:
-      - job_name: 'istiod'
-        kubernetes_sd_configs:
-        - role: endpoints
-          namespaces:
-            names:
-            - istio-system
-        relabel_configs:
-        - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
-          action: keep
-          regex: istiod;http-monitoring
-      - job_name: 'envoy-stats'
-        metrics_path: /stats/prometheus
-        kubernetes_sd_configs:
-        - role: pod
-        relabel_configs:
-        - source_labels: [__meta_kubernetes_pod_container_port_name]
-          action: keep
-          regex: '.*-envoy-prom'
       - job_name: 'caretta'
         metrics_path: /metrics
         scrape_interval: 5s
@@ -372,18 +354,6 @@ prometheus:
         effect: NoSchedule 
     nodeSelector:
       workload: o11y
-  additionalServiceMonitors:
-      - name: prometheus-operator-cloudwatch
-        endpoints:
-        - port: http
-          path: /metrics
-          interval: 30s
-        namespaceSelector:
-          matchNames:
-          - monitoring
-        selector:
-          matchLabels:
-            app.kubernetes.io/name: yet-another-cloudwatch-exporter
 
 prometheusOperator:
   tolerations:
