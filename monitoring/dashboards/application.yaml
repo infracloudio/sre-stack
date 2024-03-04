@@ -32,7 +32,7 @@ data:
     "fiscalYearStartMonth": 0,
     "gnetId": 7639,
     "graphTooltip": 0,
-    "id": 85,
+    "id": 78,
     "links": [],
     "liveNow": false,
     "panels": [
@@ -95,7 +95,7 @@ data:
       {
         "datasource": {
           "type": "prometheus",
-          "uid": "Prometheus"
+          "uid": "prometheus"
         },
         "fieldConfig": {
           "defaults": {
@@ -173,7 +173,7 @@ data:
       {
         "datasource": {
           "type": "prometheus",
-          "uid": "Prometheus"
+          "uid": "prometheus"
         },
         "fieldConfig": {
           "defaults": {
@@ -1362,8 +1362,10 @@ data:
               "uid": "Prometheus"
             },
             "editorMode": "code",
+            "exemplar": false,
             "expr": "label_join((histogram_quantile(0.90, sum(rate(istio_request_duration_milliseconds_bucket{reporter=\"source\"}[5m])) by (le, destination_workload, destination_workload_namespace)) / 1000) or histogram_quantile(0.90, sum(rate(istio_request_duration_seconds_bucket{reporter=\"source\"}[5m])) by (le, destination_workload, destination_workload_namespace)), \"destination_workload_var\", \".\", \"destination_workload\", \"destination_workload_namespace\")",
-            "legendFormat": "{{destinatio_workload_var}}",
+            "instant": false,
+            "legendFormat": "{{destination_workload_var}}",
             "range": true,
             "refId": "A"
           }
@@ -1890,6 +1892,6 @@ data:
     "timezone": "browser",
     "title": "Application Dashboard",
     "uid": "G8wLrJIZk",
-    "version": 4,
+    "version": 1,
     "weekStart": ""
   }
