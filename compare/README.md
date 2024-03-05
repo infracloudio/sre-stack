@@ -8,7 +8,19 @@ causely agent install --cluster-name sre-stack --values causely-default-values.y
 ```
 
 
-Install Dynatrace 
+### Install Dynatrace 
+
+
+Create token with these scopes:
+
+- activeGateTokenManagement.create 
+- entities.read 
+- settings.read 
+- settings.write 
+- metrics.ingest
+- DataExport 
+- InstallerDownload
+
 
 ```
 aws eks create-addon --cluster-name sre-stack --addon-name dynatrace_dynatrace-operator --addon-version v0.14.2-eksbuild.1 --region us-west-2
