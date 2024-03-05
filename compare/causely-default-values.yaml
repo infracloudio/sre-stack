@@ -222,11 +222,11 @@ scrapers:
     secretName: ""
 
   prometheus:
-    enabled: false
+    enabled: true
     endpoint: http://prometheus-stack-kube-prom-prometheus.monitoring.svc.cluster.local:9090
 
   istio:
-    enabled: false
+    enabled: true
     prometheus:
       endpoint: http://prometheus-stack-kube-prom-prometheus.monitoring.svc.cluster.local:9090
 
