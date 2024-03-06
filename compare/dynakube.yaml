@@ -8,7 +8,7 @@ spec:
   # For SaaS, set `ENVIRONMENTID` to your environment ID.
   # For Managed, change the apiUrl address.
   # For instructions on how to determine the environment ID and how to configure the apiUrl address, see https://www.dynatrace.com/support/help/reference/dynatrace-concepts/environment-id/.
-  apiUrl: https://yqd25229.live.dynatrace.com/api
+  apiUrl: https://rfx55599.live.dynatrace.com/api
 
   # Optional: Name of the secret holding the credentials required to connect to the Dynatrace tenant
   # If unset, the name of this custom resource is used
@@ -82,18 +82,18 @@ spec:
       # For more information on tolerations, see https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
       #
       tolerations:
-        # - key: "persistent"
-        #   operator: "Equal"
-        #   value: "true"
-        #   effect: "NoSchedule"
-        # - key: "o11y"
-        #   operator: "Equal"
-        #   value: "true"
-        #   effect: "NoSchedule"
-        # - key: "loadgen"
-        #   operator: "Equal"
-        #   value: "true"
-        #   effect: "NoSchedule"
+        - key: "persistent"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+        - key: "o11y"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+        - key: "loadgen"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
         - effect: NoSchedule
           key: node-role.kubernetes.io/master
           operator: Exists
