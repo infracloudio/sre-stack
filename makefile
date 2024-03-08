@@ -37,6 +37,26 @@ else
 	@echo "Nothing to setup"
 endif
 
+setup-local: setup-istio setup-psql setup-prometheus-stack setup-observability setup-tempo setup-rabbitmq-operator setup-robot-shop setup-gateway
+	k3d cluster create otel --agents 5 --k3s-arg "--disable=traefik,metrics-server@server:*"
+
+	kubectl label nodes k3d-otel-agent-0 k3d-otel-agent-1 workload=o11y
+	kubectl taint nodes k3d-otel-agent-0 k3d-otel-agent-1 o11y=true:NoSchedule
+
+	kubectl label nodes k3d-otel-agent-2 workload=app
+	kubectl label nodes k3d-otel-agent-3 workload=persistent
+
+	kubectl label nodes k3d-otel-agent-4 workload=loadgen
+	kubectl apply -f - <<EOD
+	apiVersion: storage.k8s.io/v1
+	kind: StorageClass
+	metadata:
+	name: gp2
+	provisioner: rancher.io/local-path
+	reclaimPolicy: Delete
+	volumeBindingMode: WaitForFirstConsumer
+	EOD
+
 optional-setup: setup-keda setup-loadgen
 
 cleanup: destroy-istio-gateway destroy-dbs-rds cleanup-cluster
