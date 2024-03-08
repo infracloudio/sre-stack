@@ -2,9 +2,7 @@ Install causely
 
 ```
 causely auth login
-
-causely agent install --cluster-name sre-stack --values causely-default-values.yaml
-
+causely agent install --cluster-name sre-stack --values compare/causely-default-values.yaml
 ```
 
 
@@ -27,12 +25,19 @@ aws eks create-addon --cluster-name sre-stack --addon-name dynatrace_dynatrace-o
 
 kubectl -n dynatrace create secret generic dynakube --from-literal="apiToken=<token>" --from-literal="dataIngestToken=<token>"
 
-kubectl apply -f dynakube-k8s-csi.yaml
+kubectl apply -f compare/dynakube-k8s-csi.yaml
+kubectl apply -f compare/prom-svc.yaml
+```
 
-kubectl apply -f dynakube.yaml
+Make sure `spec.apiUrl` is set with your account id e.g `https://<account_id>.live.dynatrace.com/api`
+
+```
+kubectl apply -f compare/dynakube.yaml
 ```
 
 Enable Istio metric ingest
+
+Do it after robot-shop is deployed
 
 ```
 kubectl annotate --overwrite service istiod -n istio-system \
