@@ -124,10 +124,6 @@ mediator:
       operator: "Equal"
       value: "true"
       effect: "NoSchedule"
-    - key: "loadgen"
-      operator: "Equal"
-      value: "true"
-      effect: "NoSchedule"
   podAnnotations: {}
   podLabels: {}
   podSecurityContext: {}
