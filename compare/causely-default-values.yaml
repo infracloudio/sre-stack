@@ -56,10 +56,7 @@ agent:
       operator: "Equal"
       value: "true"
       effect: "NoSchedule"
-    - key: "loadgen"
-      operator: "Equal"
-      value: "true"
-      effect: "NoSchedule"
+
     - key: node-role.kubernetes.io/control-plane
       operator: Exists
       effect: NoSchedule
