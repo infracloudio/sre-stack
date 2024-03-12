@@ -188,6 +188,7 @@ spec:
       - routing
       - kubernetes-monitoring
       - dynatrace-api
+      - metrics-ingest
 
     # Optional: Sets how many ActiveGate pods are spawned by the StatefulSet
     # Defaults to "1"
@@ -202,11 +203,18 @@ spec:
 
     # Recommended: Sets the activation group for ActiveGate instances
     #
-    # group: ""
+    group: "default"
 
     # Optional: Defines a custom properties file, the file contents can be provided either as a value in this yaml or as a reference to a secret.
     # If a reference to a secret is used, then the file contents must be stored under the 'customProperties' key within the secret.
-    #
+  
+    customProperties:
+      value: |
+        [rpm]
+        rpm_enabled = true
+        [extension_controller]
+        extension_controller_enabled = true
+
     # customProperties:
     #   value: |
     #     [connectivity]
