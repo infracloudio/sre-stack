@@ -22,9 +22,10 @@ spec:
         args: 
           - |
             while : ; do 
+              orderid=$(cat /dev/urandom | LC_CTYPE=C tr -dc 'a-f0-9' | fold -w 36 | head -n 1)
               /rabbitmqadmin -H rabbitmq-cluster.robot-shop.svc.cluster.local publish exchange='robot-shop' \
               routing_key='orders' payload_encoding='string' \
-              payload='{"orderid":"978fe997-648b-4136-9a69-fb1298880b17","user":"anonymous-4","cart":{"total":1093.55,"tax":182.25833333333333,"items":[{"qty":1,"sku":"RED","name":"ResponsiveEnforcerDroid","price":700,"subtotal":700},{"qty":1,"sku":"SHIP","name":"shippingtoIndiaDelhi","price":393.55,"subtotal":393.55}]}}' \
+              payload="{\"orderid\":\"$orderid\",\"user\":\"anonymous-4\",\"cart\":{\"total\":1093.55,\"tax\":182.25833333333333,\"items\":[{\"qty\":1,\"sku\":\"RED\",\"name\":\"ResponsiveEnforcerDroid\",\"price\":700,\"subtotal\":700},{\"qty\":1,\"sku\":\"SHIP\",\"name\":\"shippingtoIndiaDelhi\",\"price\":393.55,\"subtotal\":393.55}]}}" \
               properties='{"headers":{}}';
             done
       nodeSelector:
