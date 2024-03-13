@@ -17,4 +17,20 @@ spec:
   selector:
     app.kubernetes.io/name: prometheus
     operator.prometheus.io/name: prometheus-stack-kube-prom-prometheus
-  clusterIP: None
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: dynatrace-rabbitmq-prom
+  namespace: robot-shop
+  annotations:
+    metrics.dynatrace.com/port: '15692'
+    metrics.dynatrace.com/scrape: 'true'
+    metrics.dynatrace.com/secure: 'false'
+    metrics.dynatrace.com/path: '/metrics'
+spec:
+  ports:
+  - name: prometheus
+    port: 9091
+  selector:
+    app.kubernetes.io/name: rabbitmq
