@@ -1,0 +1,19 @@
+{{- if eq .Values.stack_mode "local"  }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    release:  prometheus-stack
+spec:
+  endpoints:
+    - port: http
+    - port: http-metrics
+  jobLabel: robot-shop
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: robot-shop
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+{{- end }}

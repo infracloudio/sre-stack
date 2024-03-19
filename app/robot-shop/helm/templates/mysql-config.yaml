@@ -1,0 +1,12 @@
+{{- if eq .Values.stack_mode "local" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-config
+# Also set in the Secret
+data:
+  my-cnf: |
+    [client]
+    user=root
+    password={{ .Values.mysql_root_password }}
+{{- end }}
