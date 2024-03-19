@@ -5,7 +5,11 @@ metadata:
   labels:
     service: catalogue
 spec:
+  {{- if eq .Values.stack_mode "eks" }}
   replicas: {{ .Values.catalogue.replicas }}
+  {{- else }}
+  replicas: 1
+  {{- end }}
   selector:
     matchLabels:
       service: catalogue
