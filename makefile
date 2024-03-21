@@ -22,11 +22,15 @@ help:
 
 include .env
 
-REQUIRED_VARS := AWS_REGION CLUSTER_NAME RDS_MYSQL_DB_NAME AUTO_SCALING_GROUP_POLICY_NAME MONITORING_NS RABBITMQ_NS APP_NS RDS_MYSQL_DB_MASTER_PASSWORD APP_RELEASE_NAME APP_SETUP_TIMEOUT APP_STACK KUBECONFIG
+REQUIRED_VARS := AWS_REGION CLUSTER_NAME RDS_MYSQL_DB_NAME AUTO_SCALING_GROUP_POLICY_NAME MONITORING_NS RABBITMQ_NS APP_NS RDS_MYSQL_DB_MASTER_PASSWORD APP_RELEASE_NAME APP_SETUP_TIMEOUT LOCAL_APP_SETUP_TIMEOUT APP_STACK STACK_MODE LOCAL_NODES INOTIFY_MAX_USER_INSTANCES INOTIFY_MAX_USER_WATCHES
 AWS_ACCOUNT_ID=$(shell aws sts get-caller-identity --query "Account" --output text --no-cli-pager)
 MYSQL_HOST=$(shell aws rds describe-db-instances --db-instance-identifier $(RDS_MYSQL_DB_NAME)  --region $(AWS_REGION) --query 'DBInstances[*].Endpoint.Address' --output text --no-cli-pager)
 OBSERVABILITY_NODEGROUP_ROLE_NAME=$(shell eksctl get nodegroup --cluster $(CLUSTER_NAME) --region $(AWS_REGION) --output json | jq '.[] | select(.Name == "$(OBSERVABILITY_NODEGROUP_NAME)") | .NodeInstanceRoleARN | split("/") | .[1]')
+ifeq ($(STACK_MODE),eks)
 LB_ENDPOINT=$(shell kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+else 
+LB_ENDPOINT=$(shell kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+endif
 
 $(foreach var,$(REQUIRED_VARS),$(if $(value $(var)),,$(error $(var) is not set)))
 
@@ -76,6 +80,7 @@ setup-db-grafana-psql:
 	kubectl apply -f monitoring/grafana-postgres/statefulset.yaml
 	kubectl wait --for=condition=ready pod -l app=postgresql --timeout=300s -n $(MONITORING_NS)
 	kubectl apply -f monitoring/grafana-postgres/job.yaml
+	kubectl wait --for=condition=complete  jobs create-grafana-database --timeout=300s -n $(MONITORING_NS)
 
 setup-kube-prometheus-stack:
 	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
@@ -140,7 +145,11 @@ setup-rabbitmq-operator:
 setup-robot-shop:
 	kubectl create namespace robot-shop --dry-run=client -o yaml | kubectl apply -f -
 	kubectl label namespace robot-shop istio-injection=enabled
-	helm upgrade --install $(APP_RELEASE_NAME) -n $(APP_NS) --create-namespace ./app/robot-shop/helm/ --set mysql_host=$(MYSQL_HOST) --set mysql_password=$(RDS_MYSQL_DB_MASTER_PASSWORD) --wait --timeout $(APP_SETUP_TIMEOUT)
+ifeq ($(STACK_MODE),eks)
+	helm upgrade --install $(APP_RELEASE_NAME) -n $(APP_NS) --create-namespace ./app/robot-shop/helm/ --set mysql_host=$(MYSQL_HOST) --set mysql_root_password=$(RDS_MYSQL_DB_MASTER_PASSWORD) --wait --timeout $(APP_SETUP_TIMEOUT)
+else
+	helm upgrade --install $(APP_RELEASE_NAME) -n $(APP_NS) --create-namespace ./app/robot-shop/helm/ --set stack_mode=$(STACK_MODE) --set mysql_root_password=$(RDS_MYSQL_DB_MASTER_PASSWORD) --wait --timeout $(LOCAL_APP_SETUP_TIMEOUT)
+endif
 
 setup-hotrod:
 	kustomize build app/hotrod | kubectl apply -f -	
@@ -208,7 +217,7 @@ setup-local-cluster:
 	@echo "[WARNING]	Make sure you can access docker-daemon in a sudoless way.Else this setup step will fail."
 	@echo "[WARNING]	Follow documentation here: https://docs.docker.com/engine/install/linux-postinstall/"
 
-	k3d cluster create $(CLUSTER_NAME)-local --agents 5 --k3s-arg "--disable=traefik@server:*" 
+	k3d cluster create $(CLUSTER_NAME)-local --agents $(LOCAL_NODES) --k3s-arg "--disable=traefik@server:*" 
 	k3d kubeconfig merge $(CLUSTER_NAME)-local -d -s
 	
 	kubectl label nodes k3d-$(CLUSTER_NAME)-local-agent-0 k3d-$(CLUSTER_NAME)-local-agent-1 workload=o11y
@@ -218,15 +227,17 @@ setup-local-cluster:
 	kubectl label nodes k3d-$(CLUSTER_NAME)-local-agent-3 workload=persistent
 	kubectl label nodes k3d-$(CLUSTER_NAME)-local-agent-4 workload=loadgen
 
+	# Apply sysctl settings to each node
+	$(foreach node, $(shell seq 0 $(shell echo $(LOCAL_NODES)-1 | bc)), \
+		@echo "" && \
+		docker exec -it k3d-$(CLUSTER_NAME)-local-agent-$(node) sh -c 'sysctl fs.inotify.max_user_instances=$(INOTIFY_MAX_USER_INSTANCES) && sysctl fs.inotify.max_user_watches=$(INOTIFY_MAX_USER_WATCHES)' \
+	)
+
 	kubectl apply -f ./infra/local/gp2-storageclass.yaml
 
 setup-local-o11y: setup-db-grafana-psql setup-kube-prometheus-stack setup-loki setup-istio-o11y-addons setup-dashboards
 
-# @saurabh: add code for setup-mysql-standalone setup-rabbitmq-standalone
-setup-mysql-standalone:
-setup-rabbitmq-standalone:
-
-setup-local: setup-local-cluster setup-istio setup-local-o11y setup-robot-shop setup-gateway
+setup-local: setup-local-cluster setup-istio setup-local-o11y setup-robot-shop setup-gateway get-services-endpoint
 
 cleanup-local:
 	k3d cluster delete $(CLUSTER_NAME)-local
