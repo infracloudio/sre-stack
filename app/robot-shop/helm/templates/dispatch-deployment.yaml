@@ -5,7 +5,11 @@ metadata:
   labels:
     service: dispatch
 spec:
-  replicas: {{ .Values.catalogue.replicas }}
+  {{- if eq .Values.stack_mode "eks" }}
+  replicas: {{ .Values.dispatch.replicas }}
+  {{- else }}
+  replicas: 1
+  {{- end }}
   selector:
     matchLabels:
       service: dispatch

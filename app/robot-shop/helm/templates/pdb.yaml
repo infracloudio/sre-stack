@@ -1,3 +1,4 @@
+{{- if eq .Values.stack_mode "eks"}}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
@@ -77,3 +78,4 @@ spec:
   selector:
     matchLabels:
       service: shipping
+{{- end }}

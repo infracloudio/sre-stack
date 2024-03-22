@@ -1,0 +1,126 @@
+{{- if eq .Values.stack_mode "local" }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+  labels:
+    service: mysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: mysql
+  template:
+    metadata:
+      labels:
+        service: mysql
+    spec:
+      {{ if .Values.psp.enabled }}
+      serviceAccountName: robot-shop
+      {{ end }}
+      containers:
+      - name: mysql
+        image: {{ .Values.image.repo }}/rs-mysql-db:{{ .Values.image.version }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+          - name: MYSQL_ROOT_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: mysql-credentials
+                key: rootPassword
+                optional: false
+        volumeMounts:
+        - mountPath: /var/lib/mysql
+          name: data
+        ports:
+        - name: mysql
+          containerPort: 3306
+        resources:
+          {{- toYaml .Values.mysql.resources | nindent 12 }}
+      - name: mysql-exporter
+        image: prom/mysqld-exporter:v0.14.0
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+          # Not sure this works, also set in the ConfigMap mount
+          - name: MYSQLD_EXPORTER_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: mysql-credentials
+                key: rootPassword
+                optional: false
+        volumeMounts:
+          - name: config
+            mountPath: /home
+            readOnly: true
+        ports:
+          - name: http-metrics
+            containerPort: 9104
+        args:
+          - --collect.auto_increment.columns
+          - --collect.binlog_size
+          - --collect.engine_innodb_status
+          - --collect.global_status
+          - --collect.global_variables
+          - --collect.heartbeat.database
+          - heartbeat
+          - --collect.heartbeat.table
+          - heartbeat
+          - --collect.info_schema.clientstats
+          - --collect.info_schema.innodb_cmp
+          - --collect.info_schema.innodb_cmpmem
+          - --collect.info_schema.innodb_metrics
+          - --no-collect.info_schema.innodb_tablespaces
+          - --collect.info_schema.processlist
+          - --collect.info_schema.processlist.min_time
+          - "0"
+          - --collect.info_schema.query_response_time
+          - --collect.info_schema.schemastats
+          - --collect.info_schema.tables
+          - --collect.info_schema.tables.databases
+          - '*'
+          - --collect.info_schema.tablestats
+          - --collect.info_schema.userstats
+          - --collect.perf_schema.eventsstatements
+          - --collect.perf_schema.eventsstatements.digest_text_limit
+          - "120"
+          - --collect.perf_schema.eventsstatements.timelimit
+          - "86400"
+          - --collect.perf_schema.eventswaits
+          - --collect.perf_schema.file_events
+          - --collect.perf_schema.file_instances
+          - --collect.perf_schema.indexiowaits
+          - --collect.perf_schema.tableiowaits
+          - --collect.perf_schema.tablelocks
+          - --collect.slave_hosts
+          - --collect.slave_status
+      volumes:
+        - name: config
+          configMap:
+            name: mysql-config
+            items:
+              - key: my-cnf
+                path: .my.cnf
+      restartPolicy: Always
+      {{- with .Values.mysql.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.mysql.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.mysql.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: {{ .Values.mysql.storageClassName }}
+        volumeMode: Filesystem
+        resources:
+          requests:
+            storage: {{ .Values.mysql.storage }}
+{{- end}}

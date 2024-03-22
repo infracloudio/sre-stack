@@ -4,11 +4,10 @@ image:
   repo: robotshop
   version: latest
   pullPolicy: IfNotPresent
-
+stack_mode: eks
 amqp_host: "rabbitmq-cluster"
-mysql_host: "robotshopmysql.cn9m6m4s8zo0.us-west-2.rds.amazonaws.com"
-mysql_password: "docdb3421z"
-mongo_url: "mongodb://roboadmin:docdb3421z@robotshopdocdb-cluster.cluster-chh4lgwsalzi.us-east-1.docdb.amazonaws.com:27017/?replicaSet=rs0&readPreference=secondaryPreferred&retryWrites=false"
+mysql_host: "mysql.robot-shop.svc.cluster.local"
+mysql_root_password: "docdb3421z"
 # EUM configuration
 # Provide your key and set the endpoint
 eum:
@@ -108,6 +107,13 @@ mongodb:
 
 
 mysql:
+  resources:
+    limits:
+      cpu: 200m
+      memory: 1024Mi
+    requests:
+      cpu: 100m
+      memory: 700Mi
   tolerations:
     - key: "persistent"
       operator: "Equal"
@@ -115,6 +121,8 @@ mysql:
       effect: "NoSchedule"
   nodeSelector:
     workload: persistent
+  storageClassName: gp2
+  storage: 1Gi
 
 payment:
   # Alternative payment gateway URL
@@ -215,6 +223,13 @@ mysqlseeder:
     requests:
       cpu: 100m
       memory: 500Mi
+  tolerations:
+    - key: "persistent"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+  nodeSelector:
+    workload: persistent
 
 user: 
   replicas: 3

@@ -6,7 +6,11 @@ metadata:
     service: payment
     stage: prod
 spec:
-  replicas: {{ .Values.user.replicas }}
+  {{- if eq .Values.stack_mode "eks" }}
+  replicas: {{ .Values.payment.replicas }}
+  {{- else }}
+  replicas: 1
+  {{- end }}
   selector:
     matchLabels:
       service: payment

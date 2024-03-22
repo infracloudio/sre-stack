@@ -47,6 +47,7 @@ spec:
       app.kubernetes.io/component: rabbitmq
   namespaceSelector:
     any: true
+{{- if eq .Values.stack_mode "eks" }}
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
@@ -66,3 +67,4 @@ spec:
   namespaceSelector:
     matchNames:
     - rabbitmq-operator
+{{- end }}

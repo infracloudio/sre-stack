@@ -1,3 +1,9 @@
+{{- $mysqlUser := "" }}
+{{- if eq .Values.stack_mode "local" }}
+{{- $mysqlUser = "root" }}
+{{- else }}
+{{- $mysqlUser = "admin" }}
+{{- end }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -21,11 +27,11 @@ spec:
           - name: MYSQL_HOST
             value: {{ .Values.mysql_host }}
           - name: MYSQL_PASSWORD
-            value: {{ .Values.mysql_password }}
+            value: {{ .Values.mysql_root_password }}
           - name: MYSQL_PORT
             value: "3306"
           - name: MYSQL_USER
-            value: admin
+            value: {{ $mysqlUser }}
           - name: TIMEOUT
             value: "600"
           - name: WAIT_HOSTS
@@ -43,11 +49,11 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.shipping.nodeSelector }}
+      {{- with .Values.mysqlseeder.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.shipping.tolerations }}
+      {{- with .Values.mysqlseeder.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}

@@ -1,3 +1,4 @@
+{{- if eq .Values.stack_mode "eks" }}
 apiVersion: v1
 data:
   default_user.conf: ZGVmYXVsdF91c2VyID0gZ3Vlc3QKZGVmYXVsdF9wYXNzID0gZ3Vlc3Q=
@@ -47,3 +48,65 @@ spec:
             nodeSelector:
               {{- toYaml . | nindent 14 }}
             {{- end }}
+{{ else }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+  labels:
+    service: rabbitmq
+    app.kubernetes.io/component: rabbitmq
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: rabbitmq
+  template:
+    metadata:
+      labels:
+        service: rabbitmq
+        app.kubernetes.io/component: rabbitmq
+    spec:
+      {{ if .Values.psp.enabled }}
+      serviceAccountName: robot-shop
+      {{ end }}
+      containers:
+      - name: rabbitmq
+        image: rabbitmq:3.12
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: tcp-amqp
+          containerPort: 5672
+        - name: tcp-epmd
+          containerPort: 4369
+        - name: http-management
+          containerPort: 15672
+        - name: http-metrics
+          containerPort: 15692
+        resources:
+          limits:
+            cpu: 200m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+        {{- if .Values.rabbitmq.enableExporter }}
+        lifecycle:
+          postStart:
+            exec:
+              command: ["/bin/sh", "-c", "echo [rabbitmq_management,rabbitmq_prometheus]. > /etc/rabbitmq/enabled_plugins"]
+        {{- end }}
+      restartPolicy: Always
+      {{- with .Values.rabbitmq.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.rabbitmq.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.rabbitmq.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
