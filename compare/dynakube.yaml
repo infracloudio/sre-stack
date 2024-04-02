@@ -1,14 +1,14 @@
 apiVersion: dynatrace.com/v1beta1
 kind: DynaKube
 metadata:
-  name: dynakube
+  name: sre-stack-cluster
   namespace: dynatrace
 spec:
   # Dynatrace apiUrl including the `/api` path at the end.
   # For SaaS, set `ENVIRONMENTID` to your environment ID.
   # For Managed, change the apiUrl address.
   # For instructions on how to determine the environment ID and how to configure the apiUrl address, see https://www.dynatrace.com/support/help/reference/dynatrace-concepts/environment-id/.
-  apiUrl: https://rfx55599.live.dynatrace.com/api
+  apiUrl: https://rys13499.live.dynatrace.com/api
 
   # Optional: Name of the secret holding the credentials required to connect to the Dynatrace tenant
   # If unset, the name of this custom resource is used
