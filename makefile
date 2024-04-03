@@ -6,7 +6,7 @@ help:
 	@echo "	setup-observability                 - Setup monitoring/observability"
 	@echo "	setup-optional-otel                 - Setup OpenTelemetry"
 	@echo "	setup-istio                         - Setup istio and ingress"
-	@echo "	setup-dbs-rds-mysql                 - Setup RDS - mysql, documentdb"
+	@echo "	setup-db-rds-mysql                  - Setup RDS - mysql"
 	@echo "	setup-rabbitmq-operator             - Setup rabbitmq-operator"
 	@echo "	setup-robot-shop                    - Deploy robot-shop app-stack."
 	@echo "	setup-optional-rmq-consumer-scaling - Setup keda to scale dispatch (optional)"
@@ -37,11 +37,11 @@ $(foreach var,$(REQUIRED_VARS),$(if $(value $(var)),,$(error $(var) is not set))
 setup:
 
 ifeq ($(APP_STACK),hotrod)
-setup: setup-cluster setup-cluster-autoscaler setup-istio setup-psql setup-prometheus-stack setup-otel setup-tempo setup-hotrod setup-gateway get-services-endpoint
+setup: setup-cluster setup-cluster-autoscaler setup-istio setup-observability setup-hotrod setup-gateway get-services-endpoint
 else ifeq ($(APP_STACK),sre-stack)
-setup: setup-cluster setup-cluster-autoscaler setup-yace-cloudwatch-policy setup-istio setup-psql setup-prometheus-stack setup-observability setup-caretta setup-tempo setup-beyla setup-dbs-rds-mysql setup-rabbitmq-operator setup-robot-shop setup-gateway get-services-endpoint
+setup: setup-cluster setup-cluster-autoscaler setup-yace setup-istio setup-observability setup-db-rds-mysql setup-rabbitmq-operator setup-robot-shop setup-gateway get-services-endpoint
 else ifeq ($(APP_STACK),all)
-setup: setup-cluster setup-cluster-autoscaler setup-yace-cloudwatch-policy setup-istio setup-psql setup-prometheus-stack setup-observability setup-dbs-rds-mysql setup-rabbitmq-operator setup-robot-shop setup-otel setup-hotrod setup-gateway get-services-endpoint
+setup: setup-cluster setup-cluster-autoscaler setup-yace setup-istio setup-observability setup-db-rds-mysql setup-rabbitmq-operator setup-robot-shop setup-hotrod setup-gateway get-services-endpoint
 else 
 	@echo "Nothing to setup"
 endif
