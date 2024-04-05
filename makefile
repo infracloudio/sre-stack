@@ -19,6 +19,10 @@ help:
 	@echo "	setup-local                         - Setup end-to-end stack on local k8s (k3d)"
 	@echo "	setup-local-cluster                 - Setup local k3d cluster"
 	@echo "	cleanup-local                       - Cleanup end-to-end stack on local k8s (k3d)"
+	@echo ""
+	@echo ""
+	@echo "Utilities:"
+	@echo " get-service-endpoints           - Print exposed service endpoints."
 
 include .env
 
@@ -37,11 +41,11 @@ $(foreach var,$(REQUIRED_VARS),$(if $(value $(var)),,$(error $(var) is not set))
 setup:
 
 ifeq ($(APP_STACK),hotrod)
-setup: setup-cluster setup-cluster-autoscaler setup-istio setup-observability setup-hotrod setup-gateway get-services-endpoint
-else ifeq ($(APP_STACK),sre-stack)
-setup: setup-cluster setup-cluster-autoscaler setup-yace setup-istio setup-observability setup-db-rds-mysql setup-rabbitmq-operator setup-robot-shop setup-gateway get-services-endpoint
+setup: setup-cluster setup-cluster-autoscaler setup-istio setup-observability setup-hotrod setup-gateway get-service-endpoints
+else ifeq ($(APP_STACK),robot-shop)
+setup: setup-cluster setup-cluster-autoscaler setup-yace setup-istio setup-observability setup-db-rds-mysql setup-rabbitmq-operator setup-robot-shop setup-gateway get-service-endpoints
 else ifeq ($(APP_STACK),all)
-setup: setup-cluster setup-cluster-autoscaler setup-yace setup-istio setup-observability setup-db-rds-mysql setup-rabbitmq-operator setup-robot-shop setup-hotrod setup-gateway get-services-endpoint
+setup: setup-cluster setup-cluster-autoscaler setup-yace setup-istio setup-observability setup-db-rds-mysql setup-rabbitmq-operator setup-robot-shop setup-hotrod setup-gateway get-service-endpoints
 else 
 	@echo "Nothing to setup"
 endif
@@ -170,27 +174,27 @@ setup-loadgen:
 setup-optional-rmq-consumer-scaling: setup-keda setup-loadgen
 
 
-get-services-endpoint:
+get-service-endpoints:
 ifeq ($(APP_STACK),hotrod)
-	@echo "---------------------------- $(APP_STACK) services endpoint ----------------------------"
-	@echo "----------------------------------------------------------------------------------------"
-else ifeq ($(APP_STACK),sre-stack)
-	@echo "---------------------------- $(APP_STACK) services endpoint ----------------------------"
+	@echo "---------------------------- $(APP_STACK) service endpoints ----------------------------"
+	@echo "ToDo"
+else ifeq ($(APP_STACK),robot-shop)
+	@echo "---------------------------- $(APP_STACK) service endpoints ----------------------------"
 	@echo "Visit Robot shop http://$(LB_ENDPOINT)"
 	@echo "Visit Grafana dashboard http://$(LB_ENDPOINT)/grafana"
 	@echo "Visit Istio kiali http://$(LB_ENDPOINT)/kiali"
 	@echo "----------------------------------------------------------------------------------------"
 else ifeq ($(APP_STACK),all)
-	@echo "---------------------------- $(APP_STACK) services endpoint ----------------------------"
+	@echo "---------------------------- $(APP_STACK) service endpoints ----------------------------"
 	@echo "----------------------------------------------------------------------------------------"
 	@echo ""
-	@echo "---------------------------- $(APP_STACK) services endpoint ----------------------------"
+	@echo "---------------------------- $(APP_STACK) service endpoints ----------------------------"
 	@echo "Visit Robot shop http://$(LB_ENDPOINT)"
 	@echo "Visit Grafana dashboard http://$(LB_ENDPOINT)/grafana"
 	@echo "Visit Istio kiali http://$(LB_ENDPOINT)/kiali"
 	@echo "----------------------------------------------------------------------------------------"
 else 
-	@echo "---------------------------- No services endpoint --------------------------------------"
+	@echo "---------------------------- Non-existent APP_STACK --------------------------------------"
 endif
 
 destroy-db-rds-mysql:
@@ -237,7 +241,7 @@ setup-local-cluster:
 
 setup-local-o11y: setup-db-grafana-psql setup-kube-prometheus-stack setup-loki setup-istio-o11y-addons setup-dashboards
 
-setup-local: setup-local-cluster setup-istio setup-local-o11y setup-robot-shop setup-gateway get-services-endpoint
+setup-local: setup-local-cluster setup-istio setup-local-o11y setup-robot-shop setup-gateway get-service-endpoints
 
 cleanup-local:
 	k3d cluster delete $(CLUSTER_NAME)-local
