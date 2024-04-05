@@ -2,6 +2,9 @@
 
 During this simulation, we stress test RabbitMQ by overloading the order queue, surpassing the connection limit. Consequently, the payment service attempts to reconnect, leading to a strain on RabbitMQ cluster, ultimately causing OOMKilled.
 
+## Load Generation
+
+[rabbitmq-load.yaml](/home/saurabh/Desktop/Workspace/sre-stack/scenarios/scenario-04/rabbitmq-load.yaml) continuously creates pending orders to stress the RabbitMQ deployment.
 
 ## Creating this Scenario:
 
