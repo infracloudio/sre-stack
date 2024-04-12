@@ -25,11 +25,11 @@ help:
 	@echo " get-service-endpoints           - Print exposed service endpoints."
 
 include .env
+BASE_SCRIPT_PATH := ./infra/scripts
+CLUSTER_SCRIPT_PATH := $(BASE_SCRIPT_PATH)/cluster
 
 REQUIRED_VARS := AWS_REGION CLUSTER_NAME RDS_MYSQL_DB_NAME AUTO_SCALING_GROUP_POLICY_NAME MONITORING_NS RABBITMQ_NS APP_NS RDS_MYSQL_DB_MASTER_PASSWORD APP_RELEASE_NAME APP_SETUP_TIMEOUT LOCAL_APP_SETUP_TIMEOUT APP_STACK STACK_MODE LOCAL_NODES INOTIFY_MAX_USER_INSTANCES INOTIFY_MAX_USER_WATCHES
-AWS_ACCOUNT_ID=$(shell aws sts get-caller-identity --query "Account" --output text --no-cli-pager)
 MYSQL_HOST=$(shell aws rds describe-db-instances --db-instance-identifier $(RDS_MYSQL_DB_NAME)  --region $(AWS_REGION) --query 'DBInstances[*].Endpoint.Address' --output text --no-cli-pager)
-OBSERVABILITY_NODEGROUP_ROLE_NAME=$(shell eksctl get nodegroup --cluster $(CLUSTER_NAME) --region $(AWS_REGION) --output json | jq '.[] | select(.Name == "$(OBSERVABILITY_NODEGROUP_NAME)") | .NodeInstanceRoleARN | split("/") | .[1]')
 ifeq ($(STACK_MODE),eks)
 LB_ENDPOINT=$(shell kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 else 
@@ -38,6 +38,7 @@ endif
 
 $(foreach var,$(REQUIRED_VARS),$(if $(value $(var)),,$(error $(var) is not set)))
 
+CHECK_ISTIO_GATEWAY_EXISTS := $(shell helm status istio-ingressgateway -n istio-system 2>/dev/null)
 setup:
 
 ifeq ($(APP_STACK),hotrod)
@@ -51,27 +52,10 @@ else
 endif
 
 setup-cluster:
-	eksctl create cluster -f infra/eksctl.yaml
+	$(CLUSTER_SCRIPT_PATH)/setup-cluster.sh
 
 setup-cluster-autoscaler:
-	eksctl utils associate-iam-oidc-provider \
-	--region=$(AWS_REGION) --cluster $(CLUSTER_NAME) \
-	--approve
-	aws iam create-policy  \
-	--policy-name $(AUTO_SCALING_GROUP_POLICY_NAME) \
-	--policy-document file://./infra/asg-policy.json \
-	--no-cli-pager
-	eksctl create iamserviceaccount \
-	--region=$(AWS_REGION) --name cluster-autoscaler \
-	--namespace kube-system \
-	--cluster $(CLUSTER_NAME) \
-	--attach-policy-arn "arn:aws:iam::$(AWS_ACCOUNT_ID):policy/$(AUTO_SCALING_GROUP_POLICY_NAME)" \
-	--approve \
-	--override-existing-serviceaccounts
-	kubectl apply -f infra/cluster-autoscale.yaml
-	kubectl -n kube-system \
-	annotate deployment.apps/cluster-autoscaler \
-	cluster-autoscaler.kubernetes.io/safe-to-evict="false"
+	$(CLUSTER_SCRIPT_PATH)/setup-cluster-autoscaler.sh
 
 setup-istio:
 	helm repo add istio https://istio-release.storage.googleapis.com/charts && helm repo update
@@ -103,7 +87,7 @@ setup-beyla:
 setup-tempo:
 	helm repo add grafana https://grafana.github.io/helm-charts
 	helm repo update
-	helm upgrade --install tempo grafana/tempo --values ./monitoring/chart-values/tempo.yaml -n $(MONITORING_NS)
+	helm upgrade --install tempo grafana/tempo --values ./monitoring/chart-values/tempo.yaml --create-namespace -n $(MONITORING_NS)
 
 setup-caretta:
 	helm repo add groundcover https://helm.groundcover.com/
@@ -115,14 +99,7 @@ setup-metric-server:
 	helm upgrade --install metrics-server metrics-server/metrics-server --values ./monitoring/chart-values/metric-server.yaml -n $(MONITORING_NS) --create-namespace
 
 setup-yace:
-	aws iam create-policy  \
-	--policy-name $(YACE_CLOUDWATCH_POLICY_NAME) \
-	--policy-document file://./infra/yace-cloudwatch-policy.json \
-	--no-cli-pager
-	aws iam attach-role-policy --role-name $(OBSERVABILITY_NODEGROUP_ROLE_NAME) --policy-arn arn:aws:iam::$(AWS_ACCOUNT_ID):policy/$(YACE_CLOUDWATCH_POLICY_NAME)
-
-	helm repo add yace https://nerdswords.github.io/helm-charts
-	helm upgrade --install yace yace/yet-another-cloudwatch-exporter -f monitoring/chart-values/yace.yaml --set aws_region=$(AWS_REGION) --set db_name=$(RDS_MYSQL_DB_NAME) -n $(MONITORING_NS)
+	$(CLUSTER_SCRIPT_PATH)/setup-yace.sh
 
 setup-istio-o11y-addons:
 	kubectl apply -f  monitoring/istio-observability-addons/
@@ -159,6 +136,7 @@ setup-hotrod:
 	kustomize build app/hotrod | kubectl apply -f -	
 
 setup-gateway:
+	kubectl create namespace robot-shop --dry-run=client -o yaml | kubectl apply -f -
 	kubectl apply -f ./app/robot-shop/Istio/gateway.yaml -n $(APP_NS)
 
 
@@ -202,15 +180,24 @@ destroy-db-rds-mysql:
 	./infra/scripts/dbs/rds/sg-destroy.sh
 
 destroy-istio-gateway:
-	helm uninstall istio-ingressgateway -n istio-system 
+ifeq ($(CHECK_ISTIO_GATEWAY_EXISTS),)
+	@echo "istio ingress gateway does not exists"
+else 
+	helm uninstall istio-ingressgateway -n istio-system
+endif
 
 destroy-loadgen:
 	kubectl delete -f scenarios/load-gen/load.yaml
 
-cleanup-cluster:
-	eksctl delete cluster --region=$(AWS_REGION) --name=$(CLUSTER_NAME) --wait
-	aws iam delete-policy --policy-arn arn:aws:iam::$(AWS_ACCOUNT_ID):policy/$(AUTO_SCALING_GROUP_POLICY_NAME)
-	aws iam delete-policy --policy-arn arn:aws:iam::$(AWS_ACCOUNT_ID):policy/$(YACE_CLOUDWATCH_POLICY_NAME)
+destroy-cluster-autoscaler:
+	$(CLUSTER_SCRIPT_PATH)/destroy-cluster-autoscaler.sh
+
+destroy-yace:
+	$(CLUSTER_SCRIPT_PATH)/destroy-yace.sh
+
+cleanup-cluster: destroy-cluster-autoscaler destroy-yace
+	$(CLUSTER_SCRIPT_PATH)/cleanup-cluster.sh
+
 
 cleanup: destroy-istio-gateway destroy-db-rds-mysql cleanup-cluster
 
