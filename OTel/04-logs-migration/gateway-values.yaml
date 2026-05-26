@@ -1,0 +1,91 @@
+# Gateway values — step 04 adds:
+#  - k8s_events receiver (cluster-wide, so only on the gateway)
+#  - otlphttp/loki exporter wired into the logs pipeline (replaces `debug`)
+mode: deployment
+replicaCount: 1
+fullnameOverride: otel-gateway
+
+image:
+  repository: otel/opentelemetry-collector-contrib
+
+presets:
+  kubernetesAttributes:
+    enabled: true
+    extractAllPodLabels: true
+  # NEW: cluster-wide Kubernetes events ingestion (events → log records).
+  kubernetesEvents:
+    enabled: true
+
+service:
+  type: NodePort
+
+ports:
+  otlp:
+    enabled: true
+    containerPort: 4317
+    servicePort: 4317
+    nodePort: 30317
+    protocol: TCP
+  otlp-http:
+    enabled: true
+    containerPort: 4318
+    servicePort: 4318
+    nodePort: 30318
+    protocol: TCP
+
+resources:
+  limits:
+    cpu: 512m
+    memory: 1Gi
+
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+    # k8s_events injected by the preset under the name `k8s_events`.
+
+  processors:
+    memory_limiter:
+      check_interval: 5s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+    batch:
+      send_batch_size: 1024
+      timeout: 5s
+    # Normalize resource attribute names for Loki/Grafana correlation.
+    # service.name → loki label `service_name`, k8s.pod.name → `pod`, etc.
+    resource/loki-labels:
+      attributes:
+        - action: insert
+          key: loki.resource.labels
+          value: service.name,k8s.namespace.name,k8s.pod.name,k8s.container.name
+
+  exporters:
+    otlp/tempo:
+      endpoint: tempo.observability.svc:4317
+      tls:
+        insecure: true
+    # NEW: ship logs to Loki via OTLP HTTP (replaces the deprecated `loki` exporter).
+    otlphttp/loki:
+      endpoint: http://loki.observability.svc:3100/otlp
+      tls:
+        insecure: true
+
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, k8sattributes, batch]
+        exporters: [otlp/tempo]
+      metrics:
+        receivers: [otlp]
+        processors: [memory_limiter, k8sattributes, batch]
+        exporters: [otlp/tempo]   # placeholder, replaced in step 05
+      logs:
+        receivers: [otlp, k8sobjects]
+        processors: [memory_limiter, k8sattributes, resource/loki-labels, batch]
+        exporters: [otlphttp/loki]
