@@ -1,0 +1,40 @@
+# Overlay onto 05-metrics-migration/gateway-values.yaml (or 07).
+# Adds awscloudwatchreceiver to the gateway's metrics pipeline.
+#
+# Apply with:
+#   helm upgrade otel-gateway open-telemetry/opentelemetry-collector \
+#     -n observability \
+#     -f ../../05-metrics-migration/gateway-values.yaml \
+#     -f gateway-overlay-values.yaml
+#
+# AWS creds: collector reads them from env. Create a Secret and mount it:
+#   kubectl -n observability create secret generic otel-aws \
+#     --from-literal=AWS_ACCESS_KEY_ID=... \
+#     --from-literal=AWS_SECRET_ACCESS_KEY=... \
+#     --from-literal=AWS_REGION=us-east-1
+extraEnvsFrom:
+  - secretRef:
+      name: otel-aws
+
+config:
+  receivers:
+    awscloudwatch:
+      region: us-east-1
+      poll_interval: 5m
+      metrics:
+        named:
+          - namespace: AWS/EC2
+            metric_name: CPUUtilization
+            period: 300s
+            aws_aggregation: Average
+          - namespace: AWS/RDS
+            metric_name: CPUUtilization
+            period: 300s
+            aws_aggregation: Average
+
+  service:
+    pipelines:
+      metrics:
+        receivers: [otlp, awscloudwatch]
+        processors: [memory_limiter, k8sattributes, batch]
+        exporters: [prometheusremotewrite/prom]
