@@ -1,0 +1,177 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: monitoring
+  name: "llm-dashboard"
+  annotations:
+     grafana_folder: "LLM Observability"
+  labels:
+    grafana_dashboard: "1"
+    app: observability-grafana
+data:
+ llm.json: |-
+  {
+    "title": "LLM Observability (GenAI)",
+    "uid": "llm-observability",
+    "tags": [
+      "llm",
+      "genai",
+      "opentelemetry"
+    ],
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "version": 2,
+    "refresh": "30s",
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "templating": {
+      "list": [
+        {
+          "name": "model",
+          "type": "query",
+          "datasource": {
+            "type": "prometheus"
+          },
+          "query": "label_values(gen_ai_requests_total, gen_ai_request_model)",
+          "refresh": 2,
+          "includeAll": true,
+          "multi": true
+        }
+      ]
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Requests per Model",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        },
+        "datasource": {
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "sum by (gen_ai_request_model) (rate(gen_ai_requests_total{gen_ai_request_model=~\"$model\"}[5m]))",
+            "legendFormat": "{{gen_ai_request_model}}"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Token Usage per Model (input vs output)",
+        "type": "timeseries",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        },
+        "datasource": {
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "sum by (gen_ai_request_model) (rate(gen_ai_usage_input_tokens_total{gen_ai_request_model=~\"$model\"}[5m]))",
+            "legendFormat": "{{gen_ai_request_model}} - input"
+          },
+          {
+            "expr": "sum by (gen_ai_request_model) (rate(gen_ai_usage_output_tokens_total{gen_ai_request_model=~\"$model\"}[5m]))",
+            "legendFormat": "{{gen_ai_request_model}} - output"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Total Tokens per Model (last 24h)",
+        "type": "bargauge",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        },
+        "datasource": {
+          "type": "prometheus"
+        },
+        "targets": [
+          {
+            "expr": "sum by (gen_ai_request_model) (increase(gen_ai_usage_tokens_total{gen_ai_request_model=~\"$model\"}[24h]))",
+            "legendFormat": "{{gen_ai_request_model}}"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Estimated Cost per Model ($, last 24h)",
+        "type": "bargauge",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 8
+        },
+        "datasource": {
+          "type": "prometheus"
+        },
+        "description": "OpenLIT's own notional pricing table -- illustrative, calibrated for hosted models. Not a real billed cost for a local Ollama model.",
+        "targets": [
+          {
+            "expr": "sum by (gen_ai_request_model) (increase(gen_ai_usage_cost_USD_sum{gen_ai_request_model=~\"$model\"}[24h]))",
+            "legendFormat": "{{gen_ai_request_model}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD"
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Recent GenAI Traces",
+        "type": "traces",
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 16
+        },
+        "datasource": {
+          "type": "tempo"
+        },
+        "description": "Per-request duration and error status live here as span attributes -- there is currently no aggregated Prometheus duration/error-rate metric from OpenLIT in this setup.",
+        "targets": [
+          {
+            "queryType": "traceql",
+            "query": "{ span.gen_ai.request.model =~ \"$model\" }"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Prompt/Response Log Stream (for injection detection)",
+        "description": "Label selector depends on your k8sattributes processor config -- verify with `logcli labels` inside the cluster and adjust if needed.",
+        "type": "logs",
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 24
+        },
+        "datasource": {
+          "type": "loki"
+        },
+        "targets": [
+          {
+            "expr": "{app=\"litellm-proxy\"} |~ \"(?i)ignore (all )?(previous|prior) instructions|system prompt|jailbreak\""
+          }
+        ]
+      }
+    ]
+  }

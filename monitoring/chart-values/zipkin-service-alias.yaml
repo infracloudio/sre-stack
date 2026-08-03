@@ -1,0 +1,22 @@
+# A plain Service alias -- NOT a new component. Istio's tracing config
+# (set by the upstream repo's setup-istio target, unmodified) expects to
+# reach something at the DNS name "zipkin" in the "monitoring" namespace,
+# port 9411. Tempo's own Helm-generated service is named "tempo", not
+# "zipkin". Rather than touch Istio's config, this alias Service selects
+# the same Tempo pods and exposes port 9411 under the name Istio already
+# expects.
+#
+# Update the selector labels below if your Tempo release name differs
+# from "tempo" (check with: kubectl -n monitoring get pods -l app.kubernetes.io/name=tempo --show-labels)
+apiVersion: v1
+kind: Service
+metadata:
+  name: zipkin
+  namespace: monitoring
+spec:
+  selector:
+    app.kubernetes.io/name: tempo
+  ports:
+    - name: zipkin
+      port: 9411
+      targetPort: 9411
