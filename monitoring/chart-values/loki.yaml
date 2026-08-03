@@ -1,3 +1,11 @@
+# NOTE: this config (loki-stack chart, Loki 2.6.1) has no OTLP log
+# ingestion support and bundles a Promtail that crashes on k3d with
+# "too many open files" (see issue #79). Once `make migrate-to-otel` has
+# been run, the "loki" Helm release this target creates is superseded by
+# monitoring/chart-values/loki-otlp.yaml (a modern Loki 3.x install with
+# no bundled Promtail). See LOKI-DECISION.md for why this file was left
+# in place rather than fixed directly.
+
 test_pod:
   enabled: true
   image: bats/bats:1.8.2

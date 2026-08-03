@@ -1,0 +1,139 @@
+# OTel Collector -- AGENT tier (DaemonSet, one per node).
+# Source chart: open-telemetry/opentelemetry-collector
+#
+# Sibling file: otel-collector-gateway.yaml. Together these two replace
+# the SINGLE collector in monitoring/chart-values/otel-collector.yaml
+# (existing, pre-dating this PR, used by setup-optional-otel) with a
+# two-tier design -- that file is left as-is, these are additional.
+#
+# Scope covered here:
+#   - filelogreceiver: tails /var/log/pods/** (replaces Promtail, which the
+#     upstream repo's own issue tracker documents as unreliable on k3d --
+#     see infracloudio/sre-stack#79, "too many open files")
+#   - hostmetricsreceiver + kubeletstatsreceiver: node-local infra metrics
+#   - k8sattributes processor: tags every signal with consistent
+#     pod/namespace/node metadata before forwarding on
+#   - forwards everything to the gateway tier via OTLP -- the agent itself
+#     does not export directly to Loki/Prometheus
+
+mode: daemonset
+fullnameOverride: "otel-agent"
+
+image:
+  repository: otel/opentelemetry-collector-contrib
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 200Mi
+  limits:
+    cpu: 500m
+    memory: 400Mi
+
+# Needed for filelogreceiver to actually see container log files, and for
+# kubeletstatsreceiver to know which node it's running on.
+extraEnvs:
+  - name: K8S_NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+
+extraVolumes:
+  - name: varlogpods
+    hostPath:
+      path: /var/log/pods
+  - name: varlibdockercontainers
+    hostPath:
+      path: /var/lib/docker/containers
+
+extraVolumeMounts:
+  - name: varlogpods
+    mountPath: /var/log/pods
+    readOnly: true
+  - name: varlibdockercontainers
+    mountPath: /var/lib/docker/containers
+    readOnly: true
+
+config:
+  receivers:
+    filelog:
+      include: ["/var/log/pods/*/*/*.log"]
+      start_at: end
+      include_file_path: true
+      include_file_name: false
+      operators:
+        - type: container
+
+    hostmetrics:
+      collection_interval: 30s
+      scrapers:
+        cpu: {}
+        memory: {}
+        disk: {}
+        filesystem: {}
+        network: {}
+        load: {}
+
+    kubeletstats:
+      collection_interval: 30s
+      auth_type: serviceAccount
+      endpoint: "${env:K8S_NODE_NAME}:10250"
+      insecure_skip_verify: true
+      metric_groups: [container, pod, node]
+
+  processors:
+    k8s_attributes:
+      auth_type: serviceAccount
+      passthrough: false
+      extract:
+        metadata:
+          - k8s.pod.name
+          - k8s.namespace.name
+          - k8s.node.name
+          - k8s.pod.uid
+          - k8s.deployment.name
+    batch: {}
+    memory_limiter:
+      check_interval: 5s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+
+  exporters:
+    otlp/gateway:
+      endpoint: otel-gateway.monitoring:4317
+      tls:
+        insecure: true
+
+  service:
+    pipelines:
+      logs:
+        receivers: [filelog]
+        processors: [k8s_attributes, memory_limiter, batch]
+        exporters: [otlp/gateway]
+      metrics:
+        receivers: [hostmetrics, kubeletstats]
+        processors: [k8s_attributes, memory_limiter, batch]
+        exporters: [otlp/gateway]
+
+# The chart's default ClusterRole covers basic pod/namespace reads needed by
+# k8sattributes; kubeletstats additionally needs "nodes/stats" access.
+# Two nodes in this cluster (per 01-setup-sre-stack.sh's setup-local-cluster
+# target) are labeled workload=o11y and tainted o11y=true:NoSchedule --
+# without this toleration, the agent DaemonSet silently skips those nodes
+# (confirmed live: `kubectl get daemonset` showed DESIRED=4, not 6, until
+# this was added).
+tolerations:
+  - key: "o11y"
+    operator: "Equal"
+    value: "true"
+    effect: "NoSchedule"
+
+clusterRole:
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources: ["nodes/stats"]
+      verbs: ["get"]
+    - apiGroups: [""]
+      resources: ["pods", "namespaces"]
+      verbs: ["get", "watch", "list"]

@@ -1,0 +1,75 @@
+# Helm values for the OFFICIAL LiteLLM Proxy chart.
+# Source:  https://github.com/BerriAI/litellm/tree/main/deploy/charts/litellm-helm
+# Published as an OCI artifact — install with:
+#
+#   helm upgrade --install litellm-proxy oci://ghcr.io/berriai/litellm-helm \
+#     -n monitoring -f monitoring/chart-values/litellm.yaml
+#
+# This config was proven working end-to-end against a local k3d cluster:
+#   - single logical model: local-llama, routed to an in-cluster Ollama
+#   - no OpenAI/Anthropic keys required (add them back to model_list +
+#     environmentSecrets if you want hosted-model comparison later)
+#   - native OTel export pointed at the otel-gateway collector, so
+#     LiteLLM itself emits gen_ai.* spans/metrics with zero app-side code
+#   - Postgres/spend-tracking disabled -- not needed to see tokens,
+#     request counts, or cost-estimate metrics (OpenLIT computes those
+#     independently); re-enable db.deployStandalone if you want LiteLLM's
+#     own spend-tracking UI on top
+
+fullnameOverride: "litellm-proxy"
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/berriai/litellm
+  tag: ""
+
+service:
+  type: ClusterIP
+  port: 4000
+
+masterkeySecretName: "litellm-secrets"
+masterkeySecretKey: "LITELLM_MASTER_KEY"
+
+environmentSecrets:
+  - litellm-secrets
+
+db:
+  deployStandalone: false
+
+proxy_config:
+  model_list:
+    - model_name: local-llama
+      litellm_params:
+        model: ollama/llama3.2:1b
+        api_base: http://ollama.monitoring:11434
+
+  router_settings:
+    routing_strategy: simple-shuffle
+
+  litellm_settings:
+    success_callback: ["otel"]
+    failure_callback: ["otel"]
+    turn_off_message_logging: false
+
+  general_settings:
+    master_key: os.environ/LITELLM_MASTER_KEY
+
+envVars:
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-gateway.monitoring:4318"
+  OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
+  OTEL_SERVICE_NAME: "litellm-proxy"
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1.5Gi
+
+autoscaling:
+  enabled: false
+
+serviceMonitor:
+  enabled: false
