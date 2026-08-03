@@ -48,7 +48,7 @@ presets:
   # Best used with mode = daemonset.
   # See https://opentelemetry.io/docs/kubernetes/collector/components/#kubernetes-attributes-processor for details on the receiver.
   kubernetesAttributes:
-    enabled: true
+    enabled: false
     # When enabled the processor will extra all labels for an associated pod and add them as resource attributes.
     # The label's exact name will be the key.
     extractAllPodLabels: false
@@ -111,16 +111,27 @@ config:
     # zipkin:
     #   endpoint: ${env:MY_POD_IP}:9411
   processors:
-    batch: {}
     # If set to null, will be overridden with values based on k8s resource limits
-    memory_limiter: null
+    memory_limiter:
+      check_interval: 5s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+
+    k8s_attributes:
+      auth_type: serviceAccount
+      passthrough: false
+
+    batch:
+      send_batch_size: 1024
+      timeout: 10s
+
   exporters:
     debug: {}
     # # Will be removed in a future release.
     # # Use the debug exporter instead.
     # logging: {}
     otlp:
-      endpoint: http://tempo.monitoring:4317
+      endpoint: tempo.monitoring.svc.cluster.local:4317
       tls:
         insecure: true
   extensions:
@@ -129,14 +140,17 @@ config:
     # The health_check extension can be modified, but should never be removed.
     health_check:
       endpoint: ${env:MY_POD_IP}:13133
-    memory_ballast: {}
   service:
     telemetry:
       metrics:
-        address: ${env:MY_POD_IP}:8888
+        readers:
+          - pull:
+              exporter:
+                prometheus:
+                  host: ${env:MY_POD_IP}
+                  port: 8888
     extensions:
       - health_check
-      - memory_ballast
     pipelines:
       # logs:
       #   exporters:
@@ -156,23 +170,22 @@ config:
       #     - otlp
       #     - prometheus
       traces:
-        exporters:
-          - debug
+        receivers:
           - otlp
+
         processors:
           - memory_limiter
           - batch
-        receivers:
-          - otlp
-          # - jaeger
-          # - zipkin
 
+        exporters:
+          - debug
+          - otlp
 image:
   # If you want to use the core image `otel/opentelemetry-collector`, you also need to change `command.name` value to `otelcol`.
   repository: otel/opentelemetry-collector-contrib
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "0.94.0"
+  tag: ""
   # When digest is set to a non-empty value, images will be pulled by digest (regardless of tag value).
   digest: ""
 imagePullSecrets: []

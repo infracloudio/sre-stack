@@ -1,0 +1,21 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-keep-database
+  namespace: monitoring
+spec:
+  template:
+    metadata:
+      name: create-keep-database
+    spec:
+      containers:
+        - name: create-keep-database
+          image: postgres:16.1-bullseye # Use the same PostgreSQL image
+          command: ["/bin/bash", "-c", "PGPASSWORD=postgres psql -h postgres -U postgres -c 'CREATE DATABASE keep;'"]
+      restartPolicy: Never
+      tolerations:
+        - key: "o11y"
+          value: "true"
+          effect: "NoSchedule"
+      nodeSelector:
+        workload: "o11y"

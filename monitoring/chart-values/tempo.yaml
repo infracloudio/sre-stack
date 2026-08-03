@@ -56,8 +56,9 @@ tempo:
   # Tempo server configuration
   # Refers to https://grafana.com/docs/tempo/latest/configuration/#server
   server:
-    # -- HTTP server listen port
-    http_listen_port: 3100
+    # -- HTTP server listen port. Must stay 3200 - the chart's readinessProbe/
+    # livenessProbe/Service hardcode port 3200 independent of this value.
+    http_listen_port: 3200
   storage:
     trace:
       # tempo storage backend
@@ -265,11 +266,11 @@ serviceMonitor:
   # scrapeTimeout: 10s
 
 persistence:
-  enabled: false
-  # storageClassName: local-path
+  enabled: true
+  storageClassName: gp2
   accessModes:
     - ReadWriteOnce
-  size: 10Gi
+  size: 2Gi
 
 # -- Pod Annotations
 podAnnotations: {}

@@ -44,10 +44,10 @@ cart:
   resources:
     limits:
       cpu: 200m
-      memory: 100Mi
+      memory: 400Mi
     requests:
       cpu: 100m
-      memory: 50Mi
+      memory: 100Mi
   affinity:
     podAntiAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -63,10 +63,10 @@ catalogue:
   resources:
     limits:
       cpu: 200m
-      memory: 100Mi
+      memory: 400Mi
     requests:
       cpu: 100m
-      memory: 50Mi
+      memory: 100Mi
   affinity:
     podAntiAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -170,10 +170,10 @@ ratings:
   resources:
     limits:
       cpu: 200m
-      memory: 100Mi
+      memory: 400Mi
     requests:
       cpu: 100m
-      memory: 50Mi
+      memory: 100Mi
   affinity:
     podAntiAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -231,15 +231,15 @@ mysqlseeder:
   nodeSelector:
     workload: persistent
 
-user: 
+user:
   replicas: 3
   resources:
     limits:
       cpu: 200m
-      memory: 100Mi
+      memory: 400Mi
     requests:
       cpu: 100m
-      memory: 50Mi
+      memory: 100Mi
   affinity:
     podAntiAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:

@@ -1,0 +1,98 @@
+# Keep (keephq/keep) chart values for this stack.
+# Chart repo: helm repo add keephq https://keephq.github.io/helm-charts
+# Installed into the shared `monitoring` namespace via `make setup-keep`.
+
+global:
+  ingress:
+    # This stack uses Istio, not nginx-ingress. Keep's frontend has no
+    # basePath/subpath support, so we don't attempt path-based Istio routing
+    # here — access is via kubectl port-forward for now.
+    enabled: false
+
+# Reuse the existing shared Postgres instance used by Grafana
+# (monitoring/grafana-postgres/statefulset.yaml) instead of the chart's
+# own embedded database. A dedicated `keep` database is created by
+# monitoring/grafana-postgres/keep-database-job.yaml before this chart installs.
+database:
+  enabled: false
+
+backend:
+  enabled: true
+  waitForDatabase:
+    enabled: true
+    port: 5432
+  env:
+    - name: DATABASE_CONNECTION_STRING
+      value: postgresql+psycopg2://postgres:postgres@postgres.monitoring.svc.cluster.local:5432/keep
+    # Despite the name, this value is used by the chart's wait-for-database
+    # init container as the hostname to `nc -z` check, not a DB name.
+    - name: DATABASE_NAME
+      value: postgres.monitoring.svc.cluster.local
+    - name: SECRET_MANAGER_TYPE
+      value: k8s
+    - name: PORT
+      value: "8080"
+    - name: PUSHER_APP_ID
+      value: 1
+    - name: PUSHER_APP_KEY
+      value: keepappkey
+    - name: PUSHER_APP_SECRET
+      value: keepappsecret
+    - name: PUSHER_HOST
+      value: keep-websocket
+    - name: PUSHER_PORT
+      value: 6001
+    - name: PROMETHEUS_MULTIPROC_DIR
+      value: "/tmp/prometheus"
+    # OTel wiring TEMPORARILY DISABLED — Tempo is crashing, blocking Keep startup.
+    # - name: OTEL_SERVICE_NAME
+    #   value: keephq
+    # - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    #   value: http://tempo.monitoring.svc.cluster.local:4317
+    # - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+    #   value: http://tempo.monitoring.svc.cluster.local:4317
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  nodeSelector:
+    workload: o11y
+  tolerations:
+    - key: o11y
+      value: "true"
+      effect: NoSchedule
+
+frontend:
+  enabled: true
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  nodeSelector:
+    workload: o11y
+  tolerations:
+    - key: o11y
+      value: "true"
+      effect: NoSchedule
+
+websocket:
+  enabled: true
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  nodeSelector:
+    workload: o11y
+  tolerations:
+    - key: o11y
+      value: "true"
+      effect: NoSchedule

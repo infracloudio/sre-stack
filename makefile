@@ -10,6 +10,7 @@ help:
 	@echo "	setup-rabbitmq-operator             - Setup rabbitmq-operator"
 	@echo "	setup-robot-shop                    - Deploy robot-shop app-stack."
 	@echo "	setup-optional-rmq-consumer-scaling - Setup keda to scale dispatch (optional)"
+	@echo "	setup-keep                          - Setup Keep AIOps/alerting platform (optional)"
 	@echo "	setup-gateway                       - Setup Ingress gateway"
 	@echo "	cleanup-cluster                     - Cleanup cluster"
 	@echo "	cleanup                             - Clenaup all resources and EKS cluster"
@@ -18,6 +19,7 @@ help:
 	@echo "Local (k3D) setup/deploy/cleanup commands:"
 	@echo "	setup-local                         - Setup end-to-end stack on local k8s (k3d)"
 	@echo "	setup-local-cluster                 - Setup local k3d cluster"
+	@echo "	setup-local-optional                - Setup optional observability(Otel Collector, keep) stack on local k8s (k3d)"
 	@echo "	cleanup-local                       - Cleanup end-to-end stack on local k8s (k3d)"
 	@echo ""
 	@echo ""
@@ -66,6 +68,8 @@ setup-istio:
 setup-db-grafana-psql:
 	kubectl create ns $(MONITORING_NS) --dry-run=client -o yaml | kubectl apply -f -
 	kubectl apply -f monitoring/grafana-postgres/statefulset.yaml
+	@echo "Waiting for postgresql pod to be ready. This may take a while ..."
+	@sleep 60
 	kubectl wait --for=condition=ready pod -l app=postgresql --timeout=300s -n $(MONITORING_NS)
 	kubectl apply -f monitoring/grafana-postgres/job.yaml
 	kubectl wait --for=condition=complete  jobs create-grafana-database --timeout=300s -n $(MONITORING_NS)
@@ -115,16 +119,27 @@ setup-optional-otel:
 	helm repo update
 	helm upgrade --install opentelemetry-collector open-telemetry/opentelemetry-collector --values ./monitoring/chart-values/otel-collector.yaml -n $(MONITORING_NS)
 
+setup-keep: setup-db-grafana-psql
+	kubectl apply -f monitoring/grafana-postgres/keep-database-job.yaml
+	@echo "Waiting for job to complete. This may take a while ..."
+	sleep 30
+	kubectl wait --for=condition=complete jobs/create-keep-database --timeout=60s -n $(MONITORING_NS)
+	helm repo add keephq https://keephq.github.io/helm-charts && helm repo update
+	helm upgrade --install keep keephq/keep --values ./monitoring/chart-values/keep.yaml -n $(MONITORING_NS) --version 0.1.96 --wait --timeout 10m0s
+	@echo "Keep installed. Access via port-forward:"
+	@echo "  kubectl port-forward svc/keep-frontend 3000:3000 -n $(MONITORING_NS)"
+	@echo "  kubectl port-forward svc/keep-backend 8080:8080 -n $(MONITORING_NS)"
+	@echo "  kubectl port-forward svc/keep-websocket 6001:6001 -n $(MONITORING_NS)"
+
 
 setup-db-rds-mysql:
 	./infra/scripts/dbs/rds/mysql/create.sh
 
 setup-rabbitmq-operator:
 	helm repo add bitnami https://charts.bitnami.com/bitnami && helm repo update
-	helm upgrade --install rabbitmq-operator bitnami/rabbitmq-cluster-operator -f infra/chart-values/rabbitmq-values.yaml -n $(RABBITMQ_NS) --create-namespace --version 3.10.4 --wait
+	helm upgrade --install rabbitmq-operator bitnami/rabbitmq-cluster-operator -f infra/chart-values/rabbitmq-operator-values.yaml -n $(RABBITMQ_NS) --create-namespace --version 3.10.4 --wait --timeout 3m0s
 
-setup-robot-shop:
-	kubectl create namespace robot-shop --dry-run=client -o yaml | kubectl apply -f -
+setup-robot-shop: create namespace robot-shop --dry-run=client -o yaml | kubectl apply -f -
 	kubectl label namespace robot-shop istio-injection=enabled
 ifeq ($(STACK_MODE),eks)
 	helm upgrade --install $(APP_RELEASE_NAME) -n $(APP_NS) --create-namespace ./app/robot-shop/helm/ --set mysql_host=$(MYSQL_HOST) --set mysql_root_password=$(RDS_MYSQL_DB_MASTER_PASSWORD) --wait --timeout $(APP_SETUP_TIMEOUT)
@@ -228,7 +243,9 @@ setup-local-cluster:
 
 setup-local-o11y: setup-db-grafana-psql setup-kube-prometheus-stack setup-loki setup-istio-o11y-addons setup-dashboards
 
-setup-local: setup-local-cluster setup-istio setup-local-o11y setup-robot-shop setup-gateway get-service-endpoints
+setup-local: setup-local-cluster setup-istio setup-local-o11y setup-rabbitmq-operator setup-robot-shop setup-gateway get-service-endpoints
+
+setup-local-optional: setup-local-cluster setup-istio setup-local-o11y setup-rabbitmq-operator setup-optional-otel setup-keep setup-hotrod setup-robot-shop setup-gateway get-service-endpoints
 
 cleanup-local:
 	k3d cluster delete $(CLUSTER_NAME)-local

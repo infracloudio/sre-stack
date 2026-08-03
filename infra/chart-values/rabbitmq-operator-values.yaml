@@ -1,0 +1,16 @@
+clusterOperator:
+  image:
+    registry: docker.io
+    repository: rabbitmqoperator/cluster-operator
+    tag: latest
+  replicaCount: 1
+  nodeSelector:
+    workload: persistent
+  tolerations:
+    - key: "persistent"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+
+msgTopologyOperator:
+  enabled: false
