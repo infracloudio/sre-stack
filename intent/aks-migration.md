@@ -100,6 +100,24 @@ scenario-02's RDS scripts.
 8. Team review: who is on the review set for this intent, and is a PR on this
    file the recorded approval?
 
+## Decisions
+
+Filled in as reviewers answer the open questions on PR #93. Each row is
+settled in the PR thread that discusses it, then consolidated here so the
+artifact carries the decisions into the Design stage (`spec.md` is written
+from this file, not from the discussion).
+
+| # | Question | Decision | Decided by | Date |
+|---|----------|----------|------------|------|
+| 1 | DocumentDB: port to Cosmos DB or drop? | open | | |
+| 2 | IaC tooling: az CLI scripts vs Terraform/Bicep? | open | | |
+| 3 | AKS Kubernetes version target | open | | |
+| 4 | Spot VMs vs on-demand for node pools | open | | |
+| 5 | StorageClass naming: rename `gp2` or alias? | open | | |
+| 6 | YACE replacement vs retire the `rds` dashboard | open | | |
+| 7 | Azure node-size mapping for the four pools | open | | |
+| 8 | Review set + approval recording | open | | |
+
 ## What success looks like
 
 A fresh Azure subscription and a machine with the prerequisites installed:
