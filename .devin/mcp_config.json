@@ -1,8 +1,12 @@
 {
   "mcpServers": {
     "microsoft-learn": {
-      "url": "https://learn.microsoft.com/api/mcp",
-      "transport": "http"
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote@0.8.3",
+        "https://learn.microsoft.com/api/mcp"
+      ]
     }
   }
 }
