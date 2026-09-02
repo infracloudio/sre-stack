@@ -9,9 +9,10 @@ set -uo pipefail
 DRY_RUN="${DRY_RUN:-0}"
 OS="$(uname -s)"
 ARCH="$(uname -m)"
+# k8s-family assets use amd64/arm64; some vendors (aws cli) use x86_64/aarch64.
 case "$ARCH" in
-  x86_64) ARCH="amd64" ;;
-  aarch64 | arm64) ARCH="arm64" ;;
+  x86_64) ARCH="amd64"; VENDOR_ARCH="x86_64" ;;
+  aarch64 | arm64) ARCH="arm64"; VENDOR_ARCH="aarch64" ;;
 esac
 BIN_DIR="${HOME}/.local/bin"
 KUSTOMIZE_VERSION="v5.3.0"
@@ -80,15 +81,20 @@ install_tool() {
       local os_name="linux"
       [ "$OS" = "Darwin" ] && os_name="darwin"
       mkdir -p "$BIN_DIR"
+      # Release tags are prefixed: kustomize/v5.3.0
       run curl -fsSL \
-        "https://github.com/kubernetes-sigs/kustomize/releases/download/${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_${os_name}_${ARCH}.tar.gz" \
+        "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize/${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_${os_name}_${ARCH}.tar.gz" \
         -o "/tmp/kustomize.tar.gz"
       run tar -xzf "/tmp/kustomize.tar.gz" -C "$BIN_DIR" kustomize
       run rm -f "/tmp/kustomize.tar.gz"
       ;;
     k3d)
-      run as_root bash -c \
-        "curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=${K3D_VERSION} bash -s -- -b /usr/local/bin"
+      # install.sh takes no path flags: K3D_INSTALL_DIR env + internal runAsRoot.
+      run curl -fsSL \
+        "https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh" \
+        -o "/tmp/k3d-install.sh"
+      run as_root env TAG="${K3D_VERSION}" bash "/tmp/k3d-install.sh"
+      run rm -f "/tmp/k3d-install.sh"
       ;;
     eksctl)
       local os_name="Linux"
@@ -102,10 +108,10 @@ install_tool() {
       ;;
     aws)
       mkdir -p "$BIN_DIR"
-      run curl -fsSL "https://awscli.amazonaws.com/awscli-exe-${OS,,}-${ARCH}.zip" \
+      run curl -fsSL "https://awscli.amazonaws.com/awscli-exe-${OS,,}-${VENDOR_ARCH}.zip" \
         -o "/tmp/awscli.zip"
       run unzip -q -o "/tmp/awscli.zip" -d /tmp
-      run /tmp/aws/install --bindir "$BIN_DIR" --install-dir "${HOME}/.local/aws-cli"
+      run /tmp/aws/install -b "$BIN_DIR" -i "${HOME}/.local/aws-cli"
       run rm -rf /tmp/aws /tmp/awscli.zip
       ;;
     az)
