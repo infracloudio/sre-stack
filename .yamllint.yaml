@@ -1,0 +1,83 @@
+# Relaxed yamllint config for a YAML-dominant glue repo: catch structural
+# errors, ignore style noise (line length, doc markers) that the existing
+# files were never held to.
+extends: default
+
+rules:
+  line-length: disable
+  document-start: disable
+  truthy: disable
+  comments:
+    min-spaces-from-content: 1
+  indentation:
+    indent-sequences: consistent
+
+# Ratchet: legacy files with pre-existing yamllint errors are ignored here so
+# `make lint` passes without either (a) mass-fixing unrelated files in an
+# unrelated PR or (b) disabling the rules for everyone.
+#
+# The list only shrinks. When a PR touches one of these files, fixing its
+# yamllint findings and removing the entry from this list is part of that PR.
+# Never add a file to this list: new files are held to the full standard.
+ignore: |
+  app/hotrod/base/hotrod/deployment.yaml
+  app/hotrod/kustomization.yaml
+  app/robot-shop/helm/Chart.yaml
+  app/robot-shop/helm/templates/cart-deployment.yaml
+  app/robot-shop/helm/templates/catalogue-deployment.yaml
+  app/robot-shop/helm/templates/clusterrole.yaml
+  app/robot-shop/helm/templates/clusterrolebinding.yaml
+  app/robot-shop/helm/templates/dispatch-deployment.yaml
+  app/robot-shop/helm/templates/mongodb-deployment.yaml
+  app/robot-shop/helm/templates/mysql-config.yaml
+  app/robot-shop/helm/templates/mysql-secret.yaml
+  app/robot-shop/helm/templates/mysql-seeed-job.yaml
+  app/robot-shop/helm/templates/mysql-service.yaml
+  app/robot-shop/helm/templates/mysql-statefulset.yaml
+  app/robot-shop/helm/templates/payment-deployment.yaml
+  app/robot-shop/helm/templates/pdb.yaml
+  app/robot-shop/helm/templates/podsecuritypolicy.yaml
+  app/robot-shop/helm/templates/rabbitmq-deployment.yaml
+  app/robot-shop/helm/templates/rabbitmq-monitors.yaml
+  app/robot-shop/helm/templates/rabbitmq-service.yaml
+  app/robot-shop/helm/templates/ratings-deployment.yaml
+  app/robot-shop/helm/templates/ratings-service.yaml
+  app/robot-shop/helm/templates/ratings-vs.yaml
+  app/robot-shop/helm/templates/redis-statefulset.yaml
+  app/robot-shop/helm/templates/service-monitor.yaml
+  app/robot-shop/helm/templates/serviceaccount.yaml
+  app/robot-shop/helm/templates/shipping-deployment.yaml
+  app/robot-shop/helm/templates/user-deployment.yaml
+  app/robot-shop/helm/templates/web-deployment.yaml
+  app/robot-shop/helm/templates/web-service.yaml
+  app/robot-shop/helm/templates/yace-monitor.yaml
+  app/robot-shop/helm/values.yaml
+  infra/chart-values/keda-values.yaml
+  infra/chart-values/rabbitmq-values.yaml
+  infra/cluster-autoscale.yaml
+  infra/eksctl.yaml
+  infra/keda-policy/scaled-obj-dispatch.yaml
+  monitoring/beyla/configmap.yaml
+  monitoring/beyla/daemonset.yaml
+  monitoring/chart-values/caretta.yaml
+  monitoring/chart-values/loki.yaml
+  monitoring/chart-values/metric-server.yaml
+  monitoring/chart-values/otel-collector.yaml
+  monitoring/chart-values/prometheus-values.yaml
+  monitoring/chart-values/tempo.yaml
+  monitoring/chart-values/yace.yaml
+  monitoring/dashboards/application.yaml
+  monitoring/dashboards/istio-service.yaml
+  monitoring/dashboards/mysql.yaml
+  monitoring/dashboards/rabbitmq.yaml
+  monitoring/dashboards/rds.yaml
+  monitoring/grafana-postgres/job.yaml
+  monitoring/grafana-postgres/statefulset.yaml
+  monitoring/istio-observability-addons/istio-podmonitor.yaml
+  monitoring/istio-observability-addons/istio-servicemonitor.yaml
+  monitoring/istio-observability-addons/kiali.yaml
+  scenarios/load-gen/load.yaml
+  scenarios/scenario-01/ratings-probe.yaml
+  scenarios/scenario-01/virtual-service-fault.yaml
+  scenarios/scenario-04/rabbitmq-load.yaml
+  values.yaml

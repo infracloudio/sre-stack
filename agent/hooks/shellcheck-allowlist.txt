@@ -1,0 +1,13 @@
+# Shell scripts exempt from the warning-severity shellcheck floor (they run
+# at error severity only). Same ratchet contract as the ignore list in
+# .yamllint.yaml: the list only shrinks; when a PR touches one of these
+# files, fixing its warnings and removing the entry is part of that PR.
+# Never add a file to this list: new scripts are held to the full standard.
+#
+# Justifications:
+# - seeder.sh: upstream demo seeder, replaced by image builds
+# - rds scripts: legacy AWS provisioning, rewritten during the AKS migration
+#   (intent/aks-migration.md); findings are minor (unused vars, cd guard)
+app/robot-shop/seeder/mysql/bin/seeder.sh
+infra/scripts/dbs/rds/common.sh
+infra/scripts/dbs/rds/documentdb/create.sh

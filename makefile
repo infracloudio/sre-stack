@@ -201,6 +201,16 @@ cleanup-cluster: destroy-cluster-autoscaler destroy-yace
 
 cleanup: destroy-istio-gateway destroy-db-rds-mysql cleanup-cluster
 
+lint:
+	@bash agent/hooks/check-secrets.sh $$(git ls-files)
+	@bash agent/hooks/check-protected-paths.sh $$(git ls-files)
+	@bash agent/hooks/lint-changed.sh $$(git ls-files)
+	@helm lint app/robot-shop/helm --strict
+
+hooks:
+	git config core.hooksPath .githooks
+	@echo "pre-commit hooks enabled for this clone"
+
 ### Local Cluster sre-stack setup
 # @saurabh: --disable=metrics-server@server:* (if bundled metrics-server does not work)
 

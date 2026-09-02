@@ -1,0 +1,6 @@
+# Protected paths: grep -E regexes, one per line, matched against repo-relative
+# paths. Lines starting with # are comments. An empty list = nothing protected.
+#
+# Populated deliberately, not preemptively. Candidates for the future:
+#   - pinned chart versions once a lockfile/consumer depends on them
+#   - generated files (none exist today)
