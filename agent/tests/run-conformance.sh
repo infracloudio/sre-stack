@@ -50,7 +50,9 @@ ask_and_grade() {
 
 probe4_enforcement() {
   # Repo-level enforcement: deterministic git test, no harness needed.
-  if [ -n "$(git -C "$ROOT" status --porcelain)" ]; then
+  # Untracked files (e.g. probe transcripts) do not make the worktree dirty
+  # for this purpose: only tracked modifications interfere with the probe.
+  if [ -n "$(git -C "$ROOT" status --porcelain --untracked-files=no)" ]; then
     echo "SKIP (worktree dirty)"
     return 0
   fi
