@@ -1,4 +1,9 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(make lint)"
+    ]
+  },
   "hooks": {
     "PostToolUse": [
       {
