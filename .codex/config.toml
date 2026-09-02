@@ -1,0 +1,7 @@
+# Codex project-scoped configuration. Loads only when the project is marked
+# trusted (see developers.openai.com/codex/config-advanced). Hand-maintained
+# parity with the other harness adapters until loom generates these.
+# MCP server allowlist source of truth: agent/policies/allowed-mcp-servers.md
+
+[mcp_servers.microsoft-learn]
+url = "https://learn.microsoft.com/api/mcp"

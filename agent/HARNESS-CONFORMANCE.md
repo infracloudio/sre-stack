@@ -43,23 +43,22 @@ Reads `AGENTS.md` natively. MCP adapter committed at the repo root:
 comes from git pre-commit and CI, which is sufficient by design.
 
 ### Codex CLI
-Reads `AGENTS.md` natively. MCP is configured outside the repo in
-`~/.codex/config.toml` (format drifts between releases — check Codex docs
-when running the probes):
-
-```toml
-[mcp_servers.microsoft-learn]
-url = "https://learn.microsoft.com/api/mcp"
-```
-
-No repo-level hooks or settings; enforcement is git pre-commit + CI.
+Reads `AGENTS.md` natively. MCP is configured in `.codex/config.toml`
+(committed; project-scoped config loads only when the project is marked
+trusted — verify with `codex mcp list`). User-level fallback:
+`~/.codex/config.toml`. No repo-level hooks; enforcement is git pre-commit
++ CI.
 
 ### Devin
-Cloud agent: repo files are not auto-loaded and MCP servers are configured in
-Devin's settings, not the repo. Setup: add `AGENTS.md` and
-`agent/policies/*.md` as Devin knowledge items; add the Learn MCP endpoint as
-a Devin MCP server. Git hooks still apply to everything Devin commits
-(probe 4 works at repo level regardless).
+Devin CLI is a local agent with committed project config. Native files are
+committed at `.devin/`: `mcp_config.json` (Learn MCP, remote transport),
+`hooks.v1.json` (PostToolUse hook calling the same `agent/hooks/` scripts,
+`$DEVIN_PROJECT_DIR` resolved; empty matcher because Devin tool names
+differ from Claude's — the script self-filters on `tool_input.file_path`).
+`AGENTS.md` is read natively. Devin also auto-imports `.claude/settings.json`
+hooks via `read_config_from.claude` (default on) — the explicit `.devin/`
+files are the source of record; do not rely on the implicit import.
+All five probes run locally.
 
 ## Automation levels
 

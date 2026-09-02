@@ -1,0 +1,14 @@
+{
+  "PostToolUse": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "$DEVIN_PROJECT_DIR/agent/hooks/claude-post-edit.sh",
+          "timeout": 30
+        }
+      ]
+    }
+  ]
+}

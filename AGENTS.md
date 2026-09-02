@@ -31,6 +31,9 @@ upstream images (instana/robot-shop, jaegertracing hotrod).
 - `intent/` — SDLC artifact chain starts here (`intent.md` per change)
 - `agent/` — policies (source of truth), hooks (deterministic checks),
   `HARNESS-CONFORMANCE.md` + `tests/` (per-harness probe verification)
+- `.claude/`, `.codex/`, `.devin/`, `.mcp.json`, `opencode.json` —
+  per-harness adapters of the same agent config; hand-maintained in parity
+  until loom generates them (see `agent/HARNESS-CONFORMANCE.md`)
 
 ## Commands
 
