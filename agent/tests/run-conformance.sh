@@ -75,11 +75,13 @@ for harness in "$@"; do
   echo "=== $harness ==="
   agent_level="repo level"
   [ "$harness" = "claude" ] && agent_level="repo level + agent-level PostToolUse hook"
+  # Probe 4 (deterministic git test) runs FIRST: it needs a clean tracked
+  # worktree, and a compliant probe-2 session dirties the tree by design.
+  p4=$(probe4_enforcement)
   p1=$(ask_and_grade "$harness" p1-context "$P1_PROMPT" 'make lint')
   p2=$(ask_and_grade "$harness" p2-policy "$P2_PROMPT" 'allowed-mcp-servers')
   p3=$(ask_and_grade "$harness" p3-mcp "$P3_PROMPT" 'learn\.microsoft\.com')
   p5=$(ask_and_grade "$harness" p5-loop "$P5_PROMPT" 'lint-changed|helm lint|check-secrets')
-  p4=$(probe4_enforcement)
   for probe in "$p1" "$p2" "$p3" "$p4" "$p5"; do
     if [ "$probe" = "FAIL" ] || [ "$probe" = "FAIL (commit landed)" ]; then
       failures=$((failures + 1))
