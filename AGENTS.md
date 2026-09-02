@@ -17,7 +17,8 @@ upstream images (instana/robot-shop, jaegertracing hotrod).
 - `makefile` — central orchestration; every lifecycle action runs through it
 - `.env` — single configuration surface, sourced by makefile and all scripts
 - `infra/` — cluster provisioning: eksctl config, IAM policies, k8s manifests,
-  `scripts/cluster/` and `scripts/dbs/rds/` (idempotent check-then-create bash)
+  `scripts/cluster/` and `scripts/dbs/rds/` (idempotent check-then-create bash),
+  `scripts/dev/install-deps.sh` (dev tooling bootstrap)
 - `app/robot-shop/helm/` — the app chart (43 templates); `stack_mode`
   (eks|local) switches external RDS vs in-cluster MySQL
 - `app/hotrod/` — kustomize-based tracing demo
@@ -42,6 +43,10 @@ upstream images (instana/robot-shop, jaegertracing hotrod).
 - `make get-service-endpoints` — print app/Grafana/Kiali URLs
 - `make lint` — validate the whole repo (secrets scan, protected paths,
   shellcheck, yamllint, helm lint). Run before reporting any task complete.
+- `make install` / `make install-check` — idempotent dev bootstrap: installs
+  lint deps, kubectl, helm, kustomize, k3d, eksctl, aws/az CLI if missing
+  (`infra/scripts/dev/install-deps.sh`). Run `install-check` first on any
+  new machine.
 - `make hooks` — enable the pre-commit git hooks for this clone
 - YAML-dominant repo: prefer editing manifests/scripts over adding tooling
 

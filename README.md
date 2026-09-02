@@ -104,7 +104,12 @@ Local (k3D) setup/deploy/cleanup commands:
 
 ```
   get-service-endpoints               -  Print exposed endpoints (works for both local/eks)
+  install                             -  Install all dev dependencies and CLIs (idempotent; DRY_RUN=1 to preview)
+  install-check                       -  Report which dev dependencies are missing (no changes)
 ```
+
+Or bootstrap a new machine in one step: `make install` (see
+`infra/scripts/dev/install-deps.sh` for what it installs).
 
 ### Contribution Guide
 

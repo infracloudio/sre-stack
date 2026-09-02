@@ -23,6 +23,8 @@ help:
 	@echo ""
 	@echo "Utilities:"
 	@echo " get-service-endpoints           - Print exposed service endpoints."
+	@echo " install                         - Install all dev dependencies (lint tools, kubectl, helm, k3d, eksctl, aws/az CLI)"
+	@echo " install-check                   - Report missing dev dependencies (no changes)"
 
 include .env
 BASE_SCRIPT_PATH := ./infra/scripts
@@ -210,6 +212,12 @@ lint:
 hooks:
 	git config core.hooksPath .githooks
 	@echo "pre-commit hooks enabled for this clone"
+
+install:
+	@bash infra/scripts/dev/install-deps.sh
+
+install-check:
+	@DRY_RUN=1 bash infra/scripts/dev/install-deps.sh
 
 ### Local Cluster sre-stack setup
 # @saurabh: --disable=metrics-server@server:* (if bundled metrics-server does not work)
