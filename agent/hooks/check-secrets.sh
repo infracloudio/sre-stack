@@ -26,7 +26,11 @@ for file in "${FILES[@]}"; do
     continue
   fi
   for pattern in "${PATTERNS[@]}"; do
-    matches=$(grep -nIE "$pattern" "$ROOT/$file" 2>/dev/null || true)
+    # Inline escape hatch for test fixtures: a line containing the marker
+    # below is not reported. Only permitted for fake fixture strings
+    # (agent/policies/security-policy.md); never for real credentials.
+    matches=$(grep -nIE "$pattern" "$ROOT/$file" 2>/dev/null \
+      | grep -v 'secret-check:allow' || true)
     if [ -n "$matches" ]; then
       echo "SECRET PATTERN in $file (pattern: $pattern):"
       echo "$matches" | sed 's/^/    /'

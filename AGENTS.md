@@ -29,7 +29,8 @@ upstream images (instana/robot-shop, jaegertracing hotrod).
   scenario-04 (RabbitMQ overload); `load-gen/` baseline traffic
 - `etc/` — diagrams, leftover Litmus configs
 - `intent/` — SDLC artifact chain starts here (`intent.md` per change)
-- `agent/` — policies (source of truth), hooks (deterministic checks)
+- `agent/` — policies (source of truth), hooks (deterministic checks),
+  `HARNESS-CONFORMANCE.md` + `tests/` (per-harness probe verification)
 
 ## Commands
 

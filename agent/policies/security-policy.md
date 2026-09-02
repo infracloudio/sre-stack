@@ -32,3 +32,7 @@ full intent and the rationale for what the hooks cannot express.
 - Never weaken, skip, or comment out a check in `agent/hooks/` or CI to make
   a task pass. If a check is wrong, change it in its own reviewed commit with
   a stated reason.
+- Sole exception: the inline marker `# secret-check:allow` suppresses a
+  secrets finding on one line. It exists for fake fixture strings inside
+  test/probe tooling (e.g. `agent/tests/`), never for real credentials. Its
+  use is reviewed like code.
