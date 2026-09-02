@@ -27,7 +27,7 @@ in git):
 |---------|------|------------|-----------|--------|----------------|---------|-------|
 | Claude Code | 2026-09-02 | pass | pass | pass | pass | pass | reference implementation; all native |
 | opencode | 2026-09-02 | pass | pass | pass | pass (repo level) | pass | MCP via `opencode.json` (committed) |
-| Codex CLI | — | pending | pending | pending | pending (repo level) | pending | needs `~/.codex/config.toml` MCP adapter |
+| Codex CLI | 2026-09-02 | pass | pass | fail — MCP not wired in session; fell back to web search citing learn.microsoft.com, correct data | pass — agent checked policy and refused pre-creation; hook layer proven separately | pass | Fix: `~/.codex/config.toml` MCP adapter, then re-run P3 |
 | Devin | — | pending | pending | pending | pending (repo level) | pending | cloud agent: knowledge + MCP set in Devin settings |
 
 ## Per-harness setup
