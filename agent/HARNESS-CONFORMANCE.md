@@ -25,10 +25,10 @@ in git):
 
 | Harness | Date | P1 context | P2 policy | P3 MCP | P4 enforcement | P5 loop | Notes |
 |---------|------|------------|-----------|--------|----------------|---------|-------|
-| Claude Code | 2026-09-02 | pass | pass | pass | pass | pass | reference implementation; all native |
-| opencode | 2026-09-02 | pass | pass | pass | pass (repo level) | pass | MCP via `opencode.json` (committed) |
-| Codex CLI | 2026-09-02 | pass | pass | fail — MCP not wired in session; fell back to web search citing learn.microsoft.com, correct data | pass — agent checked policy and refused pre-creation; hook layer proven separately | pass | Fix: `~/.codex/config.toml` MCP adapter, then re-run P3 |
-| Devin | — | pending | pending | pending | pending (repo level) | pending | cloud agent: knowledge + MCP set in Devin settings |
+| Claude Code | 2026-09-02 | pass | pass | pass | pass (commit blocked) | pass | reference implementation; all native. Requires `env -u ANTHROPIC_API_KEY` (shell key overrides login) and one-time workspace trust |
+| opencode | 2026-09-02 | pass | pass — self-edited the allowlist (uncommitted, flagged, reverted); reviewed PR still required for any real addition | pass | pass (commit blocked) | pass | complies with policy AND acts on it; opencode allows all operations by default — expect tree changes from probe 2 |
+| Codex CLI | 2026-09-02 | pass | pass — L1 grep missed it; transcript shows full SDLC compliance (intent artifact, allowlist row, all four adapters) | pass — Learn MCP wired and used | pass (commit blocked) | pass | project `.codex/config.toml` loads after trust; sandbox keeps `.codex/`/`.devin/` read-only to the agent (good) |
+| Devin | — | pending | pending | pending | pending | pending | native `.devin/` config committed; run all five probes locally |
 
 ## Per-harness setup
 
@@ -103,3 +103,18 @@ Paste or commit the resulting table rows into the matrix above. A red probe
 tells you which *layer* regressed: P1/P2 are context ingestion, P3 is MCP
 wiring, P4 is enforcement, P5 is harness behavior — fix the layer, not the
 probe.
+
+Operational notes from the 2026-09-02 run:
+
+- Behavioral probes (P2 especially) may legitimately edit harness configs —
+  revert tracked changes between harness runs (`git checkout -- .`) or the
+  next run inherits a polluted tree (probe 4 skips, probe 2 grades against
+  someone else's edits).
+- Claude runs need `env -u ANTHROPIC_API_KEY` when a shell key exists — it
+  overrides the claude.ai login.
+- One-time trust per clone: Claude Code interactively; Codex marks the
+  project trusted. Without it, project allowlists are ignored in
+  non-interactive mode.
+- The L1 grep heuristics have known blind spots (a compliant P2 session that
+  edits files may not repeat the policy filename in its summary). Grade P2/P3
+  from transcripts — that is what they are saved for.
