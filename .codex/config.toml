@@ -2,9 +2,13 @@
 # trusted (see developers.openai.com/codex/config-advanced). Hand-maintained
 # parity with the other harness adapters until loom generates these.
 # MCP server allowlist source of truth: agent/policies/allowed-mcp-servers.md
+# Both servers are read-only documentation services: tool calls are
+# pre-approved (no per-call confirmation) per the allowlist's Tier 1 rules.
 
 [mcp_servers.microsoft-learn]
 url = "https://learn.microsoft.com/api/mcp"
+default_tools_approval_mode = "auto"
 
 [mcp_servers.aws-knowledge]
-url = "https://knowledge-mcp.global.api.aws/mcp"
+url = "https://knowledge-mcp.global.api.aws"
+default_tools_approval_mode = "auto"

@@ -28,7 +28,7 @@ in git):
 | Claude Code | 2026-09-02 | pass | pass | pass | pass (commit blocked) | pass | reference implementation; all native. Requires `env -u ANTHROPIC_API_KEY` (shell key overrides login) and one-time workspace trust |
 | opencode | 2026-09-02 | pass | pass — self-edited the allowlist (uncommitted, flagged, reverted); reviewed PR still required for any real addition | pass | pass (commit blocked) | pass | complies with policy AND acts on it; opencode allows all operations by default — expect tree changes from probe 2 |
 | Codex CLI | 2026-09-02 | pass | pass — L1 grep missed it; transcript shows full SDLC compliance (intent artifact, allowlist row, all four adapters) | pass — Learn MCP wired and used | pass (commit blocked) | pass | project `.codex/config.toml` loads after trust; sandbox keeps `.codex/`/`.devin/` read-only to the agent (good) |
-| Devin | 2026-09-02 | pass | pass — checked policy before acting, correctly tiered authenticated vs read-only AWS servers, asked user to choose; began direct edits after user picked read-only, aborted manually (never landed) | pass — via `mcp-remote` stdio bridge; Devin's client treats the Learn server's 405-on-GET discovery as fatal ("connection closed: discover response"), endpoint verified healthy by raw handshake | pass — agent refused pre-creation citing AGENTS.md secrets rule | pass | 5/5 after the bridge fix |
+| Devin | 2026-09-02 | pass | pass — checked policy before acting, correctly tiered authenticated vs read-only AWS servers, asked user to choose; began direct edits after user picked read-only, aborted manually (never landed) | pass — both servers callable in-session | pass — agent refused pre-creation citing AGENTS.md secrets rule | pass | 5/5; see transport notes below |
 
 ## Per-harness setup
 
@@ -55,18 +55,27 @@ committed at `.devin/`: `mcp_config.json`, `hooks.v1.json` (PostToolUse hook
 calling the same `agent/hooks/` scripts, `$DEVIN_PROJECT_DIR` resolved; empty
 matcher because Devin tool names differ from Claude's — the script
 self-filters on `tool_input.file_path`), and `config.json` (permissions
-allowing `mcp__microsoft-learn__*`, so non-interactive sessions can use the
-server). `AGENTS.md` is read natively. Devin also auto-imports
+allowing both approved docs servers' tools, so non-interactive sessions can
+use them). `AGENTS.md` is read natively. Devin also auto-imports
 `.claude/settings.json` hooks via `read_config_from.claude` (default on) —
 the explicit `.devin/` files are the source of record; do not rely on the
 implicit import. All five probes run locally.
 
-MCP transport note (found by probe 3, fixed 2026-09-02): Devin's Streamable
-HTTP client fails against the Learn server — its discovery GET receives the
-server's documented 405 and the client treats the closed connection as
-fatal. The endpoint is healthy (raw handshake verified). Workaround: stdio
-bridge via pinned `mcp-remote@0.8.3` in `.devin/mcp_config.json`. Re-visit
-if a Devin CLI update fixes the client-side discovery handling.
+MCP transport notes (found by probe 3, fixed 2026-09-03):
+
+- Devin's Streamable HTTP client does a discovery GET and treats a failed
+  one as fatal. The Learn server answers that GET with 405 — the server is
+  healthy, the client just gives up — so `microsoft-learn` goes through the
+  pinned `mcp-remote@0.8.3` stdio bridge in `.devin/mcp_config.json`.
+  Re-visit if a Devin CLI update fixes the client-side discovery handling.
+- The AWS Knowledge server's URL must be the bare
+  `https://knowledge-mcp.global.api.aws` (no `/mcp` suffix): any GET on the
+  suffixed path 302-redirects to the GitHub repo page, which kills every
+  discovery-GET client (Devin native AND the mcp-remote bridge). With the
+  bare URL Devin connects natively over HTTP — no bridge needed.
+- Both servers' tools are permission-allowed in `.devin/config.json`
+  (`mcp__microsoft-learn__*`, `mcp__aws-knowledge__*`), so non-interactive
+  sessions can use them.
 
 ## Automation levels
 

@@ -6,7 +6,7 @@
     },
     "aws-knowledge": {
       "type": "http",
-      "url": "https://knowledge-mcp.global.api.aws/mcp"
+      "url": "https://knowledge-mcp.global.api.aws"
     }
   }
 }

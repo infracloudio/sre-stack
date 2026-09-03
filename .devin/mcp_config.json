@@ -9,12 +9,8 @@
       ]
     },
     "aws-knowledge": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-remote@0.8.3",
-        "https://knowledge-mcp.global.api.aws/mcp"
-      ]
+      "url": "https://knowledge-mcp.global.api.aws",
+      "transport": "http"
     }
   }
 }
