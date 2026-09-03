@@ -64,8 +64,9 @@ upstream images (instana/robot-shop, jaegertracing hotrod).
 ## Rules for agents
 
 - Start changes from an `intent/` artifact; don't invent scope
-- Azure/AKS facts: query the Microsoft Learn MCP server (`.mcp.json`) rather
-  than answering from memory — versions and APIs drift
+- AWS and Azure/AKS facts: query the `aws-knowledge` and `microsoft-learn`
+  MCP servers (see `.mcp.json`) rather than answering from memory — versions
+  and APIs drift
 - Only MCP servers listed in `agent/policies/allowed-mcp-servers.md` are
   approved for use
 - Verify your work: `make lint`, and `make setup-local` when the change
