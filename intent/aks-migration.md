@@ -1,127 +1,259 @@
-# Intent: Migrate sre-stack from AWS/EKS to Azure/AKS
+# Intent: Support dual-cloud deployment (AWS/EKS + Azure/AKS) for sre-stack
 
 Author: Rijo John (AI platform engineer). Status: draft.
 
 ## Problem
 
 The organization is standardizing on Azure, and this repository currently
-provisions its entire stack on AWS. The Kubernetes cluster is created with
+provisions its entire stack only on AWS. The Kubernetes cluster is created with
 eksctl on EKS, the MySQL database runs on RDS outside the cluster, CloudWatch
 metrics are imported via YACE, and the supporting shell scripts, IAM policies,
-and `.env` configuration all speak AWS CLI. Continuing to maintain this repo
-on AWS puts it out of step with the platform direction, and every new piece of
-work has to bridge two clouds.
+and `.env` configuration all speak AWS CLI. To align with the platform
+direction and support SRE practitioners testing on both cloud platforms, the
+repo needs to support Azure/AKS as a first-class deployment option alongside
+AWS.
 
-Because this is a demo/lab project, there is no persisted data or production
-workload on AWS today, which makes a clean cutover possible: nothing needs to
-be migrated in place, only rebuilt on the target platform.
+Because this is a demo/lab project with no persisted data or production
+workload, adding parallel cloud paths is feasible. The goal is stability and
+repeatability for scenarios across both platforms, not production parity.
 
 ## Proposed outcome
 
-The repository provisions the identical demo environment on Azure AKS:
+The repository provisions the demo environment on both AWS/EKS and Azure/AKS:
 
-- `make setup` / `make cleanup` keep working end to end with the same target
-  names and the same ordering, so the documented lifecycle is unchanged.
-- The EKS path is replaced by an AKS path (cluster creation, node groups,
-  storage, identity), replacing `infra/eksctl.yaml` and the eksctl-based
-  scripts rather than adding a third mode alongside them.
-- RDS MySQL is replaced by Azure Database for MySQL Flexible Server, managed
-  by the same check-then-create bash script pattern, wired through the same
-  `MYSQL_HOST` / `setup-db-rds-mysql` flow.
-- The YACE/CloudWatch integration is replaced by an Azure Monitor equivalent
-  (or dropped if the managed database exposes what the dashboards need), and
-  the `rds` dashboard is re-pointed or retired accordingly.
-- All four fault-injection scenarios remain runnable, including scenario-02,
-  which needs an equivalent of the RDS parameter-group change on Azure MySQL,
-  and scenario-03, which needs a multi-AZ node group on AKS.
-- The local k3d mode is untouched — it is already cloud-neutral and serves as
-  the fast feedback loop during the migration.
-- When finished, no active code path in the repo references AWS
-  (`grep -ri aws` returns hits only in git history and notes).
+- `make setup` / `make cleanup` work end-to-end with both clouds via a
+  `CLOUD_PROVIDER` environment variable (aws | azure), keeping the documented
+  lifecycle and target names unchanged.
+- AWS path: EKS (eksctl), RDS MySQL, CloudWatch/YACE integration keep their
+  current behavior and stay production-ready; the underlying scripts are
+  reorganized (moved into `infra/aws/`, cluster scripts refactored to branch
+  on `CLOUD_PROVIDER`) but no functional change is intended.
+- Azure path: AKS (az CLI), Azure Database for MySQL Flexible Server, and
+  Azure Monitor/Prometheus integration added alongside AWS.
+- Both paths use the same check-then-create bash script pattern for databases,
+  same workload-separation model (app / persistent / observability / loadgen
+  node pools), and same `.env` configuration surface (with cloud-specific vars
+  isolated).
+- All four fault-injection scenarios (01–04) remain runnable on both clouds,
+  including scenario-02 (RDS/Azure MySQL parameter changes) and scenario-03
+  (multi-AZ node groups).
+- The local k3d mode remains unchanged — it is cloud-neutral and serves as
+  the fast feedback loop for both paths.
+- When finished, both AWS and Azure code paths are active, tested, and stable
+  for demo use. No code is deleted; AWS path is preserved.
 
 ## Affected users and systems
 
-Users: SRE practitioners who run the scenarios; the platform team that
-maintains the provisioning scripts; contributors following the README
+Users: SRE practitioners who run scenarios on AWS or Azure; the platform team
+that maintains cloud provisioning scripts; contributors following the README
 lifecycle.
 
 Systems changed:
-- `infra/eksctl.yaml`, `infra/asg-policy.json`, `infra/yace-cloudwatch-policy.json`,
-  `infra/cluster-autoscale.yaml` — replaced with AKS equivalents
-- `infra/scripts/cluster/` and `infra/scripts/dbs/rds/` — rewritten for az CLI
-  and Azure Database for MySQL
-- `makefile` — `MYSQL_HOST` lookup, `setup-yace`, `setup-db-rds-mysql`,
-  `setup-cluster`/`cleanup-cluster`, and the LB endpoint hostname-vs-IP fork
-- `.env` — AWS region/credentials/instance sizing replaced with Azure equivalents
-- `infra/chart-values/`, `infra/keda-policy/`, scenario-02 scripts — touched where
-  they reference RDS or AWS-specific settings
+- `infra/` — New `azure/` subdirectory with AKS cluster config, Azure MySQL
+  policies, and auto-scaling equivalents; AWS subdirectory `aws/` created for
+  existing EKS/RDS/YACE config (refactored, not deleted).
+- `infra/scripts/cluster/` — Refactored to branch on `$CLOUD_PROVIDER`; existing
+  eksctl logic isolated, new `az` CLI logic for AKS added.
+- `infra/scripts/dbs/` — New `mysql-azure/` scripts for Azure Database for MySQL
+  alongside existing `rds/` scripts; both follow the same check-then-create pattern.
+- `makefile` — Enhanced to accept `CLOUD_PROVIDER` flag; `setup-cluster`,
+  `cleanup-cluster`, `setup-db`, `setup-monitoring`, and `get-service-endpoints`
+  dispatch to cloud-specific targets (the existing hostname-vs-IP fork in
+  `get-service-endpoints` gains an Azure branch alongside the AWS one).
+- `.env` — Extended with cloud-specific variables (AWS_REGION, AZURE_SUBSCRIPTION,
+  AZURE_RESOURCE_GROUP, etc.); shared vars (CLUSTER_NAME, MYSQL_PASSWORD)
+  remain single-source-of-truth.
+- `infra/chart-values/` — New `azure/` subdirectory with AKS-specific values
+  (StorageClass names, node pool configs); AWS values unchanged.
+- `scenarios/scenario-02/` — Enhanced to support both RDS and Azure MySQL
+  parameter-group changes.
+- CI/CD pipeline (new or extended) — needed to validate both cloud paths
+  before merge; see open Question 15 below on scope and cost of this.
 
-Systems unchanged: robot-shop Helm chart (except MySQL host and StorageClass
-references), the full observability stack, Istio, hotrod, KEDA autoscaling,
-load generators, the local k3d path, and all scenario logic outside
-scenario-02's RDS scripts.
+Systems unchanged: robot-shop Helm chart (core), Istio, hotrod, KEDA, load
+generators, local k3d path, and all scenario inject/detect/RCA logic.
+
+Systems pending decision: observability dashboards (the `rds` dashboard and
+any others fed by RDS/CloudWatch metrics) depend on how Azure metrics reach
+Prometheus/Grafana — see open Question 4. Until that's decided, whether these
+dashboards stay unchanged, get re-pointed, or get retired for the Azure path
+is unresolved.
 
 ## Constraints
 
-- Timeline is weeks, not months — a single focused migration push, not a
-  phased dual-cloud period.
+- Timeline is weeks — one focused push to add Azure alongside AWS, not phased
+  over months. Both paths must reach stable demo-ready state before completion.
+  This estimate assumes CI validation is scoped to lint/plan checks rather than
+  full dual-cloud provisioning on every run; see open Question 15.
 - The README lifecycle contract (`make setup`, `make cleanup`, `make
-  setup-local`, `get-service-endpoints`) must keep working as documented.
+  setup-local`, `get-service-endpoints`) keeps working unchanged; `CLOUD_PROVIDER`
+  is the only new required variable.
 - Version-pinning discipline is maintained: every Helm install and tool stays
-  pinned, Azure components follow the same values-file pattern as the
-  existing `chart-values/`.
-- `.env` remains the single configuration surface for the makefile and scripts.
-- No new secrets in git: the existing plaintext RDS credentials in `.env` and
-  the hardcoded password in `scenarios/scenario-02/scripts/kill-sleep-processes.sh`
-  should not be carried into the Azure scripts as-is (demo-quality passwords
-  are tolerated, but they should come from `.env`, not be hardcoded twice).
-- Keep the workload-separation model (app / persistent / observability /
-  loadgen node pools) that both the EKS config and the k3d local setup encode.
+  pinned across both clouds. Azure components follow the same values-file
+  pattern as the existing `chart-values/`.
+- `.env` remains the single configuration surface for all clouds. Cloud-specific
+  variables (e.g., AZURE_SUBSCRIPTION) are clearly marked and isolated in
+  documentation so local dev and CI can inject only what is needed.
+- No new secrets in git. Credentials and passwords (both clouds) live in `.env`,
+  never hardcoded. The existing `.env` pattern for AWS is extended to Azure;
+  demo-quality passwords are acceptable but must be centralized.
+- Workload-separation model is preserved on both clouds: app / persistent /
+  observability / loadgen node pools on AKS; same isolation on EKS.
+  On AKS, achieve separation via taints/tolerations and pod affinity; equivalent
+  to EKS node selectors and labels.
+- Dual-cloud maintenance is a first-class concern: scripts and configs must
+  make branching on `CLOUD_PROVIDER` obvious and testable (e.g., explicit
+  `if [ "$CLOUD_PROVIDER" = azure ]; then ... fi` blocks, not implicit fallback).
 
 ## Open questions
 
-1. DocumentDB: the Mongo-compatible AWS database has create/destroy scripts
-   but is not wired into the makefile (robot-shop uses in-cluster MongoDB).
-   Port to Cosmos DB for Mongo, or drop it from the repo entirely?
-2. IaC tooling for AKS: plain `az` CLI bash scripts (matching the existing
-   repo style), or Terraform/Bicep?
-3. AKS Kubernetes version target: EKS is pinned at 1.27, which is no longer
-   supported on AKS — what version do we standardize on?
-4. Spot instances: EKS node groups use spot VMs; do we use Azure spot VMs for
-   the same cost profile, or on-demand for stability in a demo?
-5. StorageClass naming: the charts reference `gp2`; AKS provides
-   `managed-csi`. Rename references, or create an alias StorageClass so chart
-   values stay unchanged?
-6. YACE replacement decision: does Azure Database for MySQL expose metrics in
-   a form the `rds` dashboard can consume, or do we re-point/retire that
-   dashboard?
-7. Node sizing: Azure equivalents for c6a.large / t3.xlarge / c5.xlarge (likely
-   D-series / E-series / F-series) — what is the cost-comparable mapping?
-8. Team review: who is on the review set for this intent, and is a PR on this
-   file the recorded approval?
+### Blocking (must decide before design)
+
+1. **IaC tooling for AKS**: Plain `az` CLI bash scripts (matching existing repo
+   style), or Terraform/Bicep? Decision affects script structure, CI/CD
+   validation, and version-pinning discipline.
+
+2. **Authentication and credential strategy**: How will Azure credentials (service
+   principal secrets, subscription ID) be supplied to local scripts, CI/CD, and
+   runtime workloads? Will `.env` hold service principal keys in plaintext
+   (demo-acceptable), or will we use Managed Identity / Workload Identity?
+   How does this integrate with the `make setup` target?
+
+3. **Networking architecture for AKS**: Will the cluster and database be in the
+   same vnet or require peering? Will Azure Database for MySQL use private
+   endpoints or public IP + NSG rules? Does this affect KEDA scaling or load
+   generator access? How does this compare to current EKS setup?
+
+4. **Observability stack for Azure**: How will metrics from Azure Database for
+   MySQL and AKS clusters reach Prometheus and Grafana? Will Azure Database
+   expose Prometheus metrics directly, or will we use Azure Monitor Agent +
+   custom exporter? Does Azure Monitor replace YACE or complement it?
+
+5. **Workload-separation model details**: On AKS, how are the four node pools
+   (app / persistent / observability / loadgen) defined? What taints/tolerations,
+   pod affinity rules, and resource requests enforce separation? Should pools
+   span multiple availability zones (multi-AZ for scenario-03 fault injection)?
+
+### High priority (should close before implementation)
+
+6. **Container registry strategy**: Will images come from Docker Hub, Azure
+   Container Registry (ACR), or elsewhere? If ACR, does local dev and CI need
+   identity-based pull access? Does this affect image availability or cost?
+
+7. **AKS Kubernetes version target**: EKS is pinned at 1.27, which is no longer
+   supported on AKS. What is the minimum supported version on AKS? Do Helm
+   charts (robot-shop, KEDA, Istio, hotrod) require specific API versions?
+
+8. **Node sizing for Azure cost parity**: Map c6a.large (app pool), t3.xlarge
+   (observability pool), and c5.xlarge (loadgen pool) to Azure D/E/F-series VMs
+   for similar hourly cost and performance. What is the cost baseline for EKS
+   nodes, and should Azure match it?
+
+9. **Spot instances on Azure**: EKS uses spot VMs for cost optimization. Should
+   AKS also use Azure spot VMs (Standard_Dxs_v4 with spot billing), or on-demand
+   for demo stability? How do spot VM interruptions affect scenario repeatability?
+
+10. **Dashboard and metric enumeration**: List all Grafana dashboards used in
+    demos (e.g., `rds`, `kubernetes-cluster`, `robot-shop-app`, others). For
+    each, enumerate required metrics (names, cardinality, retention). This
+    drives the observability and YACE-replacement decision.
+
+### Secondary (can defer, but flag for design)
+
+11. **StorageClass naming**: Charts reference `gp2` (EKS default); AKS provides
+    `managed-csi`. Rename all references to `managed-csi`, or create a
+    StorageClass alias so chart values stay unchanged?
+
+12. **Scenario-02 success criteria**: Define what "parameter-group change" means
+    for both RDS and Azure MySQL (e.g., deadlock injection, I/O throttle). How
+    is the fault injected? How do logs/metrics prove it worked? What is the
+    expected observable effect on load generators or app metrics?
+
+13. **DocumentDB (AWS Mongo)**: The repo has create/destroy scripts for
+    DocumentDB, but it is not wired into the makefile and robot-shop uses
+    in-cluster MongoDB. Port to Cosmos DB for Mongo, or drop entirely?
+
+14. **Team review and approval**: Who is on the review set for this intent, and
+    is a merged PR the recorded approval?
+
+15. **CI scope for dual-cloud validation**: Success criteria calls for both
+    paths tested in CI before merge, which implies provisioning full EKS+AKS
+    clusters and RDS+Azure MySQL instances per run. Is that the actual bar, or
+    is CI limited to lint/plan/dry-run checks with full end-to-end runs done
+    manually before merge? This materially affects the "weeks, not months"
+    timeline and should be scoped explicitly rather than assumed.
 
 ## Decisions
 
-Filled in as reviewers answer the open questions on PR #93. Each row is
-settled in the PR thread that discusses it, then consolidated here so the
-artifact carries the decisions into the Design stage (`spec.md` is written
-from this file, not from the discussion).
+Filled in as reviewers answer the open questions on PR #XX, across all three
+tiers (blocking, high-priority, secondary). Each row is settled in the PR
+thread, then consolidated here so this artifact carries decisions into the
+Design stage (`spec.md` is written from this table, not from discussion
+threads).
+
+**Blocking decisions (must close before design):**
 
 | # | Question | Decision | Decided by | Date |
 |---|----------|----------|------------|------|
-| 1 | DocumentDB: port to Cosmos DB or drop? | open | | |
-| 2 | IaC tooling: az CLI scripts vs Terraform/Bicep? | open | | |
-| 3 | AKS Kubernetes version target | open | | |
-| 4 | Spot VMs vs on-demand for node pools | open | | |
-| 5 | StorageClass naming: rename `gp2` or alias? | open | | |
-| 6 | YACE replacement vs retire the `rds` dashboard | open | | |
-| 7 | Azure node-size mapping for the four pools | open | | |
-| 8 | Review set + approval recording | open | | |
+| 1 | IaC tooling: `az` CLI scripts vs Terraform/Bicep? | open | | |
+| 2 | Authentication strategy: service principal creds in `.env`? | open | | |
+| 3 | Networking: vnet/peering/private endpoints for Azure MySQL? | open | | |
+| 4 | Observability: Azure Monitor integration, Prometheus export strategy? | open | | |
+| 5 | Workload-separation model: node pools, taints, multi-AZ strategy? | open | | |
+
+**High-priority decisions (before implementation):**
+
+| # | Question | Decision | Decided by | Date |
+|---|----------|----------|------------|------|
+| 6 | Container registry: Docker Hub, ACR, or other? | open | | |
+| 7 | AKS Kubernetes version (1.27 not supported, minimum?) | open | | |
+| 8 | Node sizing: D/E/F-series mapping for cost parity with EKS? | open | | |
+| 9 | Spot VMs on Azure or on-demand for demo stability? | open | | |
+| 10 | Dashboard/metric enumeration: list all dashboards and their metrics | open | | |
+
+**Secondary decisions (can defer to design phase):**
+
+| # | Question | Decision | Decided by | Date |
+|---|----------|----------|------------|------|
+| 11 | StorageClass: rename to `managed-csi` or create alias? | open | | |
+| 12 | Scenario-02 success criteria: fault injection method + observable effects? | open | | |
+| 13 | DocumentDB: port to Cosmos DB or drop entirely? | open | | |
+| 14 | Team review set + approval recording method? | open | | |
+| 15 | CI scope: full-provision runs vs. lint/plan checks only? | open | | |
 
 ## What success looks like
 
-A fresh Azure subscription and a machine with the prerequisites installed:
-`make setup` completes, the robot-shop endpoints and all dashboards come up,
-scenarios 01 through 04 run their inject → detect → RCA → mitigate loop, and
-`make cleanup` removes everything without leftovers. The repo references
-Azure only, and the local k3d mode still works exactly as before.
+### AWS Path (existing, must remain stable)
+- A machine with AWS CLI, eksctl, and kubectl configured:
+  `make setup CLOUD_PROVIDER=aws` completes successfully
+  - EKS cluster created with four node pools, CloudWatch metrics flowing via YACE
+  - RDS MySQL instance created, accessible to cluster
+  - robot-shop Helm chart deployed, all endpoints responding
+  - All Grafana dashboards (rds, kubernetes-cluster, robot-shop-app) display live data
+  - All scenarios 01–04 inject → detect → RCA → mitigate successfully
+  - `make cleanup CLOUD_PROVIDER=aws` removes all AWS resources without leftovers
+  - Logs show no errors or warnings during setup/cleanup
+
+### Azure Path (new, must reach stability)
+- A machine with Azure CLI, kubectl, and the prerequisites installed:
+  `make setup CLOUD_PROVIDER=azure` completes successfully
+  - AKS cluster created with four node pools, matching workload separation
+  - Azure Database for MySQL instance created, accessible to cluster
+  - robot-shop Helm chart deployed, all endpoints responding
+  - All Grafana dashboards display live data, pending Question 4's resolution —
+    dashboards fed by RDS/CloudWatch metrics either display equivalent Azure
+    data, or are explicitly re-pointed/retired per the Q4 decision
+  - All scenarios 01–04 inject → detect → RCA → mitigate successfully on Azure
+  - `make cleanup CLOUD_PROVIDER=azure` removes all Azure resources without leftovers
+  - Logs show no errors or warnings during setup/cleanup
+
+### Dual-Cloud Requirements
+- `make setup-local` works unchanged (k3d mode, cloud-agnostic)
+- `get-service-endpoints` returns correct hostnames/IPs for the chosen cloud
+- `.env` contains both AWS and Azure variables; scripts branch on `CLOUD_PROVIDER`
+  without silent fallbacks
+- No hardcoded cloud assumptions in scripts or charts (except intentional cloud-specific
+  logic that is clearly marked)
+- Both paths validated before merge (CI scope — lint/plan checks vs. full
+  `make setup`/scenario provisioning — is Question 15, still open)
+- Repo state on main branch: both AWS and Azure code paths active and passing tests
