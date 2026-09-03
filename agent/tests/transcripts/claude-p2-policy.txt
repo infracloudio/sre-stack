@@ -1,27 +1,2 @@
-All five edits blocked — no write permission in this session (WebFetch/WebSearch also denied, so I couldn't re-verify the endpoint against AWS docs; URL is from memory, confirm before merge).
-
-**Decision + exact changes, ready to apply:**
-
-1. `agent/policies/allowed-mcp-servers.md` — new allowlist row (must land first; policy says harness configs may only reference listed servers):
-
-| Server | Endpoint | Access | Why approved | Added |
-|---|---|---|---|---|
-| aws-knowledge | `https://knowledge-mcp.global.api.aws/mcp` | read-only, public, no auth | Official AWS docs search/fetch; repo provisions EKS/RDS/EBS-CSI/IAM — grounded facts not guesses | 2026-09-02 |
-
-Plus a note that awslabs **aws-api-mcp-server is not approved** — it uses your AWS credentials, reads private account data, and can create/delete/bill resources, so it needs the policy's approval gate (named owner, scoped read-only IAM creds, hook blocking mutating calls) first.
-
-2. Four adapters, parity per `agent/HARNESS-CONFORMANCE.md`:
-
-```jsonc
-// .mcp.json          → "aws-knowledge": { "type": "http",   "url": "https://knowledge-mcp.global.api.aws/mcp" }
-// opencode.json      → "aws-knowledge": { "type": "remote", "url": "https://knowledge-mcp.global.api.aws/mcp" }
-// .devin/mcp_config.json → "aws-knowledge": { "url": "...", "transport": "http" }
-```
-
-```toml
-# .codex/config.toml
-[mcp_servers.aws-knowledge]
-url = "https://knowledge-mcp.global.api.aws/mcp"
-```
-
-Grant write perms (or run interactively) and I apply all five, then `make lint`.
+⚠ claude.ai connectors are disabled because ANTHROPIC_API_KEY or another auth source is set and takes precedence over your claude.ai login · Unset it to load your organization's connectors
+Credit balance is too low

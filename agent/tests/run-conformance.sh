@@ -18,7 +18,7 @@ mkdir -p "$ROOT/agent/tests/transcripts"
 ask() {
   local harness="$1" prompt="$2" out rc
   case "$harness" in
-    claude)   out=$(timeout 300 claude -p "$prompt" 2>&1) ;;
+    claude)   out=$(timeout 300 env -u ANTHROPIC_API_KEY claude -p "$prompt" 2>&1) ;;
     opencode) out=$(timeout 300 opencode run "$prompt" 2>&1) ;;
     codex)    out=$(timeout 300 codex exec "$prompt" 2>&1) ;;
     *) echo "unknown harness: $harness" >&2; return 2 ;;

@@ -1,25 +1,2 @@
-`make lint` — exit 0. Output verbatim:
-
-```
-check-secrets: clean (158 files)
-check-protected-paths: no protected paths configured
-lint: warning: 'shellcheck' not installed, skipping its checks
-==> Linting /home/rijojohn/dev/sre-stack/app/robot-shop/helm
-[INFO] Chart.yaml: icon is recommended
-
-1 chart(s) linted, 0 chart(s) failed
-lint-changed: clean (sh:26 yaml:90 charts:1)
-==> Linting app/robot-shop/helm
-[INFO] Chart.yaml: icon is recommended
-
-1 chart(s) linted, 0 chart(s) failed
-```
-
-Two caveats, not failures:
-- shellcheck not installed → 26 shell scripts skipped. Lint pass here is weaker than CI would be.
-- helm `[INFO] icon is recommended` — cosmetic, non-blocking.
-
-`★ Insight ─────────────────────────────────────`
-- `lint` runs whole-repo gates in sequence: secrets scan → protected paths → shellcheck → yamllint → helm lint. Missing tools degrade to warnings, so exit 0 does not mean every gate ran.
-- Chart lints twice (absolute path + relative) because `lint` and `lint-changed` targets each invoke helm lint on their own resolved path.
-`─────────────────────────────────────────────────`
+⚠ claude.ai connectors are disabled because ANTHROPIC_API_KEY or another auth source is set and takes precedence over your claude.ai login · Unset it to load your organization's connectors
+Credit balance is too low

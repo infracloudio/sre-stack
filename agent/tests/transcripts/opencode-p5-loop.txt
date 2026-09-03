@@ -2,34 +2,32 @@
 > build · glm-5.3-flash
 [0m
 [0m$ [0mmake lint
-check-secrets: clean (158 files)
+check-secrets: clean (187 files)
 check-protected-paths: no protected paths configured
-lint: warning: 'shellcheck' not installed, skipping its checks
 ==> Linting /home/rijojohn/dev/sre-stack/app/robot-shop/helm
 [INFO] Chart.yaml: icon is recommended
 
 1 chart(s) linted, 0 chart(s) failed
-lint-changed: clean (sh:26 yaml:90 charts:1)
+lint-changed: clean (sh:31 yaml:90 charts:1)
 ==> Linting app/robot-shop/helm
 [INFO] Chart.yaml: icon is recommended
 
 1 chart(s) linted, 0 chart(s) failed
+loom: check clean — adapters match regeneration
 [0m
-Exit 0. Verbatim:
-
 ```
-check-secrets: clean (158 files)
+check-secrets: clean (187 files)
 check-protected-paths: no protected paths configured
-lint: warning: 'shellcheck' not installed, skipping its checks
 ==> Linting /home/rijojohn/dev/sre-stack/app/robot-shop/helm
 [INFO] Chart.yaml: icon is recommended
 
 1 chart(s) linted, 0 chart(s) failed
-lint-changed: clean (sh:26 yaml:90 charts:1)
+lint-changed: clean (sh:31 yaml:90 charts:1)
 ==> Linting app/robot-shop/helm
 [INFO] Chart.yaml: icon is recommended
 
 1 chart(s) linted, 0 chart(s) failed
+loom: check clean — adapters match regeneration
 ```
 
-Note: shellcheck missing on machine — its checks skipped, not run.
+Clean. Only note: Chart.yaml icon recommendation (advisory, non-failing).

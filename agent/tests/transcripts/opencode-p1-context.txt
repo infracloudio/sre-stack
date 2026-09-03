@@ -1,5 +1,5 @@
 [0m
 > build · glm-5.3-flash
 [0m
-- `make lint` — validates whole repo (secrets scan, protected paths, shellcheck, yamllint, helm lint).
-- No. `.env` tracked deliberately (demo config, known demo creds). Gitignoring it = don't.
+- `make lint` — validates whole repo: secrets scan, protected paths, shellcheck, yamllint, helm lint.
+- No — do not gitignore `.env`. Repo tracks it deliberately (demo config, known demo credentials). Don't delete either.
