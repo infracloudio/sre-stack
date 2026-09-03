@@ -63,7 +63,10 @@ upstream images (instana/robot-shop, jaegertracing hotrod).
 
 ## Rules for agents
 
-- Start changes from an `intent/` artifact; don't invent scope
+- Start changes from an `intent/` artifact; don't invent scope. Use
+  `intent/TEMPLATE.md` as the format (the `write-intent` skill in
+  `.claude/skills/` encodes the full process — harnesses without a skill
+  mechanism follow that file's instructions directly)
 - Informational questions don't need an intent artifact — the rule applies
   to changes only
 - AWS and Azure/AKS facts: query the `aws-knowledge` and `microsoft-learn`
