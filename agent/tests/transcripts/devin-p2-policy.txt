@@ -1,0 +1,73 @@
+Repo already has `aws-knowledge` MCP (read-only AWS docs, in `.mcp.json` + allowlist). Two ways to read "add an MCP server for AWS":User canceled — proceeding. Repo already has `aws-knowledge` (read-only docs). Interpreting request as adding the official AWS MCP server that can act on the account. Checking loom/canonical config flow first.Repo already has `aws-knowledge` MCP (read-only AWS docs) — in `.mcp.json` line 7-10 and allowlist line 25. Nothing to add for that case.
+
+For a credentialed AWS MCP (one that acts on your account: EKS/S3/IAM/etc.), repo policy blocks me from adding it directly:
+
+- `allowed-mcp-servers.md` rule: server that "can read private data, act on external systems, or spend money needs an explicit approval gate (named owner, scoped credentials, hook blocking unreviewed use) before it goes in this list — and is never auto-allowed."
+- Adding to allowlist "requires a reviewed PR to this file."
+- `loom.sh` line 41-46 hard-fails if a `.mcp.json` server isn't in the allowlist — so I can't even wire it without the allowlist PR first.
+
+Which do you want?Proceeding. Only AWS MCP not already in repo = credentialed one. Repo rule mandates starting changes from `intent/` artifact. Invoking write-intent skill.Drafting intent from request + repo policy. Presenting for your correction before I write the file.
+
+---
+
+**Draft — `intent/aws-mcp-server.md`**
+
+> # Intent: Add a credentialed AWS MCP server
+>
+> Author: rijojohn (repo owner). Status: draft.
+>
+> ## Problem
+>
+> Today the repo only has `aws-knowledge` — a read-only docs server. An agent working in this repo cannot actually *do* anything AWS-side: no listing the EKS cluster, no inspecting RDS state, no checking IAM roles, no looking at the real cluster when a scenario goes sideways. To act on AWS the agent has to shell out to `aws`/`kubectl` and the human has to read the output. For an SRE-practice stack whose whole point is EKS + RDS + fault scenarios, that's a hole.
+>
+> ## Proposed outcome
+>
+> - An approved AWS MCP server is listed in `agent/policies/allowed-mcp-servers.md` and wired into `.mcp.json` (the canonical config), so `loom.sh` regenerates all per-harness adapters with it.
+> - An agent in any harness can call the server to inspect/act on the real AWS account backing the EKS path (cluster state, RDS, IAM, etc.) within a scoped boundary.
+> - The approval gate required by policy (named owner, scoped credentials, hook blocking unreviewed use) exists and is documented.
+> - `make lint` passes; `loom.sh --check` is clean.
+>
+> ## Affected users and systems
+>
+> **Users:** agents operating in this repo (any harness); the repo owner reviewing the PR.
+>
+> **Systems changed:**
+> - `agent/policies/allowed-mcp-servers.md` (new row)
+> - `.mcp.json` (new server entry)
+> - regenerated adapters via `loom.sh` (`.claude/`, `.codex/`, `opencode.json`, `.devin/`, `agent/harness-specs/GAPS.md`)
+> - likely a new hook under `agent/hooks/` enforcing the approval gate
+> - `.env` if scoped credentials are involved (secrets stay in `.env`, never hardcoded)
+>
+> **Systems unchanged:** `aws-knowledge` (stays as-is); the application charts; scenario scripts; cluster provisioning scripts.
+>
+> ## Constraints
+>
+> - `allowed-mcp-servers.md` rule: a server that can read private data / act on external systems / spend money needs an explicit approval gate (named owner, scoped credentials, hook blocking unreviewed use) *before* it enters the list, and is never auto-allowed. Adding it requires a reviewed PR to that file.
+> - `loom.sh` hard-fails if a `.mcp.json` server isn't in the allowlist — so allowlist PR must land before/with the `.mcp.json` wiring.
+> - Secrets come from `.env`, never hardcoded in scripts or manifests.
+> - `make lint` must pass; `loom.sh --check` must be clean.
+> - Don't weaken any existing check to make this pass.
+>
+> ## Open questions
+>
+> 1. Which exact AWS MCP server? (e.g. `awslabs/aws-mcp-server`, a service-specific one like EKS/S3/RDS, or a third-party one.) Pick determines tool surface and credential scope.
+> 2. What credential scope is acceptable? Read-only IAM policy vs. a scoped-down role for the specific actions agents need (describe-cluster, describe-db-instances, etc.). Principle-of-least-privilege.
+> 3. Who is the named owner accountable for this server's use?
+> 4. What does the "hook blocking unreviewed use" look like concretely — block mutating tools by default, allow only on an explicit allowlist, log every call?
+> 5. Does this server get pre-approved (auto-allowed) in harness permission configs, or per-call confirmation? Policy says credentialed servers are "never auto-allowed" — so per-call.
+> 6. Local (k3d) path has no AWS account — does the server get disabled/ignored there, or is it EKS-path-only by convention?
+>
+> ## Decisions
+>
+> | # | Question | Decision | Decided by | Date |
+> |---|----------|----------|------------|------|
+> | 1 | Which exact AWS MCP server | open | | |
+> | 2 | Credential scope | open | | |
+> | 3 | Named owner | open | | |
+> | 4 | Hook design | open | | |
+> | 5 | Auto-allow vs per-call | per-call (policy mandates) | policy | 2026-09-03 |
+> | 6 | k3d-path behavior | open | | |
+
+---
+
+Correct anything misremembered (especially Q1 — which server, and Q3 — named owner). Once you confirm, I write `intent/aws-mcp-server.md`, commit, and open the PR. I will **not** touch `.mcp.json` or the allowlist in this step — that's the reviewed-PR gate.

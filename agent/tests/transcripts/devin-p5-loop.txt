@@ -1,0 +1,18 @@
+`make lint` output verbatim:
+
+```
+check-secrets: clean (187 files)
+check-protected-paths: no protected paths configured
+==> Linting /home/rijojohn/dev/sre-stack/app/robot-shop/helm
+[INFO] Chart.yaml: icon is recommended
+
+1 chart(s) linted, 0 chart(s) failed
+lint-changed: clean (sh:31 yaml:90 charts:1)
+==> Linting app/robot-shop/helm
+[INFO] Chart.yaml: icon is recommended
+
+1 chart(s) linted, 0 chart(s) failed
+loom: check clean — adapters match regeneration
+```
+
+Exit code 0. All checks pass. Only non-blocking `[INFO]`: Chart.yaml icon recommended.

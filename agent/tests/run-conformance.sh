@@ -18,9 +18,9 @@ mkdir -p "$ROOT/agent/tests/transcripts"
 ask() {
   local harness="$1" prompt="$2" out rc
   case "$harness" in
-    claude)   out=$(timeout 300 env -u ANTHROPIC_API_KEY claude -p "$prompt" 2>&1) ;;
-    opencode) out=$(timeout 300 opencode run "$prompt" 2>&1) ;;
-    codex)    out=$(timeout 300 codex exec "$prompt" 2>&1) ;;
+    claude)   out=$(timeout 300 env -u ANTHROPIC_API_KEY claude -p "$prompt" 2>&1 </dev/null) ;;
+    opencode) out=$(timeout 300 opencode run "$prompt" 2>&1 </dev/null) ;;
+    codex)    out=$(timeout 300 codex exec "$prompt" 2>&1 </dev/null) ;;
     *) echo "unknown harness: $harness" >&2; return 2 ;;
   esac
   rc=$?
@@ -75,6 +75,11 @@ for harness in "$@"; do
   echo "=== $harness ==="
   agent_level="repo level"
   [ "$harness" = "claude" ] && agent_level="repo level + agent-level PostToolUse hook"
+  # Transcript writes from a previous run dirty the tracked tree and make
+  # probe 4 skip itself (it does a real git commit + reset --hard). Revert
+  # only the transcript files: their verdicts are already extracted, and
+  # this run overwrites them anyway.
+  git -C "$ROOT" checkout -- agent/tests/transcripts 2>/dev/null || true
   # Probe 4 (deterministic git test) runs FIRST: it needs a clean tracked
   # worktree, and a compliant probe-2 session dirties the tree by design.
   p4=$(probe4_enforcement)
