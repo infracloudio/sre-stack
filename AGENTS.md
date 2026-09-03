@@ -1,7 +1,7 @@
 # AGENTS.md — sre-stack agent context
 
-Read this first. Keep it under one page; stale or padded content burns session
-context. When an agent makes the same mistake twice, the correction goes here.
+Keep it under one page. When an agent makes the same mistake twice, add the
+correction here.
 
 ## What this repo is
 
@@ -85,8 +85,10 @@ upstream images (instana/robot-shop, jaegertracing hotrod).
   it serves current upstream docs, not training-data guesses
 - Only MCP servers listed in `agent/policies/allowed-mcp-servers.md` are
   approved for use
-- Verify your work: `make lint`, and `make setup-local` when the change
-  affects charts or manifests. Report output, don't claim success
+- Verify your work: `make lint` for every change; `helm template` (or
+  `helm lint`) for chart changes. `make setup-local` is a full cluster
+  deploy — run it only when the user explicitly asks for live verification.
+  Report output, don't claim success
 - Never weaken a check to make a task pass (tests, hooks, lint rules)
 
 ## Things agents get wrong
