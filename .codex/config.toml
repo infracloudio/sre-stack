@@ -5,3 +5,6 @@
 
 [mcp_servers.microsoft-learn]
 url = "https://learn.microsoft.com/api/mcp"
+
+[mcp_servers.aws-knowledge]
+url = "https://knowledge-mcp.global.api.aws/mcp"

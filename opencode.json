@@ -4,6 +4,10 @@
     "microsoft-learn": {
       "type": "remote",
       "url": "https://learn.microsoft.com/api/mcp"
+    },
+    "aws-knowledge": {
+      "type": "remote",
+      "url": "https://knowledge-mcp.global.api.aws/mcp"
     }
   }
 }

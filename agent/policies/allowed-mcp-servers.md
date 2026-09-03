@@ -18,3 +18,4 @@ entry requires a reviewed PR to this file.
 | Server | Endpoint | Access | Why approved | Added |
 |--------|----------|--------|--------------|-------|
 | microsoft-learn | `https://learn.microsoft.com/api/mcp` | read-only, public, no auth | Official Microsoft documentation search/fetch for Azure/AKS facts during the migration; grounded facts instead of training-data guesses. Refreshed daily by Microsoft. | 2026-09-02 |
+| aws-knowledge | `https://knowledge-mcp.global.api.aws/mcp` | read-only, public, no auth | Official AWS knowledge/documentation search (`search_documentation`, `read_documentation`, `list_regions`, `get_regional_availability`); no mutation tools, no AWS credentials involved, works without an AWS account. The repo is adding Azure alongside AWS (not replacing it), so grounded AWS facts stay needed for the EKS path and the migration itself. Approved by repo owner in PR #94. | 2026-09-02 |
