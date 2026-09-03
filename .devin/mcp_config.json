@@ -1,4 +1,5 @@
 {
+  "_generated_by": "loom — do not edit by hand; source: .mcp.json + agent/tools/loom.config.json",
   "mcpServers": {
     "microsoft-learn": {
       "command": "npx",

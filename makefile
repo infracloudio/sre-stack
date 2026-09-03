@@ -208,6 +208,7 @@ lint:
 	@bash agent/hooks/check-protected-paths.sh $$(git ls-files)
 	@bash agent/hooks/lint-changed.sh $$(git ls-files)
 	@helm lint app/robot-shop/helm --strict
+	@bash agent/tools/loom.sh --check
 
 hooks:
 	git config core.hooksPath .githooks

@@ -1,0 +1,18 @@
+{
+  "_comment": "loom configuration — repo paths and per-harness MCP transport overrides. Reviewed like code; the emitter stays generic (plan D1/D7).",
+  "paths": {
+    "canonical_context": "AGENTS.md"
+  },
+  "mcp_overrides": {
+    "devin": {
+      "microsoft-learn": {
+        "command": "npx",
+        "args": ["-y", "mcp-remote@0.8.3", "{{url}}"]
+      },
+      "context7": {
+        "command": "npx",
+        "args": ["-y", "mcp-remote@0.8.3", "{{url}}"]
+      }
+    }
+  }
+}
