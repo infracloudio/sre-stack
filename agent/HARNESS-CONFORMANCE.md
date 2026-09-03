@@ -55,7 +55,7 @@ committed at `.devin/`: `mcp_config.json`, `hooks.v1.json` (PostToolUse hook
 calling the same `agent/hooks/` scripts, `$DEVIN_PROJECT_DIR` resolved; empty
 matcher because Devin tool names differ from Claude's — the script
 self-filters on `tool_input.file_path`), and `config.json` (permissions
-allowing both approved docs servers' tools, so non-interactive sessions can
+allowing all approved docs servers' tools, so non-interactive sessions can
 use them). `AGENTS.md` is read natively. Devin also auto-imports
 `.claude/settings.json` hooks via `read_config_from.claude` (default on) —
 the explicit `.devin/` files are the source of record; do not rely on the
@@ -68,14 +68,15 @@ MCP transport notes (found by probe 3, fixed 2026-09-03):
   healthy, the client just gives up — so `microsoft-learn` goes through the
   pinned `mcp-remote@0.8.3` stdio bridge in `.devin/mcp_config.json`.
   Re-visit if a Devin CLI update fixes the client-side discovery handling.
+  `context7` also answers its discovery GET with 405 → same bridge.
 - The AWS Knowledge server's URL must be the bare
   `https://knowledge-mcp.global.api.aws` (no `/mcp` suffix): any GET on the
   suffixed path 302-redirects to the GitHub repo page, which kills every
   discovery-GET client (Devin native AND the mcp-remote bridge). With the
   bare URL Devin connects natively over HTTP — no bridge needed.
-- Both servers' tools are permission-allowed in `.devin/config.json`
-  (`mcp__microsoft-learn__*`, `mcp__aws-knowledge__*`), so non-interactive
-  sessions can use them.
+- All approved servers' tools are permission-allowed in `.devin/config.json`
+  (`mcp__microsoft-learn__*`, `mcp__aws-knowledge__*`, `mcp__context7__*`),
+  so non-interactive sessions can use them.
 
 ## Automation levels
 

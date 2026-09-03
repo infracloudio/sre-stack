@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "mcp__microsoft-learn__*"
+      "mcp__microsoft-learn__*",
+      "mcp__aws-knowledge__*",
+      "mcp__context7__*"
     ]
   }
 }

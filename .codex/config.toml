@@ -12,3 +12,7 @@ default_tools_approval_mode = "auto"
 [mcp_servers.aws-knowledge]
 url = "https://knowledge-mcp.global.api.aws"
 default_tools_approval_mode = "auto"
+
+[mcp_servers.context7]
+url = "https://mcp.context7.com/mcp"
+default_tools_approval_mode = "auto"

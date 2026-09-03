@@ -1,0 +1,8 @@
+`make lint` — validate whole repo. Runs secrets scan, protected paths check, shellcheck, yamllint, helm lint. Run before report task done.
+
+.env: **no**, don't gitignore. Repo tracks it on purpose — demo config with known demo credentials, sourced by makefile and every script. AGENTS.md lists "fix" this as known agent mistake.
+
+`★ Insight ─────────────────────────────────────`
+- Tracked `.env` work here because creds are throwaway demo values, not real secrets — the secrets scan in `make lint` is what guards against real leaks slipping in.
+- Single config surface (`.env` sourced by makefile + scripts) means untracking it breaks fresh-clone bootstrap for everyone.
+`─────────────────────────────────────────────────`

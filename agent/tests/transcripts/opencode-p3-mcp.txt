@@ -1,0 +1,21 @@
+[0m
+> build · glm-5.3-flash
+[0m
+[0m⚙ [0mmicrosoft-learn_microsoft_docs_search {"query":"AKS supported Kubernetes versions"}
+[0m⚙ [0mmicrosoft-learn_microsoft_docs_fetch {"url":"https://learn.microsoft.com/azure/aks/supported-kubernetes-versions"}
+As of today (Sep 2, 2026), per AKS docs:
+
+**GA supported (N-2 policy): 1.36, 1.35, 1.34**
+- 1.36 — latest GA (GA Jun 2026)
+- 1.35 — GA Mar 2026
+- 1.34 — GA Nov 2025
+
+**Edge cases:**
+- **1.37** — preview only (preview Sep 2026, GA Oct 2026)
+- **1.33** — platform support only (N-3): Azure-platform issues only, no Kubernetes component/API support, no new cluster creation
+- **LTS versions** (opt-in): 1.31 (LTS EOL Nov 2026), 1.32 (Mar 2027), 1.33 (Jul 2027); 1.29/1.30 LTS already expired
+- Default for new clusters via portal/CLI = N-1 latest patch (1.35.x)
+
+Policy: 3 GA minors (N, N-1, N-2) + one N-3 platform-support minor. Exact patch list per region: `az aks get-versions --location <region>`.
+
+**Source:** [Supported Kubernetes versions in AKS](https://learn.microsoft.com/azure/aks/supported-kubernetes-versions) (release calendar table + version support policy). Patch-level deprecations can shift ad-hoc — check the [AKS release tracker](https://releases.aks.azure.com/) for real-time status.

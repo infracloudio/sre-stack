@@ -11,6 +11,14 @@
     "aws-knowledge": {
       "url": "https://knowledge-mcp.global.api.aws",
       "transport": "http"
+    },
+    "context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote@0.8.3",
+        "https://mcp.context7.com/mcp"
+      ]
     }
   }
 }

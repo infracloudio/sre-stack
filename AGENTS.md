@@ -64,9 +64,14 @@ upstream images (instana/robot-shop, jaegertracing hotrod).
 ## Rules for agents
 
 - Start changes from an `intent/` artifact; don't invent scope
+- Informational questions don't need an intent artifact — the rule applies
+  to changes only
 - AWS and Azure/AKS facts: query the `aws-knowledge` and `microsoft-learn`
   MCP servers (see `.mcp.json`) rather than answering from memory — versions
   and APIs drift
+- Library/tool documentation for everything else (Prometheus, Grafana,
+  Loki, Tempo, Istio, KEDA, Helm, ...): query the `context7` MCP server —
+  it serves current upstream docs, not training-data guesses
 - Only MCP servers listed in `agent/policies/allowed-mcp-servers.md` are
   approved for use
 - Verify your work: `make lint`, and `make setup-local` when the change

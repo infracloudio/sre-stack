@@ -1,0 +1,63 @@
+Reading additional input from stdin...
+OpenAI Codex v0.152.1
+--------
+workdir: /home/rijojohn/dev/sre-stack
+model: gpt-5.6-sol
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: high
+reasoning summaries: none
+session id: 01a061ea-e9bc-7941-b79b-b2ebd15b9932
+--------
+user
+What Kubernetes versions does AKS currently support? Cite your source.
+hook: SessionStart
+hook: SessionStart Completed
+codex
+I’ll check the current Microsoft Learn documentation, since AKS support windows and regional availability change over time.
+mcp: microsoft-learn/microsoft_docs_search started
+mcp: microsoft-learn/microsoft_docs_search (completed)
+mcp: microsoft-learn/microsoft_docs_fetch started
+mcp: microsoft-learn/microsoft_docs_fetch (completed)
+codex
+As of **September 2, 2026**, AKS fully supports these generally available Kubernetes minor versions:
+
+- **1.36** — EOL June 2027
+- **1.35** — EOL March 2027
+- **1.34** — EOL November 2026
+
+Additional tiers:
+
+- **1.33** receives reduced **platform support** until Kubernetes 1.37 becomes GA; Kubernetes components and security patches aren’t covered.
+- **1.37** is scheduled for preview in September 2026 and GA in October 2026, with availability varying by region.
+- Older releases may remain supported through the separately enabled **AKS Long-Term Support** plan.
+
+AKS normally fully supports the latest GA minor version and the two preceding minors. Exact patch versions and regional availability can be checked with:
+
+```bash
+az aks get-versions --location <azure-region> --output table
+```
+
+Source: [Microsoft Learn — Supported Kubernetes versions in AKS](https://learn.microsoft.com/azure/aks/supported-kubernetes-versions#aks-kubernetes-release-calendar-and-upcoming-versions).
+tokens used
+25,905
+As of **September 2, 2026**, AKS fully supports these generally available Kubernetes minor versions:
+
+- **1.36** — EOL June 2027
+- **1.35** — EOL March 2027
+- **1.34** — EOL November 2026
+
+Additional tiers:
+
+- **1.33** receives reduced **platform support** until Kubernetes 1.37 becomes GA; Kubernetes components and security patches aren’t covered.
+- **1.37** is scheduled for preview in September 2026 and GA in October 2026, with availability varying by region.
+- Older releases may remain supported through the separately enabled **AKS Long-Term Support** plan.
+
+AKS normally fully supports the latest GA minor version and the two preceding minors. Exact patch versions and regional availability can be checked with:
+
+```bash
+az aks get-versions --location <azure-region> --output table
+```
+
+Source: [Microsoft Learn — Supported Kubernetes versions in AKS](https://learn.microsoft.com/azure/aks/supported-kubernetes-versions#aks-kubernetes-release-calendar-and-upcoming-versions).

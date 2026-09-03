@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(make lint)"
+      "Bash(make lint)",
+      "mcp__microsoft-learn__*",
+      "mcp__aws-knowledge__*",
+      "mcp__context7__*"
     ]
   },
   "hooks": {
