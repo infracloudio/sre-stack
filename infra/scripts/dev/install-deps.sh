@@ -165,6 +165,14 @@ if [ -d "$BIN_DIR" ] && ! echo "$PATH" | grep -q "$BIN_DIR"; then
   echo "      export PATH=\"$BIN_DIR:\$PATH\""
 fi
 
+# Pre-commit hooks are compulsory: every harness and every human hits the
+# same checks at commit time. Same as `make hooks`.
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [ "$DRY_RUN" != "1" ] && [ -n "$repo_root" ] && [ -d "$repo_root/.githooks" ]; then
+  git -C "$repo_root" config core.hooksPath .githooks
+  echo "pre-commit hooks enabled for this clone (core.hooksPath = .githooks)"
+fi
+
 if [ "$DRY_RUN" = "1" ]; then
   echo ""
   echo "DRY RUN complete — nothing was installed. Run 'make install' for real."

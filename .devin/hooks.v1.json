@@ -1,5 +1,17 @@
 {
   "_generated_by": "loom — do not edit by hand; source: .claude/settings.json",
+  "PreToolUse": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "$DEVIN_PROJECT_DIR/agent/hooks/claude-pre-edit.sh",
+          "timeout": 30
+        }
+      ]
+    }
+  ],
   "PostToolUse": [
     {
       "matcher": "",

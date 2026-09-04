@@ -73,6 +73,44 @@ check_added_entries() {
 check_added_entries .yamllint.yaml 's/^\+  ([^#].*\.ya?ml)$/\1/p'
 check_added_entries agent/hooks/shellcheck-allowlist.txt 's/^\+([^+#][^ ]*\.sh)$/\1/p'
 
+# Secrets allowlist: it may grow only with a justification. A new entry must
+# be mentioned in agent/policies/security-policy.md within the same change.
+check_secrets_allowlist() {
+  local config=agent/hooks/secrets-allowlist.txt
+  local policy=agent/policies/security-policy.md
+  local base_ref="${RATCHET_BASE:-HEAD}" added policy_added entry
+  git -C "$ROOT" cat-file -e "$base_ref:$config" 2>/dev/null || return 0
+  added="$(git -C "$ROOT" diff --unified=0 "${DIFF_ARGS[@]}" -- "$config" \
+    | sed -nE 's/^\+([^+#][^ ]*)$/\1/p' || true)"
+  [ -n "$added" ] || return 0
+  policy_added="$(git -C "$ROOT" diff --unified=0 "${DIFF_ARGS[@]}" -- "$policy" \
+    | grep -E '^\+[^+]' || true)"
+  while IFS= read -r entry; do
+    if ! printf '%s\n' "$policy_added" | grep -qF -- "$entry"; then
+      echo "RATCHET: $entry was added to $config without a justification"
+      echo "  Add the reason (naming the path) to $policy in the same change."
+      fail=1
+    fi
+  done <<< "$added"
+}
+check_secrets_allowlist
+
+# Inline secret-check markers are for fixtures inside agent/ tooling and for
+# docs. A new marker anywhere else is a reviewed change, not a shortcut.
+check_new_markers() {
+  local added
+  added="$(git -C "$ROOT" diff --unified=0 "${DIFF_ARGS[@]}" -- . \
+      ':(exclude)agent/' ':(exclude)docs/' \
+    | grep -E '^\+[^+].*secret-check:allow' || true)"
+  if [ -n "$added" ]; then
+    echo "RATCHET: new 'secret-check:allow' marker(s) outside agent/ and docs/:"
+    printf '  %s\n' "$added"
+    echo "  The marker is for fake fixture strings only (security-policy.md)."
+    fail=1
+  fi
+}
+check_new_markers
+
 if [ "$fail" -eq 0 ]; then
   echo "check-ratchets: clean (${#FILES[@]} changed files)"
 fi

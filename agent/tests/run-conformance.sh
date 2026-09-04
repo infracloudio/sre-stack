@@ -74,7 +74,7 @@ probe4_enforcement() {
 for harness in "$@"; do
   echo "=== $harness ==="
   agent_level="repo level"
-  [ "$harness" = "claude" ] && agent_level="repo level + agent-level PostToolUse hook"
+  case "$harness" in claude|devin) agent_level="repo level + agent-level PreToolUse hook" ;; esac
   # Transcript writes from a previous run dirty the tracked tree and make
   # probe 4 skip itself (it does a real git commit + reset --hard). Revert
   # only the transcript files: their verdicts are already extracted, and

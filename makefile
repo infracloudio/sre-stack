@@ -204,11 +204,13 @@ cleanup-cluster: destroy-cluster-autoscaler destroy-yace
 cleanup: destroy-istio-gateway destroy-db-rds-mysql cleanup-cluster
 
 lint:
+	@bash agent/hooks/check-hooks-enabled.sh
 	@bash agent/hooks/check-secrets.sh $$(git ls-files)
-	@bash agent/hooks/check-protected-paths.sh $$(git ls-files)
+	@bash agent/hooks/check-protected-paths.sh
 	@bash agent/hooks/check-ratchets.sh
 	@bash agent/hooks/lint-changed.sh $$(git ls-files)
 	@helm lint app/robot-shop/helm --strict
+	@bash agent/hooks/check-speckit-version.sh
 	@bash agent/tools/loom.sh --check
 
 hooks:

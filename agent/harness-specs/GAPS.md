@@ -7,5 +7,6 @@ control. Empty table = the canonical config is fully representable.
 | Harness | Dropped node | Compensating control |
 |---------|--------------|----------------------|
 | codex | hook event: PostToolUse | git pre-commit hooks + CI (same scripts, .githooks/ + .github/workflows/ci.yml) |
+| codex | hook event: PreToolUse | git pre-commit hooks + CI (same scripts, .githooks/ + .github/workflows/ci.yml) |
 | devin | permission allow: Bash(make lint) | manual CLI approval inside Devin sessions |
 | opencode | permission allow: Bash(make lint) | allowed by default in opencode for docs servers; manual otherwise |

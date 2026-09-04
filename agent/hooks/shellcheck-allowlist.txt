@@ -6,8 +6,9 @@
 #
 # Justifications:
 # - seeder.sh: upstream demo seeder, replaced by image builds
-# - rds scripts: legacy AWS provisioning, rewritten during the AKS migration
-#   (intent/aks-migration.md); findings are minor (unused vars, cd guard)
+# - rds scripts: legacy AWS provisioning, replaced by the database stories of
+#   the Azure migration (docs/sdlc/framework.md, section 8); findings are
+#   minor (unused vars, cd guard)
 app/robot-shop/seeder/mysql/bin/seeder.sh
 infra/scripts/dbs/rds/common.sh
 infra/scripts/dbs/rds/documentdb/create.sh

@@ -39,14 +39,29 @@ emit_devin() {
       "manual CLI approval inside Devin sessions"
   done < <(jq -r '.permissions.allow[] | select(startswith("mcp__") | not)' "${ir}")
 
+  # Every canonical hook event Devin supports is carried over verbatim
+  # (Devin: PreToolUse denies on exit 2, like Claude Code). Unsupported
+  # events become GAPS rows rather than silent loss.
+  local devin_events="PreToolUse PostToolUse PermissionRequest UserPromptSubmit Stop PostCompaction SessionStart SessionEnd"
+  while IFS= read -r event; do
+    [[ -n "${event}" ]] || continue
+    if [[ " ${devin_events} " != *" ${event} "* ]]; then
+      gap_add devin "hook event: ${event}" \
+        "git pre-commit hooks + CI (same scripts, .githooks/ + .github/workflows/ci.yml)"
+    fi
+  done < <(jq -r '.hooks | keys[]' "${ir}")
+
   jq -n \
     --slurpfile ir "${ir}" \
     --arg src "source: .claude/settings.json" \
-    '{ "_generated_by": ("loom — do not edit by hand; " + $src),
-       PostToolUse: [$ir[0].hooks.PostToolUse[] | {
-         matcher: "",
-         hooks: [{ type: "command",
-                   command: (.hooks[0].command | sub("\\$CLAUDE_PROJECT_DIR"; "$DEVIN_PROJECT_DIR")),
-                   timeout: 30 }]
-       }] }' "${ir}" > "${dir}/hooks.v1.json"
+    --arg supported "${devin_events}" \
+    '{ "_generated_by": ("loom — do not edit by hand; " + $src) }
+     + ($ir[0].hooks
+        | with_entries(select(.key as $k | ($supported | split(" ")) | index($k)))
+        | with_entries(.value |= [ .[] | {
+            matcher: "",
+            hooks: [{ type: "command",
+                      command: (.hooks[0].command | sub("\\$CLAUDE_PROJECT_DIR"; "$DEVIN_PROJECT_DIR")),
+                      timeout: 30 }]
+          } ]))' "${ir}" > "${dir}/hooks.v1.json"
 }

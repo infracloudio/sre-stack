@@ -31,6 +31,13 @@ jobs:
         env:
           STRICT: "1"
           RATCHET_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
+          # Protected (guardrail/generated) paths may change only in a PR that
+          # someone other than the author approved — the plan gate label.
+          PROTECTED_OVERRIDE: ${{ (github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'gate:plan-approved')) && '1' || '' }}
+
+  # TODO(agent-review): add the agent review job described in
+  # docs/sdlc/framework.md section 6 once the harness and credentials are
+  # decided (section 10, item 1). It posts ranked findings; it is not a gate.
 
   gate-label:
     name: gate:plan-approved check
