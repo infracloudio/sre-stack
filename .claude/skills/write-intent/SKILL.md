@@ -11,7 +11,7 @@ description: Capture a change request as a story issue on GitHub. Use when
 Turn a conversation into a GitHub issue the Sponsor can accept at the
 daily sync. The issue is the first artifact of the SDLC: the originator's
 idea, in the originator's own words. Once accepted, it becomes the input
-to `/speckit.specify`, which turns it into a spec on its own branch.
+to `/speckit-specify`, which turns it into a spec on its own branch.
 
 ## The format
 
@@ -22,7 +22,7 @@ Four sections, matching `.github/ISSUE_TEMPLATE/story.md`:
 - **Out of scope** — what this story deliberately does not touch.
 - **Must keep working** — what must not break.
 
-No solutions, no technology choices — "how" belongs to `/speckit.plan`.
+No solutions, no technology choices — "how" belongs to `/speckit-plan`.
 
 ## Process
 
@@ -70,7 +70,7 @@ No solutions, no technology choices — "how" belongs to `/speckit.plan`.
    do not silently fall back to writing a file.
 5. **Stop there.** Acceptance is the Sponsor's call at the daily sync
    (they apply the `intent:accepted` label and the roles are assigned). Do not
-   run `/speckit.specify`, do not touch code, do not open a branch.
+   run `/speckit-specify`, do not touch code, do not open a branch.
 6. **Link prior stories** if a related issue exists — reference it in
    the body rather than re-asking answered questions.
 

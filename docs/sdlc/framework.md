@@ -1,6 +1,6 @@
 # How We Build: AI-Native SDLC with Spec Kit
 
-Version 0.2 · Owner: Rijo · Reviewers: Abishek, Viknesh · Sponsor: Aman
+Version 0.3 · Owner: Rijo · Reviewers: Abishek, Viknesh · Sponsor: Aman
 
 This document explains how our team builds software with AI coding agents.
 Read it top to bottom once; after that you only need the checklist at the
@@ -56,19 +56,21 @@ migration story: Rijo is Owner, Abishek is Architect, Viknesh is Builder.
 
 [Spec Kit](https://github.com/github/spec-kit) is a small open-source
 toolkit from GitHub. You install it once, and it adds commands to your AI
-agent — Claude Code, Codex, OpenCode and Devin are all supported, and the
-commands are the same in each. The commands walk you through writing the
-files, in order:
+agent — Claude Code, Codex, OpenCode and Devin are all supported. The
+commands are the same in each; only the separator differs. Claude Code,
+Codex and Devin spell them `/speckit-specify`, OpenCode spells them
+`/speckit.specify`. This document uses the hyphen form. The commands walk
+you through writing the files, in order:
 
 | You type | The agent produces |
 |---|---|
-| `/speckit.specify <your story text>` | a branch, a folder `specs/001-<name>/`, and `spec.md` — what to build and how we'll know it works |
-| `/speckit.clarify` | questions back at you about anything the spec left vague; your answers get written into the spec |
-| `/speckit.plan` | `plan.md` — how to build it: files to change, tools, versions, risks |
-| `/speckit.tasks` | `tasks.md` — the plan broken into a checklist of small tasks |
-| `/speckit.analyze` | a report of gaps and contradictions between spec, plan and tasks |
-| `/speckit.implement` | the actual code, ticking off the tasks |
-| `/speckit.converge` | after merge: a check of what the code still misses versus the spec |
+| `/speckit-specify <your story text>` | a branch, a folder `specs/001-<name>/`, and `spec.md` — what to build and how we'll know it works |
+| `/speckit-clarify` | questions back at you about anything the spec left vague; your answers get written into the spec |
+| `/speckit-plan` | `plan.md` — how to build it: files to change, tools, versions, risks |
+| `/speckit-tasks` | `tasks.md` — the plan broken into a checklist of small tasks |
+| `/speckit-analyze` | a report of gaps and contradictions between spec, plan and tasks |
+| `/speckit-implement` | the actual code, ticking off the tasks |
+| `/speckit-converge` | after merge: a check of what the code still misses versus the spec |
 
 There is one more file, written once per repo, not per story:
 `.specify/memory/constitution.md` — our standing rules (things like "every
@@ -132,14 +134,14 @@ assigned. That's the first approval.
 
 ### Step 3 — Turn it into a spec (Owner, ~1 hour)
 
-The Owner opens the agent on `main` and runs `/speckit.specify`, pasting
+The Owner opens the agent on `main` and runs `/speckit-specify`, pasting
 the accepted issue text. The agent creates a branch and a `spec.md`: the
 story restated as concrete, testable statements — "given a fresh
 subscription, `make setup` exits 0 and prints a URL that opens" — plus
 numbered success criteria.
 
 Wherever the agent wasn't sure, it leaves a marker in the text:
-`[NEEDS CLARIFICATION: ...]`. Run `/speckit.clarify`: the agent asks you
+`[NEEDS CLARIFICATION: ...]`. Run `/speckit-clarify`: the agent asks you
 each open question, one at a time, and writes your answers into the spec.
 A spec with markers still in it is not done.
 
@@ -162,12 +164,12 @@ sync — don't let a thread run for days.
 The Builder takes over the branch (use a separate git worktree so your
 other work isn't disturbed) and runs three commands:
 
-1. `/speckit.plan` — the agent writes `plan.md`: which files change, which
+1. `/speckit-plan` — the agent writes `plan.md`: which files change, which
    tools and versions (pinned), what could go wrong, and how the result
    will be verified. It also writes a short verification script — the
    exact commands a reviewer will run to see the story working.
-2. `/speckit.tasks` — the plan becomes `tasks.md`, a checklist.
-3. `/speckit.analyze` — the agent cross-checks spec vs plan vs tasks and
+2. `/speckit-tasks` — the plan becomes `tasks.md`, a checklist.
+3. `/speckit-analyze` — the agent cross-checks spec vs plan vs tasks and
    lists gaps ("the spec requires tagging, no task does it"). Fix the
    gaps in the files before writing any code.
 
@@ -188,7 +190,7 @@ the spec, and runs `make lint` on every push. The label itself is
 protected socially, not technically — anyone *could* apply it, but it's
 applied in public on the PR, and the retro reviews who approved what.
 
-Now `/speckit.implement`. The agent writes the code and works through the
+Now `/speckit-implement`. The agent writes the code and works through the
 checklist, verifying as it goes — lint, template rendering, and the real
 thing (for us: actually creating the cloud resources and tearing them
 down). The Builder watches, steers, and re-runs. Two habits:
@@ -216,7 +218,7 @@ the story's permanent record.
 
 ### Step 7 — Converge (Builder, 10 minutes)
 
-On `main`, run `/speckit.converge`. The agent compares the merged code
+On `main`, run `/speckit-converge`. The agent compares the merged code
 against the spec and lists anything still missing or newly discovered.
 Each item either gets fixed in a small follow-up PR the same day, or
 becomes a new story issue. This is how the next story gets found.
@@ -238,12 +240,22 @@ People approve; machines enforce. Three mechanisms, set up once:
   approval required, CI must be green.
 - **CI** on every PR: the GitHub Actions job described in step 5 of the
   story's life — `make lint`, no surviving `[NEEDS CLARIFICATION]`
-  markers, no code changes before the `gate:plan-approved` label — plus the
-  agent review pass.
-- **Hooks** in the agent itself: block edits to protected paths, block
-  committing secrets, and stop the agent from "fixing" a failing test by
-  editing the test. Same scripts run in git pre-commit, so every harness
-  and every human hits the same wall.
+  markers, no code changes before the `gate:plan-approved` label. The
+  agent review pass is still to be wired in (section 10, item 1).
+- **Hooks** in the agent itself: refuse an edit before it happens when it
+  touches a guardrail or generated file (the hooks, CI, policies, Spec Kit
+  and loom output — listed in `agent/hooks/protected-paths.txt`) or when
+  the content contains a credential; after every edit, feed lint findings
+  back to the agent. The same scripts run in git pre-commit, which
+  `make install` switches on and which `make lint` and the agent hooks
+  refuse to work without, and CI runs them once more. Every harness and
+  every human hits the same wall. Lint allowlists and the secrets
+  allowlist only shrink; a new allowlist entry needs its justification in
+  the security policy in the same change. A human changes a protected
+  file by committing with `PROTECTED_OVERRIDE=1` and saying why in the PR.
+
+The labels, the CI jobs and the override are spelled out step by step,
+with a worked example, in [`labels-and-gates.md`](./labels-and-gates.md).
 
 If a mistake happens twice, it stops being a review comment and becomes a
 constitution rule, a checklist line, or a hook. That's the ratchet that
@@ -259,8 +271,8 @@ One row per story, appended to the closed issue, reviewed at the retro:
 |---|---|
 | Days from accepted to merged | Are stories really 1–2 days? |
 | Merged without rework after human review? | Are the earlier steps catching problems? |
-| Gaps found by `/speckit.analyze` | Are specs and plans lining up before code? |
-| Gaps found by `/speckit.converge` | Did we ship what the spec said? |
+| Gaps found by `/speckit-analyze` | Are specs and plans lining up before code? |
+| Gaps found by `/speckit-converge` | Did we ship what the spec said? |
 | Tasks in `tasks.md` | Are stories staying small? (trend must stay flat) |
 
 No dashboards yet. Five numbers, one table, honest trends.
@@ -293,19 +305,26 @@ exercises every step above once, on the smallest real outcome.
 
 ---
 
-## 9. Getting started (one-time setup)
+## 9. Getting started
 
-1. Install: `uv tool install specify-cli` (needs Python 3.11+), plus the
-   `az` CLI. Then in the repo: `specify init --here --integration claude`
-   (repeat with `codex` / `opencode` / `devin` for those harnesses).
-2. Write the constitution with `/speckit.constitution` — start from our
-   existing conventions (idempotent scripts, pinned versions, `.env` as
-   the only config surface, no secrets in git, workload node labels).
-   Architect and Owner approve it by PR.
-3. Turn on branch protection, the CI checks and the hooks (section 6).
-4. Create the issue template with the four story sections, and the labels
-   `intent`, `intent:accepted`, `gate:spec-approved`, `gate:plan-approved`,
-   `evidence:attached`.
+Most of the one-time setup is done and lives in the repo. What remains is
+per person and per clone.
+
+1. **Each person, each clone:** run `make install`. It installs the lint
+   tools, `uv`, the Spec Kit CLI pinned to the repo's version, the cloud
+   CLIs, and switches on the pre-commit checks. `make lint` and the agent
+   hooks refuse to run until that is done. Preview with `make install-check`.
+2. **Open the repo in your agent** (Claude Code, Codex, OpenCode, Devin).
+   It reads `AGENTS.md` on its own; the `/speckit-*` commands are already
+   committed for all four harnesses. Refresh one with
+   `specify integration upgrade <harness> --force` when Spec Kit is bumped.
+3. **The constitution** is `.specify/memory/constitution.md`, version
+   1.0.0. Amend it by PR with `/speckit-constitution`; someone other than
+   the author approves.
+4. **Branch protection and labels are on.** `main` requires one approval
+   and both CI jobs green; the five labels and the story issue template
+   exist. How they fit together, with a worked example:
+   [`labels-and-gates.md`](./labels-and-gates.md).
 5. Book the daily sync. Write story 001. Go.
 
 ---
@@ -327,3 +346,4 @@ exercises every step above once, on the smallest real outcome.
 |---|---|---|
 | 0.1 | 2026-09-04 | First draft |
 | 0.2 | 2026-09-04 | Rewritten in plain linear form; stories cut to 1–2 days; one daily sync replaces separate ceremonies; migration re-sliced into 11 stories |
+| 0.3 | 2026-09-04 | Labels namespaced (`intent:accepted`, `gate:*`); command names match the installed harness spelling; constitution 1.0.0 ratified |

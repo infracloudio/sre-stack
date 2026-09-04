@@ -1,7 +1,7 @@
 ---
 name: Story
 about: A change request entering the SDLC — accepted by the Sponsor at the
-  daily sync, then turned into a spec with /speckit.specify.
+  daily sync, then turned into a spec with /speckit-specify.
 title: ''
 labels: intent
 ---

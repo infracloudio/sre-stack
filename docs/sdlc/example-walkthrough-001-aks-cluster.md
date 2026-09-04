@@ -9,7 +9,8 @@
 
 **The people.** Aman — Sponsor. Rijo — Owner (and reviewer of the final
 PR). Abishek — Architect. Viknesh — Builder. The agent transcripts happen
-to be Claude Code; Codex, OpenCode or Devin would run the same commands.
+to be Claude Code; Codex and Devin run the same commands, OpenCode spells
+them `/speckit.<verb>`.
 
 **The clock.** Two working days, as the framework demands:
 
@@ -83,12 +84,12 @@ installed everywhere, today.
 Rijo, in Claude Code on `main`:
 
 ```
-> /speckit.specify AKS cluster we can create and destroy with make.
+> /speckit-specify AKS cluster we can create and destroy with make.
   [pastes the accepted issue text from #101]
 
 ● Created branch 001-aks-cluster
 ● Created specs/001-aks-cluster/spec.md
-● 3 [NEEDS CLARIFICATION] markers — run /speckit.clarify.
+● 3 [NEEDS CLARIFICATION] markers — run /speckit-clarify.
 ```
 
 The generated `spec.md`, trimmed to its core:
@@ -137,7 +138,7 @@ Then the clarify pass — the agent asks, Rijo answers, answers go into the
 spec:
 
 ```
-> /speckit.clarify
+> /speckit-clarify
 
 Q1 (R4): tags fixed or configurable?
 > Fixed pair project=sre-stack, owner=<from .env>. Keep it boring.
@@ -196,7 +197,7 @@ git worktree add ../sre-stack-001 001-aks-cluster
 Then, in the agent:
 
 ```
-> /speckit.plan
+> /speckit-plan
   az CLI bash scripts in this repo's check-then-create style. Pin
   versions in .env. Check AKS facts against the microsoft-learn MCP
   server, not memory.
@@ -255,7 +256,7 @@ Re-runnable scripts ✔ · one config surface (.env) ✔ · versions pinned ✔
 11 git diff main -- infra/eksctl.yaml infra/scripts/cluster/*.sh → empty
 ```
 
-`/speckit.tasks` turns that into 12 tasks; the interesting part is the
+`/speckit-tasks` turns that into 12 tasks; the interesting part is the
 order — prove the risky bits before writing the bulk:
 
 ```markdown
@@ -279,7 +280,7 @@ T12 Evidence into PR, plan.md updated if reality disagreed
 Then the cross-check:
 
 ```
-> /speckit.analyze
+> /speckit-analyze
 
 | ID | Severity | Finding |
 |----|----------|---------|
@@ -303,9 +304,10 @@ points at the `--wait` in T05's description. ✅ `gate:plan-approved` label,
 ## 6. Tuesday — build and verify
 
 ```
-> /speckit.implement
+> /speckit-implement
 
-● Prerequisites: gate:plan-approved label ✔  make lint baseline ✔
+● Read plan.md and tasks.md (12 tasks); checklists clean; make lint
+  baseline ✔
 ● T01 ✔
 ● T02 throwaway cluster: taint syntax OK via --node-taints; spot quota
   OK (need 14 vCPU, have 32). Cluster deleted. ✔
@@ -318,6 +320,11 @@ points at the `--wait` in T05's description. ✅ `gate:plan-approved` label,
   plan.md updated (see Deviations). Re-run: all 11 steps green. ✔
 ● T12 evidence posted ✔
 ```
+
+The command does not look at GitHub labels. Viknesh checked that
+`gate:plan-approved` was on the PR before running it; had he not, the
+first push of code would have turned CI red until the label appeared (see
+[`labels-and-gates.md`](./labels-and-gates.md)).
 
 The deviation note the agent added to `plan.md` (this is the habit that
 matters — the plan always matches what was actually built):
@@ -390,7 +397,7 @@ merges with the code — the story's permanent record lives in git.
   PVC binding, the empty resource list after cleanup. Rijo confirms the
   success criteria and closes #101 with links to the PR. Aman: baseline
   accepted, this is now what story 002 builds on.
-- **Converge.** Viknesh ran `/speckit.converge` on `main` after merge; it
+- **Converge.** Viknesh ran `/speckit-converge` on `main` after merge; it
   found two things: the o11y/loadgen pools are created but never
   exercised (story 003/010 will), and Istio 1.17.2's support window
   doesn't include Kubernetes 1.33 — filed as new issue #103

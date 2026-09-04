@@ -44,7 +44,7 @@ Two limits to know:
   server a developer added at *user* scope in their own harness config.
   Hard enforcement needs org-managed settings or network egress rules;
   this list plus the adapter configs is the repo-level line.
-- **`/speckit.taskstoissues` is out of policy.** Its prompt instructs the
+- **`/speckit-taskstoissues` is out of policy.** Its prompt instructs the
   agent to use the GitHub MCP server (`list_issues`, issue creation),
   which is not on this list and is not tier-1 (authenticated, acts on an
   external system). Our workflow doesn't use the command — stories are
