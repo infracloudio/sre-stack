@@ -35,15 +35,30 @@ fi
 HARNESSES=("$@")
 
 # ---------------------------------------------------------------- allowlist
-# Hard gate (plan 3.3 rule 4): every MCP server in the canonical config must
-# be approved in the policy file. Loom must not be a way around the policy.
+# Hard gate (plan 3.3 rule 4): every MCP server and endpoint in the canonical
+# config must match the approved policy table. Loom must not bypass policy by
+# reusing an approved name for a different endpoint.
 ALLOWLIST="${REPO_ROOT}/agent/policies/allowed-mcp-servers.md"
-for server in $(jq -r '.mcpServers | keys[]' "${REPO_ROOT}/.mcp.json"); do
-  if ! grep -q "^\s*[-|].*\b${server}\b" "${ALLOWLIST}"; then
+while IFS=$'\t' read -r server endpoint; do
+  approved_endpoint="$(awk -F '|' -v wanted="${server}" '
+    /^## Approved servers/ { in_table=1; next }
+    in_table && /^## / { exit }
+    in_table && /^\|/ {
+      name=$2; url=$3
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", name)
+      gsub(/^[[:space:]`]+|[[:space:]`]+$/, "", url)
+      if (name == wanted) { print url; exit }
+    }
+  ' "${ALLOWLIST}")"
+  if [[ -z "${approved_endpoint}" ]]; then
     echo "loom: ERROR: MCP server '${server}' is not approved in ${ALLOWLIST#"$REPO_ROOT"/}" >&2
     exit 1
   fi
-done
+  if [[ "${endpoint}" != "${approved_endpoint}" ]]; then
+    echo "loom: ERROR: MCP server '${server}' endpoint '${endpoint}' does not match approved endpoint '${approved_endpoint}'" >&2
+    exit 1
+  fi
+done < <(jq -r '.mcpServers | to_entries[] | [.key, .value.url] | @tsv' "${REPO_ROOT}/.mcp.json")
 
 # ---------------------------------------------------------------- IR
 # Normalize canonical config to an intermediate representation (plan 3.2).

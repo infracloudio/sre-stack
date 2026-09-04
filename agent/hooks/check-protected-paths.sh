@@ -6,6 +6,7 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CONFIG="$ROOT/agent/hooks/protected-paths.txt"
+CHECK_STAGED="${CHECK_STAGED:-0}"
 
 if [ $# -gt 0 ]; then
   FILES=("$@")
@@ -13,7 +14,15 @@ else
   mapfile -t FILES < <(git -C "$ROOT" diff --cached --name-only --diff-filter=ACM)
 fi
 
-mapfile -t PATTERNS < <(grep -vE '^\s*(#|$)' "$CONFIG" 2>/dev/null || true)
+if [ "$CHECK_STAGED" -eq 1 ] \
+  && git -C "$ROOT" cat-file -e ":agent/hooks/protected-paths.txt" 2>/dev/null; then
+  mapfile -t PATTERNS < <(
+    git -C "$ROOT" show :agent/hooks/protected-paths.txt \
+      | grep -vE '^\s*(#|$)' || true
+  )
+else
+  mapfile -t PATTERNS < <(grep -vE '^\s*(#|$)' "$CONFIG" 2>/dev/null || true)
+fi
 
 if [ "${#PATTERNS[@]}" -eq 0 ]; then
   echo "check-protected-paths: no protected paths configured"

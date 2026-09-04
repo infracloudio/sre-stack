@@ -71,7 +71,7 @@ version. The story says what we want, not how.
 - Viknesh flagged one risk out loud: nobody has created AKS node pools
   with taints via CLI before. Agreed the plan must prove it before code.
 
-**Decisions:** #101 labelled `accepted`. Story 002 ("apps on AKS") to be
+**Decisions:** #101 labelled `intent:accepted`. Story 002 ("apps on AKS") to be
 brought to tomorrow's sync.
 **Actions:** Rijo → spec today, morning. Viknesh → check `az` CLI
 installed everywhere, today.
@@ -178,7 +178,7 @@ ready for Abishek."
 > number.
 >
 > **Abishek:** ✅ Spec approved at commit `a1b2c3d`. Label
-> `spec-approved` applied. (Mon 14:05)
+> `gate:spec-approved` applied. (Mon 14:05)
 
 Two comments, one round, done in an hour of elapsed async time. If it had
 dragged, it would have gone to Tuesday's sync — it didn't need to.
@@ -295,7 +295,7 @@ manifest joins the file list) and posts: "001 plan ready."
 **16:20, on the PR:** Abishek reads plan + research + the analyze output.
 One comment — "cleanup waits for the resource-group delete to finish,
 right? Async delete is the classic leftover-resources bug" — Viknesh
-points at the `--wait` in T05's description. ✅ `plan-approved` label,
+points at the `--wait` in T05's description. ✅ `gate:plan-approved` label,
 16:30. Building may start.
 
 ---
@@ -305,7 +305,7 @@ points at the `--wait` in T05's description. ✅ `plan-approved` label,
 ```
 > /speckit.implement
 
-● Prerequisites: plan-approved label ✔  make lint baseline ✔
+● Prerequisites: gate:plan-approved label ✔  make lint baseline ✔
 ● T01 ✔
 ● T02 throwaway cluster: taint syntax OK via --node-taints; spot quota
   OK (need 14 vCPU, have 32). Cluster deleted. ✔

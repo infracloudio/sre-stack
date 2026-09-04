@@ -206,6 +206,7 @@ cleanup: destroy-istio-gateway destroy-db-rds-mysql cleanup-cluster
 lint:
 	@bash agent/hooks/check-secrets.sh $$(git ls-files)
 	@bash agent/hooks/check-protected-paths.sh $$(git ls-files)
+	@bash agent/hooks/check-ratchets.sh
 	@bash agent/hooks/lint-changed.sh $$(git ls-files)
 	@helm lint app/robot-shop/helm --strict
 	@bash agent/tools/loom.sh --check

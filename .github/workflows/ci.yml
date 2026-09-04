@@ -2,6 +2,7 @@ name: ci
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
     branches: [main]
 
@@ -29,6 +30,7 @@ jobs:
         run: make lint
         env:
           STRICT: "1"
+          RATCHET_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
 
   gate-label:
     name: gate:plan-approved check
@@ -37,20 +39,36 @@ jobs:
     permissions:
       pull-requests: read
     steps:
-      - name: Require gate:plan-approved when specs/ changes
+      - uses: actions/checkout@v4
+
+      - name: Reject unresolved spec markers and gate implementation
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
         run: |
           files="$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename')"
-          if ! printf '%s\n' "$files" | grep -q '^specs/'; then
-            echo "Diff does not touch specs/ — gate not required."
+
+          unresolved=0
+          while IFS= read -r file; do
+            case "$file" in
+              specs/*/spec.md)
+                if [ -f "$file" ] && grep -nF '[NEEDS CLARIFICATION' "$file"; then
+                  echo "::error file=$file::spec still contains a [NEEDS CLARIFICATION] marker"
+                  unresolved=1
+                fi
+                ;;
+            esac
+          done <<< "$files"
+          [ "$unresolved" -eq 0 ] || exit 1
+
+          if ! printf '%s\n' "$files" | grep -qvE '^specs/[^/]+/'; then
+            echo "Diff is confined to a story's specs/ folder — plan gate not required."
             exit 0
           fi
           if gh pr view "$PR" --repo "$REPO" --json labels --jq '.labels[].name' | grep -qxF 'gate:plan-approved'; then
             echo "gate:plan-approved present ✔"
           else
-            echo "::error::PR changes specs/ but 'gate:plan-approved' label is missing. Get Architect approval of the plan, then apply the label before merge."
+            echo "::error::PR changes files outside specs/ but 'gate:plan-approved' is missing. Get Architect approval of the plan, then apply the label before merge."
             exit 1
           fi

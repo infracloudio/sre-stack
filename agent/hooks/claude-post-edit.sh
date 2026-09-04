@@ -12,6 +12,9 @@ file_path=$(jq -r '.tool_input.file_path // empty' 2>/dev/null)
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 rel="${file_path#"$ROOT"/}"
 
-bash "$ROOT/agent/hooks/check-secrets.sh" "$rel"
-bash "$ROOT/agent/hooks/lint-changed.sh" "$rel"
-exit 0
+status=0
+bash "$ROOT/agent/hooks/check-secrets.sh" "$rel" || status=1
+bash "$ROOT/agent/hooks/check-protected-paths.sh" "$rel" || status=1
+bash "$ROOT/agent/hooks/check-ratchets.sh" "$rel" || status=1
+bash "$ROOT/agent/hooks/lint-changed.sh" "$rel" || status=1
+exit "$status"

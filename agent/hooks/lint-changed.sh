@@ -41,9 +41,14 @@ for file in "${FILES[@]}"; do
     *.sh) shell_files+=("$file") ;;
     *.yaml|*.yml) yaml_files+=("$file") ;;
   esac
-  case "$file" in
-    */Chart.yaml) chart_dirs+=("$(dirname "$file")") ;;
-  esac
+  dir="$(dirname "$file")"
+  while [ "$dir" != "." ] && [ "$dir" != "/" ]; do
+    if [ -f "$ROOT/$dir/Chart.yaml" ]; then
+      chart_dirs+=("$dir")
+      break
+    fi
+    dir="$(dirname "$dir")"
+  done
 done
 
 if [ "${#shell_files[@]}" -gt 0 ] && need shellcheck; then

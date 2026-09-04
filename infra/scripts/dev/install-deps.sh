@@ -54,7 +54,7 @@ pkg_install() {
 
 fetch_bin() { # fetch_bin <url> <dest-file>
   local url="$1" dest="$2"
-  mkdir -p "$BIN_DIR"
+  run mkdir -p "$BIN_DIR"
   run curl -fsSL "$url" -o "$dest"
   run chmod +x "$dest"
 }
@@ -70,7 +70,11 @@ install_tool() {
       # Version query is read-only; safe outside the dry-run wrapper so the
       # previewed URL stays accurate.
       local ver
-      ver="$(curl -fsSL https://dl.k8s.io/release/stable.txt)"
+      if [ "$DRY_RUN" = "1" ]; then
+        ver="<current-stable>"
+      else
+        ver="$(curl -fsSL https://dl.k8s.io/release/stable.txt)"
+      fi
       fetch_bin "https://dl.k8s.io/release/${ver}/bin/${OS,,}/${ARCH}/kubectl" \
         "$BIN_DIR/kubectl"
       ;;
@@ -81,7 +85,7 @@ install_tool() {
     kustomize)
       local os_name="linux"
       [ "$OS" = "Darwin" ] && os_name="darwin"
-      mkdir -p "$BIN_DIR"
+      run mkdir -p "$BIN_DIR"
       # Release tags are prefixed: kustomize/v5.3.0
       run curl -fsSL \
         "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize/${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_${os_name}_${ARCH}.tar.gz" \
@@ -100,7 +104,7 @@ install_tool() {
     eksctl)
       local os_name="Linux"
       [ "$OS" = "Darwin" ] && os_name="Darwin"
-      mkdir -p "$BIN_DIR"
+      run mkdir -p "$BIN_DIR"
       run curl -fsSL \
         "https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_${os_name}_${ARCH}.tar.gz" \
         -o "/tmp/eksctl.tar.gz"
@@ -108,7 +112,7 @@ install_tool() {
       run rm -f "/tmp/eksctl.tar.gz"
       ;;
     aws)
-      mkdir -p "$BIN_DIR"
+      run mkdir -p "$BIN_DIR"
       run curl -fsSL "https://awscli.amazonaws.com/awscli-exe-${OS,,}-${VENDOR_ARCH}.zip" \
         -o "/tmp/awscli.zip"
       run unzip -q -o "/tmp/awscli.zip" -d /tmp

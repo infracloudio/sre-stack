@@ -127,7 +127,7 @@ say the outcome without the word "and", it's two stories.
 ### Step 2 — Get it accepted (Sponsor, at the daily sync)
 
 The Sponsor reads the story at the sync and says yes, no, or "split it".
-On yes, the issue gets the label `accepted` and the three hats are
+On yes, the issue gets the label `intent:accepted` and the three hats are
 assigned. That's the first approval.
 
 ### Step 3 — Turn it into a spec (Owner, ~1 hour)
@@ -152,7 +152,7 @@ The Architect reads `spec.md` on the PR and checks three things: it's
 buildable, it's small enough, and it doesn't contradict the constitution.
 Comments are PR comments; fixes are commits. When satisfied, the
 Architect approves the spec with a PR comment and the label
-`spec-approved`. Second approval.
+`gate:spec-approved`. Second approval.
 
 If comments are still flying after a few rounds, take it to tomorrow's
 sync — don't let a thread run for days.
@@ -173,12 +173,12 @@ other work isn't disturbed) and runs three commands:
 
 Then get the **plan approved**: the Architect reads `plan.md` and the
 analyze report on the PR — async, or in five minutes at the sync — and
-applies the label `plan-approved`. Third approval. **No implementation
+applies the label `gate:plan-approved`. Third approval. **No implementation
 before this label**, and CI enforces that mechanically. Here is how: a
 GitHub Actions job runs on every push to the PR. It asks the GitHub API
 which labels the PR carries, and diffs the branch against `main` to see
 which files changed. If any file *outside* the story's `specs/<nnn>-…/`
-folder has changed — that is, actual code — and the `plan-approved`
+folder has changed — that is, actual code — and the `gate:plan-approved`
 label is not present, the job fails, and branch protection won't let a
 red PR merge. So spec and plan commits flow freely, but the first code
 commit pushed before approval turns the PR red until the label appears
@@ -238,7 +238,7 @@ People approve; machines enforce. Three mechanisms, set up once:
   approval required, CI must be green.
 - **CI** on every PR: the GitHub Actions job described in step 5 of the
   story's life — `make lint`, no surviving `[NEEDS CLARIFICATION]`
-  markers, no code changes before the `plan-approved` label — plus the
+  markers, no code changes before the `gate:plan-approved` label — plus the
   agent review pass.
 - **Hooks** in the agent itself: block edits to protected paths, block
   committing secrets, and stop the agent from "fixing" a failing test by
@@ -304,7 +304,8 @@ exercises every step above once, on the smallest real outcome.
    Architect and Owner approve it by PR.
 3. Turn on branch protection, the CI checks and the hooks (section 6).
 4. Create the issue template with the four story sections, and the labels
-   `accepted`, `spec-approved`, `plan-approved`.
+   `intent`, `intent:accepted`, `gate:spec-approved`, `gate:plan-approved`,
+   `evidence:attached`.
 5. Book the daily sync. Write story 001. Go.
 
 ---

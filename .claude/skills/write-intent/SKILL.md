@@ -69,7 +69,7 @@ No solutions, no technology choices — "how" belongs to `/speckit.plan`.
    as a block the originator can paste into a new issue, and say so —
    do not silently fall back to writing a file.
 5. **Stop there.** Acceptance is the Sponsor's call at the daily sync
-   (they apply the `accepted` label and the roles are assigned). Do not
+   (they apply the `intent:accepted` label and the roles are assigned). Do not
    run `/speckit.specify`, do not touch code, do not open a branch.
 6. **Link prior stories** if a related issue exists — reference it in
    the body rather than re-asking answered questions.
