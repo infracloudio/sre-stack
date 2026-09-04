@@ -78,17 +78,44 @@ upstream images (instana/robot-shop, jaegertracing hotrod).
 - StorageClass is `gp2` today (EBS CSI on EKS, aliased locally on k3d)
 - Secrets come from `.env`, never hardcoded in scripts or manifests
 
+## SDLC workflow
+
+Every change runs this loop (full detail: `docs/sdlc/framework.md`).
+Approvals are recorded as labels; author and approver are never the same
+person. Roles per story: Owner (spec), Architect (approves spec + plan),
+Builder (plans, implements), Sponsor (accepts stories, at the daily sync).
+
+1. **Story** — a GitHub issue with Problem / Outcome / Out of scope /
+   Must keep working (`write-intent` skill; template
+   `.github/ISSUE_TEMPLATE/story.md`; label `intent`). Sized to **1–2
+   days including verification**, one demoable outcome — no "and".
+   Sponsor accepts → label `accepted`, roles assigned.
+2. **Spec** — Owner runs `/speckit.specify` with the accepted issue text
+   (creates branch + `specs/<nnn>-<slug>/spec.md`), then
+   `/speckit.clarify` until zero `[NEEDS CLARIFICATION]` markers; opens
+   a draft PR. Architect approves → label `spec-approved`.
+3. **Plan** — Builder, in a separate git worktree, runs `/speckit.plan`
+   (reads the constitution), `/speckit.tasks`, `/speckit.analyze`; fix
+   analyze findings in the artifacts, not in code. Architect approves →
+   label `plan-approved`. CI fails any PR whose diff leaves `specs/`
+   before this label exists.
+4. **Build** — `/speckit.implement`. Any departure from `plan.md` is
+   written back into `plan.md` in the same commit, with the reason.
+   Evidence goes into the PR: lint output, the verification run,
+   timings — output, not "should work".
+5. **Review** — the agent review pass posts ranked findings (advice,
+   answered or fixed one by one); one human approves — whoever wrote
+   neither the code nor the plan. Squash-merge, `specs/` folder included.
+6. **Close** — `/speckit.converge` on `main`; each gap becomes a same-day
+   follow-up PR or a new story issue. Demo at the next daily sync,
+   issue closed with links.
+
 ## Rules for agents
 
-- Start changes from an accepted story issue (label `intent`, then
-  `accepted` by the Sponsor); don't invent scope. The `write-intent`
-  skill creates the issue (`.github/ISSUE_TEMPLATE/story.md` is the
-  format). From an accepted story, follow the Spec Kit flow:
-  `/speckit.specify` → `/speckit.clarify` → `/speckit.plan` →
-  `/speckit.tasks` → `/speckit.analyze` → `/speckit.implement`, with
-  artifacts in `specs/<nnn>-<slug>/`. No implementation before the
-  plan is approved
-- Informational questions don't need a story issue — the rule applies
+- Start changes from an accepted story issue; don't invent scope — the
+  SDLC workflow above is the contract. Never write code before the PR
+  carries `plan-approved`
+- Informational questions don't need a story issue — the workflow applies
   to changes only
 - AWS and Azure/AKS facts: query the `aws-knowledge` and `microsoft-learn`
   MCP servers (see `.mcp.json`) rather than answering from memory — versions
