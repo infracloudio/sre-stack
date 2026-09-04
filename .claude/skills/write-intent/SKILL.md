@@ -41,8 +41,12 @@ No solutions, no technology choices — "how" belongs to `/speckit.plan`.
    Problem section. Do not polish, formalize, or convert to user
    stories. If the originator says "cleanup takes forever", the issue
    says "cleanup takes forever".
-4. **Show, then file.** Present the draft, let the originator correct
-   anything misremembered, and only then create the issue:
+4. **Show, then file — with an explicit approval gate.** Present the full
+   draft (title + all four sections) and ask for approval. Do **not**
+   create the issue until the originator explicitly confirms ("post it",
+   "looks good", "yes"). Silence, a new question, or a correction is not
+   approval — apply corrections, re-show the draft, and wait again. Only
+   after explicit confirmation, create the issue:
 
    ```
    gh issue create \
