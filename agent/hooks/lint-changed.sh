@@ -31,6 +31,12 @@ shell_files=()
 yaml_files=()
 chart_dirs=()
 for file in "${FILES[@]}"; do
+  # .specify/ is generated and refreshed by the Specify CLI (Spec Kit);
+  # upstream owns its scripts and workflow YAML, so repo lint skips them
+  # (same reasoning as the loom-generated adapters, which loom checks).
+  case "$file" in
+    .specify/*) continue ;;
+  esac
   case "$file" in
     *.sh) shell_files+=("$file") ;;
     *.yaml|*.yml) yaml_files+=("$file") ;;
