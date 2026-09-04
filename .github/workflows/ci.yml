@@ -1,0 +1,81 @@
+name: ci
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    name: lint and validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install shellcheck and yamllint
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq shellcheck
+          pip install --quiet yamllint
+
+      - name: Install helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.4
+
+      - name: make lint
+        run: make lint
+        env:
+          STRICT: "1"
+          RATCHET_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
+          # Protected (guardrail/generated) paths may change only in a PR that
+          # someone other than the author approved — the plan gate label.
+          PROTECTED_OVERRIDE: ${{ (github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'gate:plan-approved')) && '1' || '' }}
+
+  # TODO(agent-review): add the agent review job described in
+  # docs/sdlc/framework.md section 6 once the harness and credentials are
+  # decided (section 10, item 1). It posts ranked findings; it is not a gate.
+
+  gate-label:
+    name: gate:plan-approved check
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reject unresolved spec markers and gate implementation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          files="$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename')"
+
+          unresolved=0
+          while IFS= read -r file; do
+            case "$file" in
+              specs/*/spec.md)
+                if [ -f "$file" ] && grep -nF '[NEEDS CLARIFICATION' "$file"; then
+                  echo "::error file=$file::spec still contains a [NEEDS CLARIFICATION] marker"
+                  unresolved=1
+                fi
+                ;;
+            esac
+          done <<< "$files"
+          [ "$unresolved" -eq 0 ] || exit 1
+
+          if ! printf '%s\n' "$files" | grep -qvE '^specs/[^/]+/'; then
+            echo "Diff is confined to a story's specs/ folder — plan gate not required."
+            exit 0
+          fi
+          if gh pr view "$PR" --repo "$REPO" --json labels --jq '.labels[].name' | grep -qxF 'gate:plan-approved'; then
+            echo "gate:plan-approved present ✔"
+          else
+            echo "::error::PR changes files outside specs/ but 'gate:plan-approved' is missing. Get Architect approval of the plan, then apply the label before merge."
+            exit 1
+          fi

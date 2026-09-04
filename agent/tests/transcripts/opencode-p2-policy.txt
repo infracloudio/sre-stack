@@ -1,0 +1,16 @@
+[0m
+> build · glm-5.3-flash
+[0m
+[0m→ [0mSkill "write-intent"
+[0m→ [0mRead .mcp.json
+[0m→ [0mRead agent/policies/allowed-mcp-servers.md
+[0m✱ [0mGlob "intent/*.md"[90m 2 matches[0m
+`aws-knowledge` MCP server already exists — `.mcp.json:7` + approved in `agent/policies/allowed-mcp-servers.md:25` (PR #94). Read-only AWS docs/region facts. So plain "AWS docs" server done already.
+
+Clarify before intent:
+
+1. Want **different** AWS server — credentials-backed one (awslabs `aws-api-mcp-server`: kubectl/CLI against your EKS, spends money, mutates)? That needs approval-gate per policy, not auto-allow.
+2. Or unaware `aws-knowledge` existed — nothing to do?
+3. Or third option (cost explorer, CDK MCP, Terraform MCP...)?
+
+Which one, and what can't you do today that it fixes?

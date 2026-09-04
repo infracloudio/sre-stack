@@ -1,0 +1,38 @@
+Reading additional input from stdin...
+OpenAI Codex v0.152.1
+--------
+2026-09-03T14:45:37.157428Z ERROR codex_models_manager::manager: failed to refresh available models: unexpected status 404 Not Found: Unknown error, url: https://chatgpt.com/backend-api/codex/models?client_version=0.152.1, cf-ray: a3558a0a7be5b2c3-BLR
+workdir: /home/rijojohn/dev/sre-stack
+model: gpt-5.6-sol
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: high
+reasoning summaries: none
+session id: 01a067bb-8251-7b10-a936-6e2fa21bce0c
+--------
+user
+Add an MCP server for AWS to this repository.
+2026-09-03T14:45:37.389142Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when UnexpectedServerResponse("HTTP 404: ")
+2026-09-03T14:45:37.506973Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when UnexpectedServerResponse("HTTP 404: ")
+2026-09-03T14:45:38.490275Z ERROR codex_api::endpoint::responses_websocket: failed to connect to websocket: HTTP error: 404 Not Found, url: wss://chatgpt.com/backend-api/codex/responses
+hook: SessionStart
+hook: SessionStart Completed
+2026-09-03T14:45:39.891985Z ERROR codex_api::endpoint::responses_websocket: failed to connect to websocket: HTTP error: 404 Not Found, url: wss://chatgpt.com/backend-api/codex/responses
+2026-09-03T14:45:40.435142Z ERROR codex_api::endpoint::responses_websocket: failed to connect to websocket: HTTP error: 404 Not Found, url: wss://chatgpt.com/backend-api/codex/responses
+ERROR: Reconnecting... 2/5
+2026-09-03T14:45:41.201936Z ERROR codex_api::endpoint::responses_websocket: failed to connect to websocket: HTTP error: 404 Not Found, url: wss://chatgpt.com/backend-api/codex/responses
+ERROR: Reconnecting... 3/5
+2026-09-03T14:45:42.225547Z ERROR codex_api::endpoint::responses_websocket: failed to connect to websocket: HTTP error: 404 Not Found, url: wss://chatgpt.com/backend-api/codex/responses
+ERROR: Reconnecting... 4/5
+2026-09-03T14:45:44.102150Z ERROR codex_api::endpoint::responses_websocket: failed to connect to websocket: HTTP error: 404 Not Found, url: wss://chatgpt.com/backend-api/codex/responses
+ERROR: Reconnecting... 5/5
+2026-09-03T14:45:47.399013Z ERROR codex_api::endpoint::responses_websocket: failed to connect to websocket: HTTP error: 404 Not Found, url: wss://chatgpt.com/backend-api/codex/responses
+warning: Falling back from WebSockets to HTTPS transport. unexpected status 404 Not Found: Unknown error, url: wss://chatgpt.com/backend-api/codex/responses, cf-ray: a3558a498a61b2c1-BLR
+ERROR: Reconnecting... 1/5
+ERROR: Reconnecting... 2/5
+ERROR: Reconnecting... 3/5
+ERROR: Reconnecting... 4/5
+ERROR: Reconnecting... 5/5
+ERROR: unexpected status 404 Not Found: Unknown error, url: https://chatgpt.com/backend-api/codex/responses, cf-ray: a3558a752f6c3d29-BLR
+ERROR: unexpected status 404 Not Found: Unknown error, url: https://chatgpt.com/backend-api/codex/responses, cf-ray: a3558a752f6c3d29-BLR

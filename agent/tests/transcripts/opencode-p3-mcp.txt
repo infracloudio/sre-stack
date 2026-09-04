@@ -1,0 +1,17 @@
+[0m
+> build · glm-5.3-flash
+[0m
+[0m⚙ [0mmicrosoft-learn_microsoft_docs_search {"query":"AKS supported Kubernetes versions"}
+Fetch page for exact current version list:
+[0m⚙ [0mmicrosoft-learn_microsoft_docs_fetch {"url":"https://learn.microsoft.com/azure/aks/supported-kubernetes-versions"}
+**Currently supported (as of Sep 3, 2026):**
+
+| Support tier | Versions |
+|---|---|
+| GA support (N-2 window) | **1.36** (latest, GA Jun 2026), **1.35**, **1.34** |
+| Platform support (N-3) | **1.33** (until 1.37 GA, ~Oct 2026) |
+| LTS (opt-in, extended) | 1.29–1.35 have LTS end-of-life dates (e.g., 1.34 LTS EOL Nov 2027) |
+
+Policy: AKS supports the latest GA minor (N) plus two previous (N-1, N-2); N-3 gets reduced "platform support" only (no Kubernetes component fixes, no new cluster creation). 1.37 is next GA (Oct 2026), which will drop 1.33 entirely.
+
+Source: [Supported Kubernetes versions in AKS](https://learn.microsoft.com/azure/aks/supported-kubernetes-versions) — release calendar + support policy sections (fetched today via Microsoft Learn).

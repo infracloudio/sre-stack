@@ -23,6 +23,8 @@ help:
 	@echo ""
 	@echo "Utilities:"
 	@echo " get-service-endpoints           - Print exposed service endpoints."
+	@echo " install                         - Install all dev dependencies (lint tools, kubectl, helm, k3d, eksctl, aws/az CLI)"
+	@echo " install-check                   - Report missing dev dependencies (no changes)"
 
 include .env
 BASE_SCRIPT_PATH := ./infra/scripts
@@ -200,6 +202,26 @@ cleanup-cluster: destroy-cluster-autoscaler destroy-yace
 
 
 cleanup: destroy-istio-gateway destroy-db-rds-mysql cleanup-cluster
+
+lint:
+	@bash agent/hooks/check-hooks-enabled.sh
+	@bash agent/hooks/check-secrets.sh $$(git ls-files)
+	@bash agent/hooks/check-protected-paths.sh
+	@bash agent/hooks/check-ratchets.sh
+	@bash agent/hooks/lint-changed.sh $$(git ls-files)
+	@helm lint app/robot-shop/helm --strict
+	@bash agent/hooks/check-speckit-version.sh
+	@bash agent/tools/loom.sh --check
+
+hooks:
+	git config core.hooksPath .githooks
+	@echo "pre-commit hooks enabled for this clone"
+
+install:
+	@bash infra/scripts/dev/install-deps.sh
+
+install-check:
+	@DRY_RUN=1 bash infra/scripts/dev/install-deps.sh
 
 ### Local Cluster sre-stack setup
 # @saurabh: --disable=metrics-server@server:* (if bundled metrics-server does not work)
