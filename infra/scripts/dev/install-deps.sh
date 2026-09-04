@@ -17,6 +17,7 @@ esac
 BIN_DIR="${HOME}/.local/bin"
 KUSTOMIZE_VERSION="v5.3.0"
 K3D_VERSION="v5.6.0"
+SPEC_KIT_VERSION="v1.0.4"
 
 have() { command -v "$1" >/dev/null 2>&1; }
 as_root() {
@@ -26,7 +27,7 @@ run() {
   if [ "$DRY_RUN" = "1" ]; then echo "  [dry-run] $*"; else "$@"; fi
 }
 
-TOOLS=(jq shellcheck yamllint unzip kubectl helm kustomize k3d eksctl aws az)
+TOOLS=(jq shellcheck yamllint unzip kubectl helm kustomize k3d eksctl aws az uv specify)
 
 missing=()
 for tool in "${TOOLS[@]}"; do
@@ -121,6 +122,18 @@ install_tool() {
         run as_root bash -c 'curl -sL https://aka.ms/InstallAzureCLIDeb | bash'
       fi
       ;;
+    uv)
+      run bash -c 'curl -LsSf https://astral.sh/uv/install.sh | sh'
+      ;;
+    specify)
+      # Spec Kit CLI — provides the `specify` binary behind the /speckit.*
+      # workflow commands (AGENTS.md SDLC section). Pinned to a spec-kit
+      # release tag; uv is its documented prerequisite.
+      local uv_bin
+      uv_bin="$(command -v uv || echo "$BIN_DIR/uv")"
+      run "$uv_bin" tool install specify-cli \
+        --from "git+https://github.com/github/spec-kit.git@${SPEC_KIT_VERSION}"
+      ;;
     *)
       echo "  ERROR: no install recipe for $tool" >&2
       return 1
@@ -144,7 +157,7 @@ fi
 
 if [ -d "$BIN_DIR" ] && ! echo "$PATH" | grep -q "$BIN_DIR"; then
   echo ""
-  echo "NOTE: add $BIN_DIR to your PATH (kubectl/kustomize/aws/eksctl install there):"
+  echo "NOTE: add $BIN_DIR to your PATH (kubectl/kustomize/aws/eksctl/specify install there):"
   echo "      export PATH=\"$BIN_DIR:\$PATH\""
 fi
 
