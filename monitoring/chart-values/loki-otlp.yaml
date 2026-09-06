@@ -1,0 +1,71 @@
+# Supersedes the "loki" Helm release created by `make setup-loki`
+# (monitoring/chart-values/loki.yaml, existing, pre-dating this PR).
+# See LOKI-DECISION.md for why loki.yaml itself was left unchanged rather
+# than fixed in place (Option B: lower blast radius for a first PR).
+#
+# WHY THIS IS NECESSARY: the existing loki.yaml installs Loki 2.6.1 (via
+# the deprecated loki-stack chart), which predates OTLP log ingestion
+# entirely (added in Loki 3.0). Confirmed live:
+#   curl http://<loki>:3100/loki/api/v1/status/buildinfo -> "version":"2.6.1"
+#   POST to /otlp/v1/logs -> HTTP 404
+# No collector-side config change can work around a version gap this
+# fundamental -- the endpoint genuinely does not exist on that server.
+#
+# This also happens to satisfy the "retire Promtail" part of the OTel
+# migration scope, and closes issue #79 (Promtail crashing on k3d with
+# "too many open files") for anyone who runs this migration -- the
+# loki-stack chart bundles Promtail by default, so the setup-otel-loki
+# target's `helm uninstall loki` before this installs removes Promtail
+# along with the old Loki, in one step.
+
+deploymentMode: SingleBinary
+
+loki:
+  auth_enabled: false
+  commonConfig:
+    replication_factor: 1
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: loki_index_
+          period: 24h
+  storage:
+    type: filesystem
+
+singleBinary:
+  replicas: 1
+  persistence:
+    enabled: true
+    size: 5Gi
+
+backend:
+  replicas: 0
+read:
+  replicas: 0
+write:
+  replicas: 0
+ingester:
+  replicas: 0
+querier:
+  replicas: 0
+queryFrontend:
+  replicas: 0
+queryScheduler:
+  replicas: 0
+distributor:
+  replicas: 0
+compactor:
+  replicas: 0
+indexGateway:
+  replicas: 0
+bloomCompactor:
+  replicas: 0
+bloomGateway:
+  replicas: 0
+
+minio:
+  enabled: false

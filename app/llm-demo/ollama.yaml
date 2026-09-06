@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: monitoring
+  labels:
+    app: ollama
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+    spec:
+      containers:
+        - name: ollama
+          image: ollama/ollama:latest
+          ports:
+            - containerPort: 11434
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          volumeMounts:
+            - name: ollama-data
+              mountPath: /root/.ollama
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 11434
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: ollama-data
+          persistentVolumeClaim:
+            claimName: ollama-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-data
+  namespace: monitoring
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama
+  namespace: monitoring
+spec:
+  selector:
+    app: ollama
+  ports:
+    - port: 11434
+      targetPort: 11434
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ollama-pull-model
+  namespace: monitoring
+spec:
+  backoffLimit: 6
+  activeDeadlineSeconds: 600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: pull-model
+          image: curlimages/curl:8.9.1
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              echo "Waiting for Ollama to be reachable..."
+              until curl -sf http://ollama.monitoring:11434/ > /dev/null; do
+                echo "  not ready yet, retrying in 3s..."
+                sleep 3
+              done
+              echo "Ollama is reachable. Pulling llama3.2:1b (this can take a minute)..."
+              # Use a generous timeout since curl's default has none, and
+              # the pull streams NDJSON progress until the model is fully
+              # written to disk -- an early return here would leave the
+              # model half-pulled.
+              curl -sS --max-time 540 http://ollama.monitoring:11434/api/pull \
+                -d '{"name": "llama3.2:1b", "stream": false}'
+              echo
+              echo "Verifying the model actually landed..."
+              curl -sS http://ollama.monitoring:11434/api/tags | grep -q "llama3.2:1b" \
+                && echo "Confirmed: llama3.2:1b is present." \
+                || { echo "Model not found after pull -- failing so the Job retries."; exit 1; }

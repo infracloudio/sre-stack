@@ -57,7 +57,7 @@ tempo:
   # Refers to https://grafana.com/docs/tempo/latest/configuration/#server
   server:
     # -- HTTP server listen port
-    http_listen_port: 3100
+    http_listen_port: 3200
   storage:
     trace:
       # tempo storage backend
@@ -97,6 +97,8 @@ tempo:
           endpoint: "0.0.0.0:4317"
         http:
           endpoint: "0.0.0.0:4318"
+    zipkin:
+      endpoint: "0.0.0.0:9411"
   securityContext: {}
     # allowPrivilegeEscalation: false
     #  capabilities:
@@ -265,8 +267,8 @@ serviceMonitor:
   # scrapeTimeout: 10s
 
 persistence:
-  enabled: false
-  # storageClassName: local-path
+  enabled: true
+  storageClassName: local-path
   accessModes:
     - ReadWriteOnce
   size: 10Gi

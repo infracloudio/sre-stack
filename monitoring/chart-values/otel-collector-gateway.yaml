@@ -1,0 +1,189 @@
+# OTel Collector -- GATEWAY tier (single cluster-wide Deployment).
+# Source chart: open-telemetry/opentelemetry-collector
+#
+# RELATIONSHIP TO monitoring/chart-values/otel-collector.yaml (existing,
+# pre-dating this PR): that file runs a single collector in "deployment"
+# mode for the setup-optional-otel target. This file + its sibling
+# otel-collector-agent.yaml split that single collector into the two-tier
+# design your scope asked for -- otel-collector.yaml is left as-is for
+# anyone still using setup-optional-otel directly; these are new,
+# additional files, not a replacement.
+#
+# IMAGE VERSION: otel-collector.yaml pins 0.94.0 (Feb 2024). This file
+# uses 0.156.0 instead, which is what was actually proven working live --
+# not verified whether 0.94.0 has the same receiver components available
+# (k8s_cluster, k8s_events specifically). Worth reconciling versions
+# project-wide at some point, flagged here rather than silently picked.
+#
+# This file reflects fixes found by running the migration live against a
+# real cluster -- not theoretical:
+#   - receiver component name is "k8s_cluster" (with underscore), not
+#     "k8scluster" -- the collector's own config-validation error listed
+#     every valid component name and this was not among them
+#   - processor is "k8s_attributes" (the chart auto-rewrites the older
+#     "k8sattributes" name with a deprecation warning; written correctly
+#     here to avoid depending on that auto-rewrite, which the chart's own
+#     changelog says will eventually be removed)
+#   - clusterRole needs explicit "endpoints" and "horizontalpodautoscalers"
+#     permissions beyond the chart's default -- k8s_cluster's informers
+#     failed with "Failed to watch ... forbidden" for both until added
+#   - Loki exporter points at loki-otlp.yaml's install (see
+#     LOKI-DECISION.md) -- the existing loki.yaml's Loki (2.6.1) has no
+#     OTLP log ingestion support at all, confirmed via a live 404 on
+#     /otlp/v1/logs
+#   - a "traces" pipeline is REQUIRED: OpenLIT (inside the LLM demo app)
+#     sends trace spans via OTLP directly to this gateway -- separate
+#     from Istio's traces, which reach Tempo via the zipkin receiver
+#     patch (see patches/PATCHES.md). Without an explicit traces pipeline
+#     using otlphttp/tempo, the chart's own default fallback pipeline
+#     (otlp receiver -> debug exporter) silently absorbed these spans --
+#     confirmed live: spans arrived every few minutes but only ever
+#     reached a one-line debug-log summary, never Tempo.
+
+mode: deployment
+fullnameOverride: "otel-gateway"
+
+image:
+  repository: otel/opentelemetry-collector-contrib
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+    k8s_events:
+      namespaces: []   # empty = all namespaces
+
+    k8s_cluster:
+      collection_interval: 30s
+      allocatable_types_to_report: [cpu, memory]
+
+    prometheus:
+      config:
+        scrape_configs:
+          # Incremental start: two targets already scraped today via
+          # ServiceMonitors under kube-prometheus-stack. Add more
+          # scrape_configs here one at a time as each ServiceMonitor is
+          # migrated off the Prometheus Operator's own scraping.
+          - job_name: "otel-migrated-kube-state-metrics"
+            kubernetes_sd_configs:
+              - role: endpoints
+                namespaces:
+                  names: ["monitoring"]
+            relabel_configs:
+              - source_labels: [__meta_kubernetes_service_name]
+                regex: "prometheus-stack-kube-state-metrics"
+                action: keep
+          - job_name: "otel-migrated-node-exporter"
+            kubernetes_sd_configs:
+              - role: endpoints
+                namespaces:
+                  names: ["monitoring"]
+            relabel_configs:
+              - source_labels: [__meta_kubernetes_service_name]
+                regex: "prometheus-stack-prometheus-node-exporter"
+                action: keep
+
+  processors:
+    k8s_attributes:
+      auth_type: serviceAccount
+      passthrough: false
+      extract:
+        metadata:
+          - k8s.pod.name
+          - k8s.namespace.name
+          - k8s.node.name
+          - k8s.pod.uid
+          - k8s.deployment.name
+    batch: {}
+    memory_limiter:
+      check_interval: 5s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+
+  exporters:
+    debug: {}
+
+    otlphttp/loki:
+      endpoint: http://loki-gateway.monitoring.svc.cluster.local/otlp
+      tls:
+        insecure: true
+
+    otlphttp/tempo:
+      # This app's own OpenLIT instrumentation sends trace spans via OTLP
+      # directly to this gateway (see app/llm-demo/main.py's openlit.init()
+      # call) -- separate from Istio's traces, which bypass the collector
+      # entirely via the Zipkin alias. Without an explicit traces pipeline
+      # below using this exporter, the chart's own default fallback pipeline
+      # (otlp receiver -> debug exporter) silently absorbs these spans:
+      # confirmed live, the gateway's logs showed spans arriving every few
+      # minutes but only ever reaching the debug exporter, never Tempo.
+      endpoint: http://tempo.monitoring.svc.cluster.local:4318
+      tls:
+        insecure: true
+
+    prometheusremotewrite:
+      # Requires prometheus.prometheusSpec.enableRemoteWriteReceiver: true
+      # on the EXISTING kube-prometheus-stack release -- migrate-to-otel.sh
+      # patches this in with `helm upgrade --reuse-values --version 52.0.0`
+      # (the explicit --version pin matters: --reuse-values alone pulls
+      # whatever chart version is newest in your local Helm cache, which
+      # broke on a template/values mismatch against the originally
+      # installed 52.0.0 release).
+      endpoint: http://prometheus-stack-kube-prom-prometheus.monitoring.svc.cluster.local:9090/api/v1/write
+      tls:
+        insecure: true
+
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [k8s_attributes, memory_limiter, batch]
+        exporters: [otlphttp/tempo]
+      logs:
+        receivers: [otlp]
+        processors: [k8s_attributes, memory_limiter, batch]
+        exporters: [otlphttp/loki]
+      metrics:
+        receivers: [otlp, k8s_cluster, prometheus]
+        processors: [k8s_attributes, memory_limiter, batch]
+        exporters: [prometheusremotewrite]
+      logs/events:
+        receivers: [k8s_events]
+        processors: [k8s_attributes, memory_limiter, batch]
+        exporters: [otlphttp/loki]
+
+# k8s_events and k8s_cluster both need broad cluster-wide read access
+# beyond the chart's default ClusterRole. The endpoints and
+# horizontalpodautoscalers entries were added after live testing showed
+# k8s_cluster's informers failing with "forbidden" errors without them.
+clusterRole:
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources: ["events", "namespaces", "namespaces/status", "nodes",
+                  "nodes/spec", "pods", "pods/status", "replicationcontrollers",
+                  "replicationcontrollers/status", "resourcequotas", "services",
+                  "endpoints"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["apps"]
+      resources: ["daemonsets", "deployments", "replicasets", "statefulsets"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["batch"]
+      resources: ["jobs", "cronjobs"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["autoscaling"]
+      resources: ["horizontalpodautoscalers"]
+      verbs: ["get", "list", "watch"]
