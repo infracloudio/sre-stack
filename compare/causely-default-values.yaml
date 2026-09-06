@@ -1,0 +1,244 @@
+image:
+  repository: quay.io/causely
+  pullPolicy: Always
+  # Overwrite tag if needed
+  # tag:
+
+agent:
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 1024Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  otlp:
+    endpoint: http://mediator:54318
+
+  gadget:
+    enabled: true
+
+  socketBPF:
+    enabled: true
+
+  beyla:
+    enabled: false
+    repository: grafana/beyla
+    tag: main
+    prometheusPort: 8999
+    containerSecurityContext:
+      privileged: true
+      readOnlyRootFilesystem: true
+
+  caretta:
+    enabled: false
+    repository: quay.io/groundcover/caretta
+    tag: "v0.0.16"
+    enableDnsResolving: true
+    prometheusPort: 7117
+    prometheusEndpoint: "/metrics"
+    pollIntervalSeconds: 5
+    containerSecurityContext:
+      privileged: true
+      readOnlyRootFilesystem: true
+
+  webserver:
+    port: 8082
+  affinity: {}
+  nodeSelector: {}
+  tolerations:
+    - key: "persistent"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+    - key: "o11y"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+    - key: node-role.kubernetes.io/master
+      operator: Exists
+      effect: NoSchedule
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext: {}
+  containerSecurityContext:
+    privileged: true
+    readOnlyRootFilesystem: true
+    runAsUser: 0
+
+executor:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+
+  enabled: false
+  affinity: {}
+  nodeSelector: {}
+  tolerations: []
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext: {}
+  containerSecurityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+    allowPrivilegeEscalation: false
+    privileged: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - all
+      add: ["NET_BIND_SERVICE"]
+  serviceAnnotations: {}
+  serviceLabels: {}
+
+mediator:
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 1024Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  otlp:
+    endpoint: http://mediator:54318
+
+  affinity: {}
+  nodeSelector: {}
+  tolerations:
+    - key: "persistent"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+    - key: "o11y"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext: {}
+  containerSecurityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+    allowPrivilegeEscalation: false
+    privileged: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - all
+      add: ["NET_BIND_SERVICE"]
+  serviceAnnotations: {}
+  serviceLabels:
+    prometheus-scrape: "true"
+
+  gateway:
+    host: gw.causely.app
+    port: 443
+    tls: true
+    insecure: false
+  server:
+    port: 50051
+  webserver:
+    port: 8082
+
+victoriametrics:
+  affinity: {}
+  nodeSelector: {}
+  tolerations: []
+  storage: 1Gi
+  podSecurityContext: {}
+  args:
+    - "-search.maxConcurrentRequests=128"
+    - "-search.maxQueryDuration=5m"
+    - "-retentionPeriod=1d"
+  containerSecurityContext:
+    runAsNonRoot: false
+    seccompProfile:
+      type: RuntimeDefault
+    allowPrivilegeEscalation: false
+    privileged: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - all
+      add: ["NET_BIND_SERVICE"]
+  resources:
+    limits:
+      cpu: 4000m
+      memory: 4096Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  serviceAnnotations: {}
+  serviceLabels: {}
+
+serviceMonitor:
+  enabled: false
+
+telemetry:
+  otel:
+    enabled: false
+    scrape: false
+    endpoint: "https://otlp.causely.app"
+    token: ""
+
+scrapers:
+  kubernetes:
+    enabled: true
+
+  bpf:
+    enabled: true
+
+  azure:
+    enabled: false
+#    subscriptions:
+#      - subscriptionId: ""
+#        secretName: ""
+#        resourceGroups: # optional, if not set all resources groupes will be scraped
+#          - group1
+#          - group2
+
+  aws:
+    enabled: false
+    secretName: ""
+
+  confluent:
+    enabled: false
+    secretName: ""
+
+  prometheus:
+    enabled: true
+    endpoint: http://prometheus-stack-kube-prom-prometheus.monitoring.svc.cluster.local:9090
+
+  istio:
+    enabled: true
+    prometheus:
+      endpoint: http://prometheus-stack-kube-prom-prometheus.monitoring.svc.cluster.local:9090
+
+  opentelemetry:
+    enabled: true
+    port: 4317
+
+  istiosidecar:
+    enabled: false
+
+  gcp:
+    enabled: false
+    # projects:
+    # - id: "<project-id>"
+    #   secretName: "<secret-name>"
+
+  datadog:
+    enabled: false
+    org: ""
+    api_key: ""
+    app_key: ""
+

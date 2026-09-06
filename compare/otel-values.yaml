@@ -6,7 +6,7 @@ nameOverride: ""
 fullnameOverride: ""
 
 # Valid values are "daemonset", "deployment", and "statefulset".
-mode: "deployment"
+mode: "daemonset"
 
 # Specify which namespace should be used to deploy the resources into
 namespaceOverride: ""
@@ -27,7 +27,7 @@ presets:
   # Best used with mode = daemonset.
   # See https://opentelemetry.io/docs/kubernetes/collector/components/#filelog-receiver for details on the receiver.
   logsCollection:
-    enabled: true
+    enabled: false
     includeCollectorLogs: false
     # Enabling this writes checkpoints in /var/lib/otelcol/ host directory.
     # Note this changes collector's user to root, so that it can write to host directory.
@@ -48,7 +48,7 @@ presets:
   # Best used with mode = daemonset.
   # See https://opentelemetry.io/docs/kubernetes/collector/components/#kubernetes-attributes-processor for details on the receiver.
   kubernetesAttributes:
-    enabled: true
+    enabled: false
     # When enabled the processor will extra all labels for an associated pod and add them as resource attributes.
     # The label's exact name will be the key.
     extractAllPodLabels: false
@@ -61,7 +61,7 @@ presets:
   # Best used with mode = daemonset.
   # See https://opentelemetry.io/docs/kubernetes/collector/components/#kubeletstats-receiver for details on the receiver.
   kubeletMetrics:
-    enabled: true
+    enabled: false
   # Configures the collector to collect kubernetes events.
   # Adds the k8sobject receiver to the logs pipeline
   # and collects kubernetes events by default.
@@ -85,49 +85,15 @@ configMap:
 # Supports templating. To escape existing instances of {{ }}, use {{` <original content> `}}.
 # For example, {{ REDACTED_EMAIL }} becomes {{` {{ REDACTED_EMAIL }} `}}.
 config:
-  receivers:
-    otlp:
-      protocols:
-        grpc:
-          endpoint: ${env:MY_POD_IP}:4317
-        http:
-          endpoint: ${env:MY_POD_IP}:4318
-    # jaeger:
-    #   protocols:
-    #     grpc:
-    #       endpoint: ${env:MY_POD_IP}:14250
-    #     thrift_http:
-    #       endpoint: ${env:MY_POD_IP}:14268
-    #     thrift_compact:
-    #       endpoint: ${env:MY_POD_IP}:6831
-    # prometheus:
-    #   config:
-    #     scrape_configs:
-    #       - job_name: opentelemetry-collector
-    #         scrape_interval: 10s
-    #         static_configs:
-    #           - targets:
-    #               - ${env:MY_POD_IP}:8888
-    # zipkin:
-    #   endpoint: ${env:MY_POD_IP}:9411
-  processors:
-    batch: {}
-    # If set to null, will be overridden with values based on k8s resource limits
-    memory_limiter: null
   exporters:
-    debug: {}
-    # # Will be removed in a future release.
-    # # Use the debug exporter instead.
-    # logging: {}
-    otlp:
-      endpoint: http://tempo.monitoring:4317
-      tls:
-        insecure: true
     otlp/causely:
       endpoint: mediator.causely.svc.cluster.local:4317
-      compression: none
       tls:
         insecure: true
+    debug: {}
+    # Will be removed in a future release.
+    # Use the debug exporter instead.
+    logging: {}
   extensions:
     # The health_check extension is mandatory for this chart.
     # Without the health_check extension the collector will fail the readiness and liveliness probes.
@@ -135,6 +101,35 @@ config:
     health_check:
       endpoint: ${env:MY_POD_IP}:13133
     memory_ballast: {}
+  processors:
+    batch: {}
+    # If set to null, will be overridden with values based on k8s resource limits
+    memory_limiter: null
+  receivers:
+    jaeger:
+      protocols:
+        grpc:
+          endpoint: ${env:MY_POD_IP}:14250
+        thrift_http:
+          endpoint: ${env:MY_POD_IP}:14268
+        thrift_compact:
+          endpoint: ${env:MY_POD_IP}:6831
+    otlp:
+      protocols:
+        grpc:
+          endpoint: ${env:MY_POD_IP}:4317
+        http:
+          endpoint: ${env:MY_POD_IP}:4318
+    prometheus:
+      config:
+        scrape_configs:
+          - job_name: opentelemetry-collector
+            scrape_interval: 10s
+            static_configs:
+              - targets:
+                  - ${env:MY_POD_IP}:8888
+    zipkin:
+      endpoint: ${env:MY_POD_IP}:9411
   service:
     telemetry:
       metrics:
@@ -143,43 +138,41 @@ config:
       - health_check
       - memory_ballast
     pipelines:
-      # logs:
-      #   exporters:
-      #     - debug
-      #   processors:
-      #     - memory_limiter
-      #     - batch
-      #   receivers:
-      #     - otlp
-      # metrics:
-      #   exporters:
-      #     - debug
-      #   processors:
-      #     - memory_limiter
-      #     - batch
-      #   receivers:
-      #     - otlp
-      #     - prometheus
-      traces:
+      logs:
         exporters:
           - debug
-          - otlp
-          - otlp/causely
         processors:
           - memory_limiter
           - batch
-          - k8sattributes
         receivers:
           - otlp
-          # - jaeger
-          # - zipkin
+      metrics:
+        exporters:
+          - debug
+        processors:
+          - memory_limiter
+          - batch
+        receivers:
+          - otlp
+          - prometheus
+      traces:
+        exporters:
+          - otlp/causely
+          - debug
+        processors:
+          - memory_limiter
+          - batch
+        receivers:
+          - otlp
+          - jaeger
+          - zipkin
 
 image:
   # If you want to use the core image `otel/opentelemetry-collector`, you also need to change `command.name` value to `otelcol`.
   repository: otel/opentelemetry-collector-contrib
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "0.94.0"
+  tag: ""
   # When digest is set to a non-empty value, images will be pulled by digest (regardless of tag value).
   digest: ""
 imagePullSecrets: []
@@ -235,13 +228,8 @@ clusterRole:
 podSecurityContext: {}
 securityContext: {}
 
-nodeSelector:
-  workload: "o11y"
-tolerations: 
-  - key: "o11y"
-    value: "true"
-    effect: "NoSchedule"
-        
+nodeSelector: {}
+tolerations: []
 affinity: {}
 topologySpreadConstraints: []
 
@@ -303,10 +291,11 @@ ports:
     protocol: TCP
 
 # Resource limits & requests. Update according to your own use case as these values might be too low for a typical deployment.
-resources:
-  limits:
-    cpu: 250m
-    memory: 512Mi
+resources: {}
+# resources:
+#   limits:
+#     cpu: 250m
+#     memory: 512Mi
 
 podAnnotations: {}
 
@@ -592,3 +581,4 @@ networkPolicy:
 # See https://github.com/open-telemetry/opentelemetry-helm-charts/issues/891
 # for more details.
 useGOMEMLIMIT: true
+
