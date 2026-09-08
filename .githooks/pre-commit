@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Pre-commit hook for this repo. Enable once per clone with: make hooks
+# Runs the deterministic checks in agent/hooks/ against staged files.
+set -uo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+mapfile -d '' -t STAGED < <(
+  git -C "$ROOT" diff --cached --name-only --diff-filter=ACM -z
+)
+
+if [ "${#STAGED[@]}" -eq 0 ]; then
+  exit 0
+fi
+
+CHECK_STAGED=1 bash "$ROOT/agent/hooks/check-secrets.sh" "${STAGED[@]}" || status=1
+CHECK_STAGED=1 bash "$ROOT/agent/hooks/check-protected-paths.sh" "${STAGED[@]}" || status=1
+CHECK_STAGED=1 bash "$ROOT/agent/hooks/check-ratchets.sh" "${STAGED[@]}" || status=1
+bash "$ROOT/agent/hooks/lint-changed.sh" "${STAGED[@]}" || status=1
+
+if [ "${status:-0}" -ne 0 ]; then
+  echo ""
+  echo "pre-commit: checks failed — fix the output above before committing."
+  exit 1
+fi
+exit 0

@@ -1,0 +1,10 @@
+{
+  "_generated_by": "loom — do not edit by hand; source: .claude/settings.json",
+  "permissions": {
+    "allow": [
+      "mcp__microsoft-learn__*",
+      "mcp__aws-knowledge__*",
+      "mcp__context7__*"
+    ]
+  }
+}

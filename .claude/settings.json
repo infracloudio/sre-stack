@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make lint)",
+      "mcp__microsoft-learn__*",
+      "mcp__aws-knowledge__*",
+      "mcp__context7__*"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/agent/hooks/claude-pre-edit.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/agent/hooks/claude-post-edit.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

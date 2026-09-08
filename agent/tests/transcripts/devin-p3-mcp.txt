@@ -1,0 +1,28 @@
+**Source:** Microsoft Learn — [Supported Kubernetes versions in Azure Kubernetes Service (AKS)](https://learn.microsoft.com/azure/aks/supported-kubernetes-versions) (via microsoft-learn MCP, fetched 2026-09-03).
+
+## Currently supported GA minor versions (today: 2026-09-03)
+
+AKS policy: supports latest GA (N) + two prior (N-1, N-2). Platform-only support one more (N-3).
+
+| Version | AKS GA | EOL | Status |
+|---|---|---|---|
+| **1.36** | Jun 2026 | Jun 2027 | N (latest) |
+| **1.35** | Mar 2026 | Mar 2027 | N-1 |
+| **1.34** | Nov 2025 | Nov 2026 | N-2 |
+| 1.33 | Jun 2025 | Jul 2026 | N-3 platform-only |
+
+**Actively supported GA minors: 1.36, 1.35, 1.34.** Plus 1.33 in platform-support-only window (until 1.37 GA, Oct 2026).
+
+## Next up
+- **1.37** — upstream Aug 2026, AKS preview Sep 2026, GA Oct 2026.
+
+## Patches
+Per minor: any number of patches tracked at [releases.aks.azure.com](https://releases.aks.azure.com/). Max two patches retained per minor as new ones ship; oldest deprecated. Use latest patch.
+
+## LTS
+Optional long-term support extends EOL ~12 months (e.g. 1.34 LTS → Nov 2027). Must be explicitly enabled.
+
+## kubectl skew
+±1 minor vs kube-apiserver, per upstream Kubernetes policy.
+
+Note: Azure Linux 2.0 node image EOL Nov 30, 2025; removed Mar 31, 2026. Migrate to Azure Linux 3.0.
