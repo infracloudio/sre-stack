@@ -1,0 +1,140 @@
+# Data Model: Azure Cluster Support
+
+*Every setting, name, and pool this feature creates or reads, written down in
+one place. Simple language; nothing here is a surprise to the scripts.*
+
+## 1. Settings (all in `.env`)
+
+| Setting | Values | Meaning |
+|---|---|---|
+| `STACK_MODE` | `eks` \| `local` \| **`aks`** (new) | Which cloud the start/cleanup commands act on. Existing values unchanged. |
+| `AZURE_SUBSCRIPTION_ID` | an Azure subscription id, or empty | Which Azure bill to charge. Empty = whatever the user's sign-in already points at (still checked). |
+| `AZURE_LOCATION` | e.g. `westus2`, or empty | Which part of the world the cluster lives in. Empty = documented fallback `eastus2`. The fallback applies **only** when the setting is empty. |
+| `AKS_KUBERNETES_VERSION` | e.g. `1.30.x` (pinned) | The exact Kubernetes version to build. Confirmed during the manual try-out. |
+
+**Validation rules** (checked before anything is created; all refusals print
+plain-language messages, per FR-005/FR-006):
+
+- `STACK_MODE` must be one of the three values; anything else → refuse and
+  name the valid choices.
+- With `aks`: user must be signed in (`az account show` succeeds).
+- Subscription (if set) must exist and be accessible.
+- Location (chosen or fallback) must appear in `az account list-locations`.
+- Every machine size in the pool table must be **offered in that location**
+  (`az vm list-skus --location <loc> --all`). A missing size stops the run
+  with a plain message naming it — no silent swap, and no automatic move to
+  another region (the `eastus2` fallback applies only when the setting is
+  empty, never after a failed check).
+- `AKS_KUBERNETES_VERSION` must be non-empty.
+
+## 2. Generated names
+
+Both names are built before anything is created, and the recipe always makes
+the same result from the same ingredients:
+
+```text
+<name> = signed-in Azure user (az account show --query user.name),
+         lowercased, non-alphanumeric replaced with '-'
+<code> = first 6 hex characters of SHA-256 over
+         "$AZURE_SUBSCRIPTION_ID:$AZURE_LOCATION:$CLUSTER_SHAPE_VERSION"
+
+resource group name = "<name>-aks-<code>"     (e.g. rijo-aks-4f2c9a)
+cluster name        = "sre-stack-<code>"      (e.g. sre-stack-4f2c9a)
+```
+
+- `CLUSTER_SHAPE_VERSION` is a short constant inside the script (bumped only
+  if the pool table itself changes), so the code reflects the settings that
+  matter, not the script's revision number.
+- Rerun rule: the setup script checks each resource by its exact name —
+  group, cluster, each node pool, the gp2 StorageClass — and creates only
+  what is missing (FR-003). A rerun after a complete run creates nothing
+  new; a rerun after a partial run continues where it stopped (FR-011).
+- Deletion guard: cleanup deletes **only** a group whose name matches the
+  pattern `*-aks-*` and equals the generated name — never an unrelated group.
+- The second, automatic folder: when the cluster is created, Azure quietly
+  makes a **node resource group** named
+  `MC_<resource-group>_<cluster>_<location>`. It holds the real machines
+  (virtual machine scale sets), disks, and networking for the cluster.
+  AKS deletes this group by itself whenever the cluster is deleted, and
+  deleting our main group deletes the cluster — so `az group delete` of the
+  main group takes the `MC_` group with it. Cleanup verifies this by checking
+  **the one exact predicted name** (built from our generated group, cluster,
+  and location) — a subscription shared by several people contains other
+  people's `MC_` groups too, so the script never searches by the `MC_`
+  prefix. If the exact group still exists after deletion, it warns with the
+  removal command (never deletes it blindly).
+
+## 3. The cluster shape (what "mirror the Amazon cluster" means)
+
+One row per node pool. This table is the single source of truth; the setup
+script builds from it, the verify script checks against it, and the offline
+stand-in answers with it.
+
+| Pool name | Machine size | Count (min–max) | Label | Taint | Spot? | Pool kind |
+|---|---|---|---|---|---|---|
+| system | Standard_D2s_v5 | 1–1 | — | — | no | System |
+| app | Standard_D2s_v5 | 3–6 | `workload=app` | — | no | User |
+| persistent | Standard_D4s_v5 | 2–2 | `workload=persistent` | `persistent=true:NoSchedule` | no | User |
+| o11y | Standard_D4s_v5 | 2–3 | `workload=o11y` | `o11y=true:NoSchedule` | no | User |
+| loadgen | Standard_F4s_v2 | 1–1 | `workload=loadgen` | `loadgen=true:NoSchedule` | no | User |
+
+Notes:
+
+- `system` is Azure's own housekeeping pool. Azure requires the first pool to
+  be a non-spot system pool; it is not one of the four Amazon node groups and
+  exists purely because AKS needs it.
+- **Workload pools start as regular (on-demand) machines**, deliberately not
+  mirroring the Amazon groups' spot pricing. Reason: the subscription's spot
+  vCPU quota (`lowPriorityCores`, 3 vCPU per region) cannot fit the designed
+  shape (26 spot vCPU at min counts). Workload pools are created without the
+  spot flags — `az aks nodepool add --node-count <n> --node-vm-size <size>
+  --labels ... --node-taints ... --enable-cluster-autoscaler --min-count <min>
+  --max-count <max>`.
+- **Flipping back to spot later** (when the quota is raised): change the
+  `Spot?` column back to `yes`, bump `CLUSTER_SHAPE_VERSION`, rerun setup
+  (fresh cluster), and add one toleration for the Azure-only auto-taint
+  `kubernetes.azure.com/scalesetpriority=spot:NoSchedule` to every workload
+  manifest that targets these pools (AWS/eksctl adds no such taint). Spot
+  flags and the real spot output shapes are recorded in research.md §3 and
+  the manual-pass findings.
+- State transitions (pool lifecycle): **absent → creating → running**.
+  A pool that stops partway stays as-is; the script reports what reached
+  `running` and what did not, and never deletes anything on its own (FR-011).
+- Cluster-level state read by the verify script: `provisioningState`
+  (`Succeeded` wanted) and `powerState` (`Running` wanted).
+
+## 4. Storage
+
+One object: a StorageClass (a storage "setting" pods ask for by name).
+
+| Field | Value |
+|---|---|
+| Name | `gp2` |
+| Provisioner | `disk.csi.azure.com` (Azure's disk driver) |
+| Backing disk | Standard SSD (`StandardSSD_LRS`) |
+| Binding | `WaitForFirstConsumer` (make the disk only when a pod actually needs it, in that pod's zone) |
+| Reclaim | `Delete` (throw the disk away with the volume claim) |
+| Expansion | allowed (grow a disk without replacing it) |
+
+Same fields as the k3d alias in `infra/local/gp2-storageclass.yaml`, pointed
+at Azure's driver instead of the laptop driver. Lives at
+`infra/azure/gp2-storageclass.yaml`.
+
+## 5. Things that must not change
+
+- Every `.env` key that exists today keeps its meaning.
+- `make setup` / `make cleanup-cluster` keep their names and behaviour for
+  `eks` and `local`.
+- Nothing under `app/`, `monitoring/`, `scenarios/` changes.
+
+## 6. Relationships in one picture
+
+```text
+.env settings ──► name recipe ──► resource group ──contains──► AKS cluster
+                                                                     │
+                                          ┌───────────┬───────────┬──┴───────┐
+                                       system pool  app pool  persistent  o11y / loadgen
+                                                                        pools
+cluster ──has──► gp2 StorageClass (applied by kubectl after pools are up)
+verify script ──reads──► cluster + pools ──compares──► §3 table ──prints──► plain report
+```

@@ -22,6 +22,10 @@
 
 ## Clarifications
 
+### Session 2026-09-09
+
+- Q: Should the Azure workload node groups also run on spot machines, like their Amazon counterparts? → A: Not in this story. The subscription's spot-machine quota (3 spot vCPUs per region) cannot fit the documented cluster shape, so the Azure node groups start as regular on-demand machines with the same counts, sizes, labels, and taints. Switching them to spot later is a configuration-table change plus a cluster rebuild, not a rework of the scripts.
+
 ### Session 2026-09-08
 
 - Q: Which settings must a user fill in, beyond Azure access credentials, before the setup commands can create the Azure cluster? → A: No credentials are stored anywhere; the user signs in to their Azure account beforehand with Azure's own command-line sign-in tool, and every command runs against that signed-in session. The configuration file must name the subscription to use and the location. The cluster name, and the resource group that holds everything created (named from the developer's name plus a short unique suffix), are generated automatically. When no location is given, one documented default location is used as a backup.
@@ -115,3 +119,4 @@ Anyone using the repository on Amazon or on their local machine continues exactl
 - Cluster creation happens in the user's own Azure subscription with its own costs; no budget or billing controls are added in this story.
 - The empty-cluster scope covers the machines and the cluster itself only; connectivity to managed databases or secret stores comes in later stories.
 - Generated names (resource group, cluster) are built from stable ingredients — detected developer name plus a suffix derived from the settings — so identical settings always produce identical names and reruns find what earlier runs created.
+- Azure workload node groups start as regular (on-demand) machines; the Amazon groups' spot pricing is deliberately not mirrored in this story (see clarifications, 2026-09-09).
