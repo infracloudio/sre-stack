@@ -15,7 +15,6 @@
 - **Azure cluster (AKS)**: the same kind of cluster, created on Microsoft Azure.
 - **Node group**: a named group of machines inside a cluster that share a size and a purpose. This project's node groups are labelled by workload: apps, storage ("persistent"), monitoring ("observability"), and load generation.
 - **Shared configuration file**: the single settings file every script in this repository reads. Nothing else is hand-edited to change behaviour.
-- **Dry run**: a check that shows what the start and cleanup commands would do, without contacting any cloud or creating or changing anything.
 - **Resource group**: a named container on Azure that groups everything created there, so it can all be removed together.
 - **Subscription**: the Azure billing account a person's work is charged to; a person may have access to one or several.
 
@@ -55,22 +54,22 @@ The same developer, done for the day, runs the existing cleanup command. Everyth
 
 1. **Given** an Azure cluster created by the start command, **When** cleanup runs, **Then** the cluster and everything it created are gone.
 2. **Given** nothing was ever created, **When** cleanup runs, **Then** it finishes without error.
+3. **Given** a setup that stopped partway and reported what was already created, **When** the user runs cleanup, **Then** the partially created resources are also removed.
 
 ---
 
-### User Story 3 - Existing setups are untouched, proven by dry run (Priority: P3)
+### User Story 3 - Existing setups are untouched (Priority: P3)
 
-Anyone using the repository on Amazon or on their local machine continues exactly as before: same configuration entries still work, same start and cleanup commands still work. Because the person making this change may not have access to a real Amazon account, the check for "nothing changed" is done with a dry run: the commands are asked to show what they would do, without touching any cloud.
+Anyone using the repository on Amazon or on their local machine continues exactly as before: same configuration entries still work, same start and cleanup commands still work. Because the person making this change may not have access to a real Amazon account, the check that nothing changed is done in two steps: first confirming the change alters no Amazon or local files, then one real run by a person who does have Amazon access.
 
 **Why this priority**: protects current users; it constrains the change rather than adding value, so it ranks after the new capability.
 
-**Independent Test**: can be tested by leaving the configuration file unchanged for Amazon, running the existing start and cleanup commands in dry-run mode, and confirming the planned actions match today's behaviour exactly.
+**Independent Test**: can be tested by comparing the repository's Amazon and local files with their state before the change, and by a person with real Amazon access running the existing start and cleanup commands normally.
 
 **Acceptance Scenarios**:
 
-1. **Given** the configuration file set up for Amazon as today, **When** the start and cleanup commands run in dry-run mode, **Then** they show exactly the actions they would take today, and no cloud contact or change happens.
-2. **Given** the configuration file set up for a local machine, **When** the local setup commands run in dry-run mode, **Then** they show exactly the actions they would take today, and nothing is created or removed.
-3. **Given** a person with real Amazon access, **When** they later run the existing start and cleanup commands normally, **Then** they behave exactly as before this change.
+1. **Given** this change, **When** the repository's Amazon and local files are compared with their state before the change, **Then** they are identical.
+2. **Given** a person with real Amazon access, **When** they run the existing start and cleanup commands normally, **Then** they behave exactly as before this change.
 
 ---
 
@@ -78,6 +77,7 @@ Anyone using the repository on Amazon or on their local machine continues exactl
 
 - What happens when the configuration file selects Azure but the Azure requirements (not signed in, subscription missing, unusable location) are not met? The start command must stop with a clear, plain-language message instead of half-creating anything.
 - What happens when the configuration file selects neither supported provider? The start command must stop with a clear message naming the valid choices.
+- What happens when creation or removal stops partway (network drop, quota, permissions)? The command must stop, tell the user in plain language exactly what was already created, and leave it in place. Nothing is deleted automatically. The user then either reruns start, which reuses what already exists without duplicating it, or runs cleanup to remove everything and start fresh.
 
 ## Requirements *(mandatory)*
 
@@ -91,9 +91,9 @@ Anyone using the repository on Amazon or on their local machine continues exactl
 - **FR-006**: The start and cleanup commands MUST refuse to act, with a clear plain-language message, when no supported provider is selected.
 - **FR-007**: Existing Amazon and local behaviour, including every existing configuration entry, MUST keep working unchanged.
 - **FR-008**: Only the empty cluster and its node groups are in scope; no application components and no auxiliary cloud services are installed.
-- **FR-009**: The start and cleanup commands MUST offer a dry-run mode that shows the planned actions without contacting any cloud, so non-regression can be checked without cloud access.
-- **FR-010**: The setup on Azure MUST create one new resource group that holds everything it creates, named from the developer's name (detected automatically from the signed-in Azure account or the machine) plus a short suffix derived from the settings, so the same settings always produce the same names. It MUST generate the cluster name automatically.
-- **FR-011**: The Azure location MUST come from the configuration file; when it is missing, the setup MUST fall back to one documented default location.
+- **FR-009**: The setup on Azure MUST create one new resource group that holds everything it creates, named from the developer's name (detected automatically from the signed-in Azure account or the machine) plus a short suffix derived from the settings, so the same settings always produce the same names. It MUST generate the cluster name automatically.
+- **FR-010**: The Azure location MUST come from the configuration file; when it is missing, the setup MUST fall back to one documented default location.
+- **FR-011**: When creation or removal stops partway, the command MUST stop with a plain-language report of what was already created and MUST NOT delete or roll back anything automatically; the user retries start, which reuses what exists, or runs cleanup.
 
 ## Success Criteria *(mandatory)*
 
@@ -102,7 +102,6 @@ Anyone using the repository on Amazon or on their local machine continues exactl
 - **SC-001**: A user signed in to Azure, with subscription and location set in the configuration file, gets an empty cluster within the same working session, without any manual steps beyond signing in, filling in the configuration file, and running the commands.
 - **SC-002**: Every node group on the Azure cluster matches its Amazon counterpart in purpose, count, machine size, labels, and workload-separation markings, checked against the documented Amazon setup.
 - **SC-003**: After cleanup, no resources created by the Azure setup remain; a second cleanup run also finishes without error.
-- **SC-004**: With no cloud access at all, a dry run of the existing start-and-cleanup flow shows exactly the same planned actions as before this change; anyone holding the earlier dry-run output can compare in under five minutes.
 
 ## Assumptions
 
