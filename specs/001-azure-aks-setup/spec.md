@@ -15,6 +15,8 @@
 - **Azure cluster (AKS)**: the same kind of cluster, created on Microsoft Azure.
 - **Node group**: a named group of machines inside a cluster that share a size and a purpose. This project's node groups are labelled by workload: apps, storage ("persistent"), monitoring ("observability"), and load generation.
 - **Shared configuration file**: the single settings file every script in this repository reads. Nothing else is hand-edited to change behaviour.
+- **Verification check**: a separate script that inspects a cluster that already exists and reports, in plain language, whether it matches what the setup should have created.
+- **Stand-in command**: in an offline check, a lookalike of a cloud command-line tool that records what it was asked to do and returns a fixed answer, without contacting any cloud.
 - **Resource group**: a named container on Azure that groups everything created there, so it can all be removed together.
 - **Subscription**: the Azure billing account a person's work is charged to; a person may have access to one or several.
 
@@ -94,6 +96,8 @@ Anyone using the repository on Amazon or on their local machine continues exactl
 - **FR-009**: The setup on Azure MUST create one new resource group that holds everything it creates, named from the developer's name (detected automatically from the signed-in Azure account or the machine) plus a short suffix derived from the settings, so the same settings always produce the same names. It MUST generate the cluster name automatically.
 - **FR-010**: The Azure location MUST come from the configuration file; when it is missing, the setup MUST fall back to one documented default location.
 - **FR-011**: When creation or removal stops partway, the command MUST stop with a plain-language report of what was already created and MUST NOT delete or roll back anything automatically; the user retries start, which reuses what exists, or runs cleanup.
+- **FR-012**: After the start command succeeds, a verification check MUST inspect the live cluster and report in plain language whether the control plane is ready and every node group matches the documented Amazon setup in count, machine size, labels, and workload-separation markings. It MUST only read, never change cloud state.
+- **FR-013**: The start and cleanup commands MUST be checkable without any cloud access by running them against stand-in commands that record what they were asked to do and return fixed answers. These offline checks MUST cover: the actions taken, a rerun that creates nothing new, the clear refusal messages, and the partial-failure report.
 
 ## Success Criteria *(mandatory)*
 
@@ -102,6 +106,7 @@ Anyone using the repository on Amazon or on their local machine continues exactl
 - **SC-001**: A user signed in to Azure, with subscription and location set in the configuration file, gets an empty cluster within the same working session, without any manual steps beyond signing in, filling in the configuration file, and running the commands.
 - **SC-002**: Every node group on the Azure cluster matches its Amazon counterpart in purpose, count, machine size, labels, and workload-separation markings, checked against the documented Amazon setup.
 - **SC-003**: After cleanup, no resources created by the Azure setup remain; a second cleanup run also finishes without error.
+- **SC-004**: Running the verification check against a freshly created Azure cluster prints a report showing the control plane ready and every node group matching; that report is the acceptance evidence for the cluster shape.
 
 ## Assumptions
 
