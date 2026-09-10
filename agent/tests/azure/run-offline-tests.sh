@@ -1,0 +1,169 @@
+#!/bin/bash
+# run-offline-tests.sh — the no-cloud tests for the aks setup path
+# (specs/001-azure-aks-setup T012, contracts/azure-cli-contract.md §2).
+#
+# One scenario per contract §2 entry. Each run:
+#   - gets a fresh directory with the fake `az` (fake-az.sh) and a fake
+#     `kubectl` (fake-kubectl.sh) first on PATH,
+#   - sets FAKE_AZ_LOG (the recorded call log) and FAKE_AZ_SCENARIO,
+#   - runs the real setup script (STACK_MODE=aks from the tracked .env),
+#   - asserts on the exit code, the log content (what was called, in what
+#     order, how many times), and the refusal/report text.
+#
+# Prints one PASS/FAIL line per case plus details; exits non-zero when any
+# check fails.
+
+set -u
+
+_repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
+if [ -z "${_repo_root}" ]; then
+    _repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
+fi
+_here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+_setup="${_repo_root}/infra/scripts/cluster/setup-cluster-aks.sh"
+_sandbox=$(mktemp -d "${_here}/.tmp-offline-XXXXXX")
+trap 'rm -rf "${_sandbox}"' EXIT
+
+total=0
+failed=0
+
+# One check. Usage: check <case-id> <ok:0/1> <detail>
+check() {
+    total=$((total + 1))
+    if [ "$2" = "1" ]; then
+        echo "  PASS $1 ${3:-}"
+    else
+        echo "  FAIL $1 ${3:-}"
+        failed=$((failed + 1))
+    fi
+}
+
+# grep count that never aborts on no-match
+count() {
+    grep -c "$1" "$2" 2>/dev/null || true
+}
+
+# --- the common env for every case -----------------------------------------
+export FAKE_USER="rijo-tester@contoso.com"
+export FAKE_SUB="674579f0-b52a-4352-9913-f81135cc01e0"
+
+run_setup() {  # $1 <case-id>; sets RC and ERR for the case to assert on
+    local _case="$1"
+    local _dir="${_sandbox}/${_case}"
+    mkdir -p "${_dir}/bin"
+    ln -sf "${_here}/fake-az.sh" "${_dir}/bin/az"
+    ln -sf "${_here}/fake-kubectl.sh" "${_dir}/bin/kubectl"
+    FAKE_AZ_LOG="${_dir}/call.log"
+    FAKE_AZ_SCENARIO="${_here}/scenarios/${_case}.sh"
+    export FAKE_AZ_LOG FAKE_AZ_SCENARIO
+    : > "${FAKE_AZ_LOG}"
+    ERR="${_dir}/stderr.txt"
+    PATH="${_dir}/bin:${PATH}" bash "${_setup}" 2> "${ERR}"
+    RC=$?
+}
+
+_log() { echo "${_sandbox}/$1/call.log"; }
+
+# --- happy -------------------------------------------------------------------
+echo "case happy:"
+run_setup happy
+check "happy:exit-0"            "$([ "${RC:-}" = "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "happy:one group create"  "$([ "$(count '^az group create ' "$(_log happy)")" = "1" ] && echo 1 || echo 0)" "wanted 1"
+check "happy:one cluster create" "$([ "$(count '^az aks create ' "$(_log happy)")" = "1" ] && echo 1 || echo 0)" "wanted 1"
+check "happy:four adds"         "$([ "$(count '^az aks nodepool add ' "$(_log happy)")" = "4" ] && echo 1 || echo 0)" "wanted 4"
+for _p in app persistent o11y loadgen; do
+    check "happy:add ${_p}" "$([ "$(count "^az aks nodepool add .*--name ${_p} " "$(_log happy)")" = "1" ] && echo 1 || echo 0)"
+done
+check "happy:order group<cluster" "$([ "$(grep -n '^az group create ' "$(_log happy)" | head -n1 | cut -d: -f1)" -lt "$(grep -n '^az aks create ' "$(_log happy)" | head -n1 | cut -d: -f1)" ] && echo 1 || echo 0)"
+check "happy:credentials"       "$([ "$(count '^az aks get-credentials ' "$(_log happy)")" = "1" ] && echo 1 || echo 0)" "wanted 1"
+check "happy:storageapply"      "$([ "$(count '^kubectl apply -f .*gp2-storageclass.yaml' "$(_log happy)")" = "1" ] && echo 1 || echo 0)" "wanted 1"
+
+# --- already-there ------------------------------------------------------------
+echo "case already-there:"
+run_setup already-there
+check "already-there:exit-0"     "$([ "${RC:-}" = "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "already-there:no group create"    "$([ "$(count '^az group create ' "$(_log already-there)")" = "0" ] && echo 1 || echo 0)"
+check "already-there:no cluster create"  "$([ "$(count '^az aks create ' "$(_log already-there)")" = "0" ] && echo 1 || echo 0)"
+check "already-there:no pool add"        "$([ "$(count '^az aks nodepool add ' "$(_log already-there)")" = "0" ] && echo 1 || echo 0)"
+check "already-there:no storage apply"   "$([ "$(count '^kubectl apply ' "$(_log already-there)")" = "0" ] && echo 1 || echo 0)"
+
+# --- resume -------------------------------------------------------------------
+echo "case resume:"
+run_setup resume
+check "resume:exit-0" "$([ "${RC:-}" = "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "resume:no group create"  "$([ "$(count '^az group create ' "$(_log resume)")" = "0" ] && echo 1 || echo 0)"
+check "resume:no cluster create" "$([ "$(count '^az aks create ' "$(_log resume)")" = "0" ] && echo 1 || echo 0)"
+check "resume:app pool not re-added" "$([ "$(count '^az aks nodepool add .*--name app ' "$(_log resume)")" = "0" ] && echo 1 || echo 0)"
+for _p in persistent o11y loadgen; do
+    check "resume:added ${_p}" "$([ "$(count "^az aks nodepool add .*--name ${_p} " "$(_log resume)")" = "1" ] && echo 1 || echo 0)"
+done
+check "resume:kube credentials"       "$([ "$(count '^az aks get-credentials ' "$(_log resume)")" = "1" ] && echo 1 || echo 0)"
+check "resume:storageapply"     "$([ "$(count '^kubectl apply ' "$(_log resume)")" = "1" ] && echo 1 || echo 0)"
+
+# --- not-signed-in --------------------------------------------------------------
+echo "case not-signed-in:"
+run_setup not-signed-in
+check "not-signed-in:exit-nonzero" "$([ "${RC:-}" != "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "not-signed-in:refusal text" "$([ "$(count 'az login' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "not-signed-in:no create"    "$([ "$(count '^az group create' "$(_log not-signed-in)")" = "0" ] && echo 1 || echo 0)"
+
+# --- bad-location ---------------------------------------------------------------
+echo "case bad-location:"
+run_setup bad-location
+check "bad-location:exit-nonzero" "$([ "${RC:-}" != "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "bad-location:refusal text" "$([ "$(count 'is not a real Azure location' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "bad-location:no create"    "$([ "$(count '^az group create' "$(_log bad-location)")" = "0" ] && echo 1 || echo 0)"
+
+# --- missing-vm-size --------------------------------------------------------------
+echo "case missing-vm-size:"
+run_setup missing-vm-size
+check "missing-vm-size:exit-nonzero" "$([ "${RC:-}" != "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "missing-vm-size:names F4s_v2" "$([ "$(count 'Standard_F4s_v2 is not offered' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "missing-vm-size:no group create" "$([ "$(count '^az group create' "$(_log missing-vm-size)")" = "0" ] && echo 1 || echo 0)"
+
+# --- spot-fits ----------------------------------------------------------------------
+echo "case spot-fits:"
+run_setup spot-fits
+check "spot-fits:exit-0" "$([ "${RC:-}" = "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+for _p in app persistent o11y loadgen; do
+    check "spot-fits:${_p} add with spot flags" \
+        "$([ "$(count "^az aks nodepool add .*--name ${_p} .*--priority Spot" "$(_log spot-fits)")" = "1" ] && echo 1 || echo 0)"
+    check "spot-fits:${_p} add eviction" \
+        "$([ "$(count "^az aks nodepool add .*--name ${_p} .*--eviction-policy Delete" "$(_log spot-fits)")" = "1" ] && echo 1 || echo 0)"
+done
+check "spot-fits:system pool no spot flags" \
+    "$([ "$(count '^az aks create .*--priority Spot' "$(_log spot-fits)")" = "0" ] && echo 1 || echo 0)"
+
+# --- spot-short ------------------------------------------------------------------------
+echo "case spot-short:"
+run_setup spot-short
+check "spot-short:exit-0 (regular fallback, no refusal)" "$([ "${RC:-}" = "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+for _p in app persistent o11y loadgen; do
+    check "spot-short:${_p} add without spot flags" \
+        "$([ "$(count "^az aks nodepool add .*--name ${_p} .*--priority Spot" "$(_log spot-short)")" = "0" ] && echo 1 || echo 0)"
+done
+check "spot-short:four adds recorded" "$([ "$(count '^az aks nodepool add ' "$(_log spot-short)")" = "4" ] && echo 1 || echo 0)"
+
+# --- no-room ------------------------------------------------------------------------------
+echo "case no-room:"
+run_setup no-room
+check "no-room:exit-nonzero" "$([ "${RC:-}" != "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "no-room:refusal names FSv2" "$([ "$(count 'FSv2' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "no-room:refusal names numbers" "$([ "$(count 'is 0' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "no-room:no group create" "$([ "$(count '^az group create' "$(_log no-room)")" = "0" ] && echo 1 || echo 0)"
+
+# --- partial ===========================================================================
+echo "case partial:"
+run_setup partial
+check "partial:exit-nonzero" "$([ "${RC:-}" != "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "partial:report header" "$([ "$(count 'Setup stopped partway' "$ERR")" -ge 1 ] && echo 1 || echo 0)"
+check "partial:names the group" "$([ "$(count 'resource group ' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "partial:names the cluster" "$([ "$(count 'cluster sre-stack' "$ERR")" -ge 1 ] && echo 1 || echo 0)"
+check "partial:names app pool" "$([ "$(count 'node pool app' "$ERR")" -ge 1 ] && echo 1 || echo 0)"
+check "partial:names not created" "$([ "$(count 'Not created' "$ERR")" -ge 1 ] && echo 1 || echo 0)"
+check "partial:zero delete calls" "$([ "$(count '^az group delete' "$(_log partial)")" = "0" ] && echo 1 || echo 0)"
+check "partial:zero deletes of pools" "$([ "$(count '^az aks nodepool delete' "$(_log partial)")" = "0" ] && echo 1 || echo 0)"
+
+echo ""
+echo "offline tests: ${total} checks, ${failed} failed"
+[ "${failed}" = "0" ]
