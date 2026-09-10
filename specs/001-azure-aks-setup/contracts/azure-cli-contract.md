@@ -72,10 +72,21 @@ records why manifests later need a toleration for it).
 
 The stand-in is a small script placed first on `PATH`. Rules:
 
+0. **kubectl too** — the setup script also runs `kubectl` (`kubectl get
+   storageclass gp2` and `kubectl apply`), so the harness puts a fake
+   `kubectl` (`agent/tests/azure/fake-kubectl.sh`) on the same PATH and it
+   records into the same log: after the apply is recorded, the `get
+   storageclass gp2` check succeeds; a scenario's `PRE_SC=1` knob makes the
+   get succeed before any apply.
 1. **Record every call** — append the full argument list to a log file,
-   one line per call, in order.
-2. **Answer from a scenario file** — fixed JSON that has the same shape as
-   the real `az` output shown in §1. Required scenarios:
+   one line per call, in order; unknown `az` commands exit non-zero.
+2. **Answer from a scenario file** — one file per scenario
+   (`agent/tests/azure/scenarios/<name>.sh`), sourced by the stand-in; the
+   scenario knobs describe the world in plain shell variables, and the
+   stand-in's answers carry JSON shaped like the real `az` output recorded
+   in research.md A7/§4 (the nodepool list is rebuilt from the data-model
+   §3 table, with `scaleSetPriority: Spot/null` and the spot auto-taint
+   following the scenario's pool mode). Required scenarios:
    - `happy`: account exists, nothing exists yet → group create → cluster
      create → four nodepool adds → group exists true afterwards.
    - `already-there`: group, cluster, all five pools, and the gp2 StorageClass
