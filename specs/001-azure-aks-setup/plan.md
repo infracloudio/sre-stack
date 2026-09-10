@@ -227,6 +227,15 @@ a suggestion.
   2026-09-10).** The refusal stays in the setup and cleanup dispatch scripts
   and in quickstart B1 (manual); contract §2 no longer lists the offline
   scenario.
+- **T019 — live Amazon confirmation dropped (story-owner decision,
+  2026-09-10).** No person with AWS access is available to this story;
+  non-regression is proven by the T017 diff survey plus T018's unchanged
+  `make lint` (AD-004).
+- **T025 — offline tests added to CI (story-owner request, 2026-09-10).**
+  A new `.github/workflows/ci.yml` job runs
+  `bash agent/tests/azure/run-offline-tests.sh` on every pull request
+  (~80 s, no cloud). Workflows are a protected path, so a human applies the
+  job change with `PROTECTED_OVERRIDE=1`.
 
 ## Complexity Tracking
 

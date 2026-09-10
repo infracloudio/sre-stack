@@ -150,3 +150,41 @@ its per-pool comparison and flags any other unexpected taint.
   inherit the requirement rather than rediscovering the failure as
   `Pending` pods on the nodes.
 
+## AD-004 — Amazon non-regression is proven by diff and lint, not a live AWS run
+
+**Date**: 2026-09-10 · **Status**: Accepted · **Raised by**: story-owner
+review of Phase 5 (`specs/001-azure-aks-setup/tasks.md`, T019).
+
+### Decision
+
+The Azure story's non-regression promise (`spec.md`, User Story 3) is proven
+by two checks that need no cloud account:
+
+1. The untouched-files guard (T017): the branch diff against its merge-base
+   shows no change under `infra/eksctl.yaml`, the eks/local script paths,
+   `app/`, `monitoring/`, `scenarios/`, or `infra/local/`, beyond the two
+   documented dispatch edits in `setup-cluster.sh` and `cleanup-cluster.sh`.
+2. `make lint` (T018) passing unchanged: hooks, secrets, protected paths,
+   shell/YAML lint, Spec Kit version, loom drift.
+
+The intended live confirmation — a person with Amazon access running
+`make setup` and `make cleanup` with `STACK_MODE=eks` — is dropped because
+no such person is available to this story.
+
+### Why
+
+- A live run nobody can perform is not evidence; it is a task that keeps the
+  story open forever.
+- The Azure work touches no Amazon/local behaviour except the two dispatch
+  edits, and the diff guard checks exactly that, file by file.
+- The lint gate, the pre-commit hooks, and CI already run on every change,
+  so a silent regression would have to survive all of them first.
+
+### What we gave up
+
+- No live end-to-end proof from *this* branch that the Amazon path still
+  creates and deletes. The exposure is small — the eks/local bodies are
+  byte-identical and the dispatch change only routes `STACK_MODE` — but it
+  is real. The next person who touches the eks path should run
+  `make setup` and `make cleanup` once on a real account and report back.
+

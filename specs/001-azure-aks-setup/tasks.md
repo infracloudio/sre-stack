@@ -125,9 +125,10 @@ permissions allow unrestricted writes, before anything is created.
 
 ### Implementation for User Story 3
 
-- [ ] T017 [US3] Run the untouched-files guard: `git diff --name-only` (merge-base with the base branch) and confirm zero entries under `infra/eksctl.yaml`, `infra/scripts/cluster/` eks/local logic other than the two dispatch edits (T008, T014), `app/`, `monitoring/`, `scenarios/`, and `infra/local/`; paste the file list into the story evidence; any unexpected entry is a bug to fix before proceeding.
-- [ ] T018 [US3] Run `make lint` (hooks enabled, secrets, protected paths, ratchets, shell/YAML lint) and report its actual output; fix only Azure-side findings — never weaken a hook, allowlist, or check.
-- [ ] T019 [US3] Hand the one real-run confirmation to a person with Amazon access (spec US3): they run `make setup` and `make cleanup` with `STACK_MODE=eks` as usual and confirm nothing changed; record their confirmation as story evidence. This step is manual and blocks story completion, not script writing.
+- [x] T017 [US3] Run the untouched-files guard: `git diff --name-only` (merge-base with the base branch) and confirm zero entries under `infra/eksctl.yaml`, `infra/scripts/cluster/` eks/local logic other than the two dispatch edits (T008, T014), `app/`, `monitoring/`, `scenarios/`, and `infra/local/`; paste the file list into the story evidence; any unexpected entry is a bug to fix before proceeding.
+- [x] T018 [US3] Run `make lint` (hooks enabled, secrets, protected paths, ratchets, shell/YAML lint) and report its actual output; fix only Azure-side findings — never weaken a hook, allowlist, or check.
+- [x] T019 [US3] ~~Hand the one real-run confirmation to a person with Amazon access (spec US3): they run `make setup` and `make cleanup` with `STACK_MODE=eks` and confirm nothing changed.~~ Dropped by story-owner decision (2026-09-10, AD-004): no Amazon access is available to this story. Non-regression is proven by T017's diff survey and T018's unchanged `make lint` instead.
+- [x] T025 [US3] Add the Azure offline tests to CI: one job in `.github/workflows/ci.yml` that runs `bash agent/tests/azure/run-offline-tests.sh` on every pull request before merge (no cloud, ~80 s). `.github/workflows/` is a protected path — an agent cannot edit it; a human applies the change with `PROTECTED_OVERRIDE=1` and the reason in the PR.
 
 **Checkpoint**: New Azure path works, old paths provably unchanged.
 
