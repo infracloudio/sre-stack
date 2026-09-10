@@ -11,6 +11,14 @@
 #   AZURE_LOCATION         resolved location (setting or the eastus2 fallback)
 #   AZURE_RESOURCE_GROUP   generated resource group name <name>-aks-<code>
 #   AZURE_CLUSTER_NAME     generated cluster name sre-stack-<code>
+#   AZURE_POOL_MODE        workload-pool mode the allowance check chose:
+#                          spot | regular (FR-014, AD-002)
+#   AZURE_SPOT_VCPU_CURRENT/LIMIT   the spot vCPU numbers that fed the choice
+#   AZURE_DSV5_VCPU_CURRENT/LIMIT   the DSv5 family numbers
+#   AZURE_FSV2_VCPU_CURRENT/LIMIT   the FSv2 family numbers
+#   AZURE_RBAC_ROLE        proven permission role (Owner / Contributor /
+#                          custom-role-with-create) feeding the refusal if none
+#   AZURE_RBAC_SCOPE       the scope (subscription, "/", or parent MG) proven
 
 # Double-source guard: the pre-checks are slow; run them once per script run.
 if [ -n "${AZURE_COMMON_LOADED:-}" ]; then
@@ -77,6 +85,15 @@ if ! az account show --output none 2>/dev/null; then
 fi
 
 # --- pre-check 2: subscription ------------------------------------------------
+# The signed-in principal id (UPN for a person, clientId for a service
+# principal — either works directly as --assignee) computed once, reused by
+# pre-check 2b and the generated-name recipe.
+_azure_user=$(az account show --query user.name --output tsv 2>/dev/null)
+if [ -z "${_azure_user}" ] || [ "${_azure_user}" = "null" ]; then
+    echo "Cannot start: the signed-in identity has no usable principal name." >&2
+    echo "Re-run az login with an account or service principal that has one. Nothing was created." >&2
+    return 1
+fi
 if [ -n "${AZURE_SUBSCRIPTION_ID:-}" ]; then
     if ! az account set --subscription "${AZURE_SUBSCRIPTION_ID}" 2>/dev/null; then
         echo "Cannot start: subscription '${AZURE_SUBSCRIPTION_ID}' was not found or is not accessible." >&2
@@ -84,6 +101,61 @@ if [ -n "${AZURE_SUBSCRIPTION_ID:-}" ]; then
         return 1
     fi
 fi
+
+# --- pre-check 2b: the signed-in identity may actually create things ----------
+# (contract §1; story-owner request 2026-09-10). Before anything is created
+# the helper must prove the identity (or the groups it belongs to) holds an
+# assignment that can build the whole stack on this subscription. Direct
+# proof: Owner or Contributor covering the subscription (the subscription
+# itself, "/", or a parent management group). Any other role counts only
+# when its permission list allows unrestricted writes ("*" or "*/write") or
+# container-service creates ("Microsoft.ContainerService/*"). Ancestor-
+# scope assignments must include groups because CFN-style group grants
+# otherwise appear absent. Command shapes validated live and recorded in
+# research.md (constitution VIII).
+_azure_sub_id=$(az account show --query id --output tsv 2>/dev/null)
+_azure_assignments=$(az role assignment list \
+    --assignee "${_azure_user}" --include-groups \
+    --query "[].{id: roleDefinitionId, role: roleDefinitionName, scope: scope}" \
+    --output tsv 2>/dev/null)
+if [ -z "${_azure_assignments}" ]; then
+    echo "Cannot start: the role assignments for ${_azure_user} could not be read (az role assignment list returned nothing)." >&2
+    echo "Check the sign-in and subscription (az role assignment list --assignee ${_azure_user} --include-groups). Nothing was created." >&2
+    return 1
+fi
+AZURE_RBAC_ROLE=""
+AZURE_RBAC_SCOPE=""
+_azure_custom_defs=""
+while IFS=$'\t' read -r _azure_def _azure_role _azure_scope; do
+    case "${_azure_scope}" in
+        "/subscriptions/${_azure_sub_id}"|"/"|"/providers/Microsoft.Management/managementGroups/"*) ;;
+        *) continue ;;
+    esac
+    case "${_azure_role}" in
+        Owner|Contributor)
+            AZURE_RBAC_ROLE="${_azure_role}"
+            AZURE_RBAC_SCOPE="${_azure_scope}"
+            break
+            ;;
+        null|"") ;;
+        *) _azure_custom_defs="${_azure_custom_defs} ${_azure_def}" ;;
+    esac
+done <<< "${_azure_assignments}"
+if [ -z "${AZURE_RBAC_ROLE}" ] && [ -n "${_azure_custom_defs}" ]; then
+    _azure_actions=$(az role definition list \
+        --query "[?contains('${_azure_custom_defs}', id)].[].permissions[].actions" \
+        --output tsv 2>/dev/null)
+    if printf '%s' "${_azure_actions}" | grep -Eq '(^|[[:space:],])\*($|[[:space:],])|\*/write|Microsoft\.ContainerService/\*'; then
+        AZURE_RBAC_ROLE="custom-role-with-create"
+        AZURE_RBAC_SCOPE="${_azure_sub_id}"
+    fi
+fi
+if [ -z "${AZURE_RBAC_ROLE}" ]; then
+    echo "Cannot start: ${_azure_user} has no permission in subscription ${_azure_sub_id} to create the resources this stack needs." >&2
+    echo "Ask the subscription administrator for Owner or Contributor (Portal → Subscriptions → Access control (IAM); group-based grant works too). Nothing was created." >&2
+    return 1
+fi
+echo "permission check: '${AZURE_RBAC_ROLE}' on ${AZURE_RBAC_SCOPE:+$AZURE_RBAC_SCOPE}"
 
 # --- pre-check 3: location is real ---------------------------------------------
 # The eastus2 fallback applies only when AZURE_LOCATION is empty (FR-010).
@@ -105,11 +177,91 @@ for _azure_size in Standard_D2s_v5 Standard_D4s_v5 Standard_F4s_v2; do
     fi
 done
 
-# --- generated names (data-model §2) --------------------------------------------
-_azure_user=$(az account show --query user.name --output tsv 2>/dev/null)
-if [ -z "${_azure_user}" ] || [ "${_azure_user}" = "null" ]; then
-    _azure_user="${USER:-unknown}"
+# --- pre-check 5: the machine allowance decides the workload pool mode --------
+# (FR-014, AD-002; contract §1). Spot first: the location's spot vCPU room
+# (limit − current) must cover the whole designed shape at minimum counts —
+# app 6 + persistent 8 + o11y 8 + loadgen 4 = 26. Else regular: every
+# family's room must cover its need at the same minimum counts — DSv5 22
+# (app + persistent + o11y), FSv2 4 (loadgen). Neither fits → refuse naming
+# the short family with its numbers, before anything is created. Judged
+# against minimum counts only; autoscaler growth is capped by the allowance,
+# never dodged. Field names confirmed by hand and recorded in research.md
+# (T023, constitution VIII).
+AZURE_SPOT_VCPU_NEEDED=26
+AZURE_DSV5_VCPU_NEEDED=22
+AZURE_FSV2_VCPU_NEEDED=4
+
+_azure_usage=$(az vm list-usage --location "${AZURE_LOCATION}" \
+    --query "[?name.value=='lowPriorityCores' || name.value=='standardDSv5Family' || name.value=='standardFSv2Family'].{name: name.value, what: name.localizedValue, cur: currentValue, lim: limit}" \
+    --output tsv 2>/dev/null)
+if [ -z "${_azure_usage}" ]; then
+    echo "Cannot start: the machine allowance for ${AZURE_LOCATION} could not be read (az vm list-usage returned nothing)." >&2
+    echo "Check the location and sign-in (az vm list-usage --location ${AZURE_LOCATION}). Nothing was created." >&2
+    return 1
 fi
+AZURE_SPOT_VCPU_CURRENT=""
+AZURE_SPOT_VCPU_LIMIT=""
+AZURE_DSV5_VCPU_CURRENT=""
+AZURE_DSV5_VCPU_LIMIT=""
+AZURE_FSV2_VCPU_CURRENT=""
+AZURE_FSV2_VCPU_LIMIT=""
+while IFS=$'\t' read -r _azure_item _azure_what _azure_cur _azure_lim; do
+    case "${_azure_item}" in
+        lowPriorityCores)   AZURE_SPOT_VCPU_CURRENT="${_azure_cur}" ; AZURE_SPOT_VCPU_LIMIT="${_azure_lim}" ;;
+        standardDSv5Family) AZURE_DSV5_VCPU_CURRENT="${_azure_cur}" ; AZURE_DSV5_VCPU_LIMIT="${_azure_lim}" ;;
+        standardFSv2Family) AZURE_FSV2_VCPU_CURRENT="${_azure_cur}" ; AZURE_FSV2_VCPU_LIMIT="${_azure_lim}" ;;
+    esac
+done <<< "${_azure_usage}"
+
+_azure_room_ok() {
+    # room = limit − current must cover the needed vCPU; integer math.
+    [ "$(( ${1} - ${2} ))" -ge "${3}" ]
+}
+
+_azure_entryOrFail() {
+    # $1 current var name, $2 limit var name, $3 quota family display id
+    if [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
+        echo "Cannot start: the allowance list for ${AZURE_LOCATION} has no '${3}' entry." >&2
+        echo "Pick a location that reports it (az vm list-usage --location <loc>). Nothing was created." >&2
+        return 1
+    fi
+    return 0
+}
+
+_azure_entryOrFail "${AZURE_SPOT_VCPU_CURRENT}" "${AZURE_SPOT_VCPU_LIMIT}" \
+    "lowPriorityCores (Total Regional Low-priority vCPUs)" || return 1
+_azure_entryOrFail "${AZURE_DSV5_VCPU_CURRENT}" "${AZURE_DSV5_VCPU_LIMIT}" \
+    "standardDSv5Family (Standard DSv5 Family vCPUs)" || return 1
+_azure_entryOrFail "${AZURE_FSV2_VCPU_CURRENT}" "${AZURE_FSV2_VCPU_LIMIT}" \
+    "standardFSv2Family (Standard FSv2 Family vCPUs)" || return 1
+
+if _azure_room_ok "${AZURE_SPOT_VCPU_LIMIT}" "${AZURE_SPOT_VCPU_CURRENT}" "${AZURE_SPOT_VCPU_NEEDED}"; then
+    AZURE_POOL_MODE="spot"
+elif _azure_room_ok "${AZURE_DSV5_VCPU_LIMIT}" "${AZURE_DSV5_VCPU_CURRENT}" "${AZURE_DSV5_VCPU_NEEDED}" \
+        && _azure_room_ok "${AZURE_FSV2_VCPU_LIMIT}" "${AZURE_FSV2_VCPU_CURRENT}" "${AZURE_FSV2_VCPU_NEEDED}"; then
+    AZURE_POOL_MODE="regular"
+else
+    # Name the first short family with its current and limit numbers; spot
+    # fits-but-was-not-chosen is not itself a refusal (regular is the
+    # documented fallback), so the message is about the families.
+    if ! _azure_room_ok "${AZURE_DSV5_VCPU_LIMIT}" "${AZURE_DSV5_VCPU_CURRENT}" "${AZURE_DSV5_VCPU_NEEDED}"; then
+        _azure_what="Standard DSv5 Family vCPUs"
+        _azure_cur="${AZURE_DSV5_VCPU_CURRENT}"
+        _azure_lim="${AZURE_DSV5_VCPU_LIMIT}"
+        _azure_need="${AZURE_DSV5_VCPU_NEEDED}"
+    else
+        _azure_what="Standard FSv2 Family vCPUs"
+        _azure_cur="${AZURE_FSV2_VCPU_CURRENT}"
+        _azure_lim="${AZURE_FSV2_VCPU_LIMIT}"
+        _azure_need="${AZURE_FSV2_VCPU_NEEDED}"
+    fi
+    echo "Cannot start: not enough machine allowance in ${AZURE_LOCATION} — $_azure_what is ${_azure_cur} used of ${_azure_lim} allowed, but ${_azure_need} free are needed." >&2
+    echo "Raise the quota (Azure Portal → Quotas → Compute), free machines, or pick a different location. Nothing was created." >&2
+    return 1
+fi
+echo "allowance check: spot ${AZURE_SPOT_VCPU_CURRENT}/${AZURE_SPOT_VCPU_LIMIT} (need ${AZURE_SPOT_VCPU_NEEDED}), DSv5 ${AZURE_DSV5_VCPU_CURRENT}/${AZURE_DSV5_VCPU_LIMIT} (need ${AZURE_DSV5_VCPU_NEEDED}), FSv2 ${AZURE_FSV2_VCPU_CURRENT}/${AZURE_FSV2_VCPU_LIMIT} (need ${AZURE_FSV2_VCPU_NEEDED}) — chosen mode: ${AZURE_POOL_MODE}"
+
+# --- generated names (data-model §2) --------------------------------------------
 _azure_name=$(printf '%s' "${_azure_user}" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9' '-')
 _azure_code=$(printf '%s' "${AZURE_SUBSCRIPTION_ID:-}:${AZURE_LOCATION}:${CLUSTER_SHAPE_VERSION}" \
     | { sha256sum 2>/dev/null || shasum -a 256; } \
@@ -117,6 +269,10 @@ _azure_code=$(printf '%s' "${AZURE_SUBSCRIPTION_ID:-}:${AZURE_LOCATION}:${CLUSTE
 
 AZURE_RESOURCE_GROUP="${_azure_name}-aks-${_azure_code}"
 AZURE_CLUSTER_NAME="sre-stack-${_azure_code}"
-export AZURE_LOCATION AZURE_RESOURCE_GROUP AZURE_CLUSTER_NAME
+export AZURE_LOCATION AZURE_RESOURCE_GROUP AZURE_CLUSTER_NAME \
+    AZURE_POOL_MODE AZURE_SPOT_VCPU_CURRENT AZURE_SPOT_VCPU_LIMIT \
+    AZURE_DSV5_VCPU_CURRENT AZURE_DSV5_VCPU_LIMIT \
+    AZURE_FSV2_VCPU_CURRENT AZURE_FSV2_VCPU_LIMIT \
+    AZURE_RBAC_ROLE AZURE_RBAC_SCOPE
 AZURE_COMMON_LOADED=1
 export AZURE_COMMON_LOADED

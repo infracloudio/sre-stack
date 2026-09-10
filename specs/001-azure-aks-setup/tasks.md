@@ -54,7 +54,29 @@ description: "Task list for Azure Cluster Support"
 
 **Purpose**: The review asked for cost minimization as a guiding light (PR 98, comment on plan.md §64). Decision recorded as AD-002 (`docs/architectural-decisions.md`); FR-014 added to the spec. The check runs in the shared helper's pre-checks, before anything is created.
 
-- [ ] T023 Extend `infra/scripts/cluster/azure-common.sh` (T005 deliverable) with the allowance pre-check from `specs/001-azure-aks-setup/contracts/azure-cli-contract.md` §1: first confirm the real `az vm list-usage --location <loc> --output json` shape **by hand, with the story owner** (constitution VIII — the manual try-out did not cover this command), and record the field names in the "Manual pass findings" of `specs/001-azure-aks-setup/research.md`; then compute the needed vCPUs from the data-model §3 table (spot: 26 total; regular: 22 DSv5 + 4 FSv2 at minimum counts), pick `AZURE_POOL_MODE=spot` when the location's spot vCPU covers the whole shape, `regular` when every family's regular limit covers its need, refuse naming the short family (current, limit, what to do) before any create otherwise, and export `AZURE_POOL_MODE` plus the numbers used for the decision. Every path keeps the contract §3 refusal style and idempotency rules.
+- [x] T023 Extend `infra/scripts/cluster/azure-common.sh` (T005 deliverable) with the allowance pre-check from `specs/001-azure-aks-setup/contracts/azure-cli-contract.md` §1: first confirm the real `az vm list-usage --location <loc> --output json` shape **by hand, with the story owner** (constitution VIII — the manual try-out did not cover this command), and record the field names in the "Manual pass findings" of `specs/001-azure-aks-setup/research.md`; then compute the needed vCPUs from the data-model §3 table (spot: 26 total; regular: 22 DSv5 + 4 FSv2 at minimum counts), pick `AZURE_POOL_MODE=spot` when the location's spot vCPU covers the whole shape, `regular` when every family's regular limit covers its need, refuse naming the short family (current, limit, what to do) before any create otherwise, and export `AZURE_POOL_MODE` plus the numbers used for the decision. Every path keeps the contract §3 refusal style and idempotency rules.
+
+---
+
+## Phase 2c: Amendment from story-owner review (permission pre-check)
+
+**Purpose**: the story owner asked (2026-09-10) for one more pre-check: the
+helper must prove the signed-in identity can actually create everything on
+the chosen subscription — Owner, Contributor, or a custom role whose
+permissions allow unrestricted writes, before anything is created.
+
+- [x] T024 Extend `infra/scripts/cluster/azure-common.sh` (T005/T023
+      deliverable) with the permission pre-check from
+      `specs/001-azure-aks-setup/contracts/azure-cli-contract.md` §1: confirm
+      the `az role assignment list --assignee … --include-groups` shape by
+      hand first (constitution VIII; findings recorded in research.md),
+      then pass only when an Owner or Contributor assignment covers the
+      exact subscription (or `/`/parent management-group), or when a custom
+      role's actions include `*`, `*/write`, or `Microsoft.ContainerService/*`
+      (checked via `az role definition list`); refuse naming the signed-in
+      identity and the fix otherwise — before anything is created. Computes
+      `_azure_user` once and feeds it to the generated-name recipe; exports
+      `AZURE_RBAC_ROLE`/`AZURE_RBAC_SCOPE`.
 
 ---
 

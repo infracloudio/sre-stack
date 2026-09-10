@@ -288,6 +288,32 @@ account or cost.
 - [x] Clean deletion leaves nothing behind (checked in the Azure portal)
       — story owner confirmed the group in the portal while it existed;
         after deletion both groups absent
+- [x] `az vm list-usage` field names confirmed by hand (with the story owner,
+      2026-09-10, eastus2 — the one command the try-out did not cover,
+      T023 / constitution VIII): each item has `name.value` (stable id),
+      `name.localizedValue` (display name, used in refusal messages),
+      `currentValue`, `limit`, `unit`. The three items the helper reads:
+      `lowPriorityCores` = "Total Regional Low-priority vCPUs" (spot),
+      `standardDSv5Family` = "Standard DSv5 Family vCPUs",
+      `standardFSv2Family` = "Standard FSv2 Family vCPUs" — all `Count`.
+      Live numbers that day: spot 0/3, total regional 0/50, DSv5 0/50,
+      FSv2 0/50 → room 3 spot (< 26 needed) but regular families fit,
+      so the helper chooses `AZURE_POOL_MODE=regular` here today
+- [x] Permission pre-check shapes confirmed by hand (with the story owner,
+      2026-09-10): `az role assignment list --assignee <user.name>
+      --include-groups` returns `roleDefinitionId`, `roleDefinitionName`
+      (`role`), `scope` — projected keys come back alphabetically. Live:
+      rijo.john@improving.com holds `Contributor` on
+      `/subscriptions/674579f0-…` → Owner/Contributor pass directly.
+      `az role definition show` does not exist in CLI 2.90.0
+      ("unrecognized arguments"); a custom role's write actions are read
+      with `az role definition list --query "[?contains(ids, id)]"`.
+      Helper rule: pass for Owner/Contributor at the exact subscription
+      scope, `/`, or a parent management-group scope; custom roles need
+      actions covering `*`, `*/write`, or `Microsoft.ContainerService/*`;
+      resource-group-only or other-subscription assignments do not pass
+      (the generated resource group is created new, so a group-scoped role
+      cannot make it)
 
 ### Observed facts (manual try-out, eastus2, 2026-09-09)
 
