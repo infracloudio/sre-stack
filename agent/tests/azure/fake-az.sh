@@ -21,7 +21,7 @@
 #                                     never appears
 #   RBAC_MG_ID / RBAC_MG_ROLE         that management group and its role
 #   LOCATIONS="eastus2 centralindia"  az account list-locations answers
-#   SIZES="…"                         az vm list-skus answers
+#   SIZES="…"                         az rest resource-skus answers
 #   SPOT_LIMIT/DSV5_LIMIT/FSV2_LIMIT  az vm list-usage limits (current 0)
 #   PRE_GROUP/PRE_CLUSTER/PRE_SC=1    what already exists before the run
 #   PRE_POOLS="app persistent …"      workload pools that already exist
@@ -277,11 +277,6 @@ PYEOF
         ;;
     vm)
         case "${2:-}" in
-            list-skus)
-                for _s in ${SIZES}; do
-                    echo "${_s}"
-                done
-                ;;
             list-usage)
                 printf 'lowPriorityCores\tTotal Regional Low-priority vCPUs\t0\t%s\n' "${SPOT_LIMIT}"
                 printf 'standardDSv5Family\tStandard DSv5 Family vCPUs\t0\t%s\n' "${DSV5_LIMIT}"
