@@ -257,6 +257,14 @@ a suggestion.
   management groups); an unrelated management group never appears. Covered
   offline by the `rbac-mg-ancestor` / `rbac-mg-unrelated` scenarios
   (contract §1/§2).
+- **T001 — `aks` is the default `STACK_MODE` (story-owner decision,
+  2026-09-10).** T001's "Existing entries and their values stay untouched"
+  is superseded: the tracked `.env` default is `STACK_MODE=aks`. Users who
+  want Amazon or local set `STACK_MODE=eks` or `STACK_MODE=local` as
+  before; those dispatch paths stay byte-identical (T008/T014). The offline
+  suite and the CI `offline-tests` job intentionally read the tracked `aks`
+  value (`agent/tests/azure/run-offline-tests.sh:9`), so no harness change
+  is needed and convergence must not re-flag this as an FR-007/T001 gap.
 
 ## Complexity Tracking
 

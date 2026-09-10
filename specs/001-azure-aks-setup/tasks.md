@@ -243,3 +243,18 @@ All phases are strictly sequential as numbered (T001 → T022). Every [P] pair i
 - [x] T030 Complete the FR-014/AD-002 spot-flip documentation sync: mark the superseded regular-only decision and its "must not pass the spot flags" consequences in `specs/001-azure-aks-setup/research.md` §3 as superseded (point to FR-014/AD-002, keep the proven spot recipe); correct the `Spot-capable?` column in `specs/001-azure-aks-setup/data-model.md` §3 to `yes` for the four workload pools and `no` for system; update the present-tense A6 note in `specs/001-azure-aks-setup/quickstart.md`; and record the AD-003 spot-mode exception to Constitution V in the Constitution Check/Complexity Tracking of `specs/001-azure-aks-setup/plan.md` — per FR-014 / AD-002 / AD-003 / Constitution V (contradicts)
 - [x] T031 Re-sync `specs/001-azure-aks-setup/contracts/azure-cli-contract.md` §1 with the finished scripts: add the verify script's read-only `kubectl get namespaces` check and the `az account show --query id` read, and drop or justify the per-pool `provisioningState` field that `verify-cluster-aks.sh` never compares — per T021 and the contract's same-commit sync rule (partial)
 - [x] T032 Remove or call the unused `_azure_refuse` helper in `infra/scripts/cluster/azure-common.sh` (defined at line 51, no caller) — per T005 and contract §3 refusal style (unrequested)
+
+---
+
+## Phase 9: Convergence
+
+- [x] T033 Fix the node-pool mismatch gate in `infra/scripts/cluster/verify-cluster-aks.sh`: the embedded Python counts `fail` but never exits non-zero and the shell's `failures` counter never sees it, so a cluster whose pools do not match (reproduced with a forced spot/regular mismatch: four ✗ lines on stderr) still ends with `report: 0 mismatch(es)` and exit 0 — propagate the mismatch count to the report and the exit status so callers can gate on the verify result per FR-012/SC-004 (partial)
+- [x] T034 Make the namespace check in `infra/scripts/cluster/verify-cluster-aks.sh` fail closed: when `kubectl get namespaces --output name` fails (kubectl missing or bad kubeconfig) the check reads empty output, reports no mismatch, and exits 0 (reproduced with a failing kubectl: rc 0, empty stderr), so the FR-008 "cluster is still empty" confirmation passes without evidence — treat the failed read as a ✗/failure per FR-008 (partial)
+
+---
+
+## Phase 10: Convergence
+
+- [x] T035 ~~Restore the tracked `.env` `STACK_MODE` value to `eks` (T001/FR-007) and decouple the offline suite and CI from the tracked value (FR-013).~~ Dropped by story-owner decision (2026-09-10): `aks` is the default `STACK_MODE` (recorded in the "Plan Departures" section of `specs/001-azure-aks-setup/plan.md`); the offline runner and CI job intentionally read that tracked value, so no harness change is needed.
+- [x] T036 Update `specs/001-azure-aks-setup/quickstart.md` B5 (lines 229–233) to match the recorded T019 drop and AD-004: drop the live "a person with Amazon access runs `make setup` and `make cleanup`" step and state the accepted substitute (T017 diff survey plus T018's unchanged `make lint`), so the B5 section and the "Done when" list no longer contradict the approved departure — per US3/AD-004 (partial)
+- [x] T037 Review the now-unreachable `vm list-skus` branch in `agent/tests/azure/fake-az.sh` (case at line ~280; knob comment at line 24): no repo script calls `az vm list-skus` since the T005/T023 speed pass moved the size check to `az rest` (plan.md "Plan Departures"; contract §1) — remove the branch or record why the stand-in keeps answering a command the scripts no longer use (unrequested)

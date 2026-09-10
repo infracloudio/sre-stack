@@ -229,8 +229,10 @@ az group show --name "MC_<your-rg>_<your-cluster>_<location>" 2>/dev/null \
 ### B5. Amazon untouched
 
 `git diff` the branch: no file under `infra/eksctl.yaml`, eks/local scripts,
-or `app/`/`monitoring`/`scenarios` may change. A person with Amazon access
-runs `make setup` and `make cleanup` once and confirms behaviour is as before.
+or `app/`/`monitoring`/`scenarios` may change. The live Amazon confirmation
+run was dropped by story-owner decision (T019, AD-004): no AWS access was
+available to this story, so non-regression is proven by that diff survey
+(T017) plus the unchanged `make lint` result (T018) instead.
 
 ---
 
