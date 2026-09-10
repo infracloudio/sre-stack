@@ -212,6 +212,22 @@ file, because Amazon and laptop behaviour must stay exactly as it is.
 The tasks list must encode this order; it is a requirement of the story, not
 a suggestion.
 
+## Plan Departures (recorded during implementation)
+
+- **T014 — cleanup sources the helper in a new cleanup mode.** Running the
+  create-time pre-checks during teardown would let a changed quota, a
+  vanished machine size, or a changed role block the command that stops the
+  bill. `cleanup-cluster.sh` therefore sets `AZURE_CLEANUP=1`; the helper
+  keeps sign-in and the generated names and skips the create-time probes,
+  saying "Nothing was deleted" in refusals. One extra file beyond the task's
+  list: the `makefile` `cleanup-cluster` target — its
+  `destroy-cluster-autoscaler` / `destroy-yace` prerequisites are Amazon-only,
+  so they are skipped when `STACK_MODE=aks` and kept unchanged otherwise.
+- **T015 — `bad-provider` offline scenario dropped (story-owner decision,
+  2026-09-10).** The refusal stays in the setup and cleanup dispatch scripts
+  and in quickstart B1 (manual); contract §2 no longer lists the offline
+  scenario.
+
 ## Complexity Tracking
 
 > Fill ONLY if a constitution rule is broken and needs an excuse

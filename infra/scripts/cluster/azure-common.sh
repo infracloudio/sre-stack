@@ -7,6 +7,11 @@
 # to do, and that nothing was created — before anything is created or deleted
 # (contracts/azure-cli-contract.md §3).
 #
+# Cleanup mode (AZURE_CLEANUP=1, T014): teardown must never be blocked by a
+# create-time fact that changed since setup (quota, offered sizes,
+# permissions). It keeps the sign-in check and the generated names, skips the
+# create-time probes, and refusals say "Nothing was deleted".
+#
 # Exports for callers after success:
 #   AZURE_LOCATION         resolved location (setting or the eastus2 fallback)
 #   AZURE_RESOURCE_GROUP   generated resource group name <name>-aks-<code>
@@ -37,6 +42,12 @@ source "${_azure_repo_root}/.env"
 # the generated names reflects this, so a bump means a fresh cluster.
 CLUSTER_SHAPE_VERSION="1"
 
+if [ -n "${AZURE_CLEANUP:-}" ]; then
+    _azure_result_word="deleted"
+else
+    _azure_result_word="created"
+fi
+
 _azure_refuse() {
     echo "Cannot start: $1" >&2
     echo "$2" >&2
@@ -45,19 +56,23 @@ _azure_refuse() {
 }
 
 # --- STACK_MODE gate (FR-006) ------------------------------------------------
-case "${STACK_MODE:-}" in
-    aks) ;;
-    eks|local)
-        echo "Cannot start: the Azure helper only works with STACK_MODE=aks." >&2
-        echo "Valid choices: eks | local | aks. Nothing was created." >&2
-        return 1
-        ;;
-    *)
-        echo "Cannot start: STACK_MODE is '${STACK_MODE:-}' but must be eks | local | aks." >&2
-        echo "Set it in .env, then try again. Nothing was created." >&2
-        return 1
-        ;;
-esac
+# Skipped in cleanup mode: cleanup-cluster.sh dispatches on STACK_MODE itself
+# before sourcing the helper.
+if [ -z "${AZURE_CLEANUP:-}" ]; then
+    case "${STACK_MODE:-}" in
+        aks) ;;
+        eks|local)
+            echo "Cannot start: the Azure helper only works with STACK_MODE=aks." >&2
+            echo "Valid choices: eks | local | aks. Nothing was created." >&2
+            return 1
+            ;;
+        *)
+            echo "Cannot start: STACK_MODE is '${STACK_MODE:-}' but must be eks | local | aks." >&2
+            echo "Set it in .env, then try again. Nothing was created." >&2
+            return 1
+            ;;
+    esac
+fi
 
 # --- CLI presence and version -------------------------------------------------
 if ! command -v az >/dev/null 2>&1; then
@@ -80,7 +95,7 @@ fi
 # --- pre-check 1: signed in ---------------------------------------------------
 if ! az account show --output none 2>/dev/null; then
     echo "Cannot start: no Azure sign-in found." >&2
-    echo "Run 'az login' first, then try again. Nothing was created." >&2
+    echo "Run 'az login' first, then try again. Nothing was ${_azure_result_word}." >&2
     return 1
 fi
 
@@ -91,15 +106,36 @@ fi
 _azure_user=$(az account show --query user.name --output tsv 2>/dev/null)
 if [ -z "${_azure_user}" ] || [ "${_azure_user}" = "null" ]; then
     echo "Cannot start: the signed-in identity has no usable principal name." >&2
-    echo "Re-run az login with an account or service principal that has one. Nothing was created." >&2
+    echo "Re-run az login with an account or service principal that has one. Nothing was ${_azure_result_word}." >&2
     return 1
 fi
 if [ -n "${AZURE_SUBSCRIPTION_ID:-}" ]; then
     if ! az account set --subscription "${AZURE_SUBSCRIPTION_ID}" 2>/dev/null; then
         echo "Cannot start: subscription '${AZURE_SUBSCRIPTION_ID}' was not found or is not accessible." >&2
-        echo "Check AZURE_SUBSCRIPTION_ID in .env (or leave it empty to use the signed-in subscription). Nothing was created." >&2
+        echo "Check AZURE_SUBSCRIPTION_ID in .env (or leave it empty to use the signed-in subscription). Nothing was ${_azure_result_word}." >&2
         return 1
     fi
+fi
+
+# --- location fallback + generated names (data-model §2) ------------------------
+# Computed before the create-time probes (they use the location) and early for
+# cleanup mode, which only needs the sign-in and the names.
+AZURE_LOCATION="${AZURE_LOCATION:-eastus2}"
+_azure_name=$(printf '%s' "${_azure_user}" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9' '-')
+_azure_code=$(printf '%s' "${AZURE_SUBSCRIPTION_ID:-}:${AZURE_LOCATION}:${CLUSTER_SHAPE_VERSION}" \
+    | { sha256sum 2>/dev/null || shasum -a 256; } \
+    | cut -c1-6)
+
+AZURE_RESOURCE_GROUP="${_azure_name}-aks-${_azure_code}"
+AZURE_CLUSTER_NAME="sre-stack-${_azure_code}"
+export AZURE_LOCATION AZURE_RESOURCE_GROUP AZURE_CLUSTER_NAME
+
+if [ -n "${AZURE_CLEANUP:-}" ]; then
+    # Cleanup only needs sign-in and the names; the create-time probes below
+    # are skipped so teardown is never blocked by changed quota or sizes.
+    AZURE_COMMON_LOADED=1
+    export AZURE_COMMON_LOADED
+    return 0
 fi
 
 # --- pre-check 2b: the signed-in identity may actually create things ----------
@@ -121,10 +157,6 @@ _azure_skus_out() {
     az rest --method GET \
         --url "https://management.azure.com/subscriptions/${_azure_sub_id}/providers/Microsoft.Compute/skus?api-version=2021-07-01&%24filter=location%20eq%20%27${AZURE_LOCATION}%27" 2>/dev/null
 }
-
-# AZURE_LOCATION resolved here so the parallel probes can use it; the
-# eastus2 fallback applies only when AZURE_LOCATION is empty (FR-010).
-AZURE_LOCATION="${AZURE_LOCATION:-eastus2}"
 
 _az_will_parallel_checks() {
     _azure_sub_id=$(az account show --query id --output tsv 2>/dev/null)
@@ -295,16 +327,7 @@ else
 fi
 echo "allowance check: spot ${AZURE_SPOT_VCPU_CURRENT}/${AZURE_SPOT_VCPU_LIMIT} (need ${AZURE_SPOT_VCPU_NEEDED}), DSv5 ${AZURE_DSV5_VCPU_CURRENT}/${AZURE_DSV5_VCPU_LIMIT} (need ${AZURE_DSV5_VCPU_NEEDED}), FSv2 ${AZURE_FSV2_VCPU_CURRENT}/${AZURE_FSV2_VCPU_LIMIT} (need ${AZURE_FSV2_VCPU_NEEDED}) — chosen mode: ${AZURE_POOL_MODE}"
 
-# --- generated names (data-model §2) --------------------------------------------
-_azure_name=$(printf '%s' "${_azure_user}" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9' '-')
-_azure_code=$(printf '%s' "${AZURE_SUBSCRIPTION_ID:-}:${AZURE_LOCATION}:${CLUSTER_SHAPE_VERSION}" \
-    | { sha256sum 2>/dev/null || shasum -a 256; } \
-    | cut -c1-6)
-
-AZURE_RESOURCE_GROUP="${_azure_name}-aks-${_azure_code}"
-AZURE_CLUSTER_NAME="sre-stack-${_azure_code}"
-export AZURE_LOCATION AZURE_RESOURCE_GROUP AZURE_CLUSTER_NAME \
-    AZURE_POOL_MODE AZURE_SPOT_VCPU_CURRENT AZURE_SPOT_VCPU_LIMIT \
+export AZURE_POOL_MODE AZURE_SPOT_VCPU_CURRENT AZURE_SPOT_VCPU_LIMIT \
     AZURE_DSV5_VCPU_CURRENT AZURE_DSV5_VCPU_LIMIT \
     AZURE_FSV2_VCPU_CURRENT AZURE_FSV2_VCPU_LIMIT \
     AZURE_RBAC_ROLE AZURE_RBAC_SCOPE

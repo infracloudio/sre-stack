@@ -62,6 +62,11 @@ records why manifests later need a toleration for it).
 
 ### Deleting (cleanup)
 
+Cleanup sources the shared helper in cleanup mode (`AZURE_CLEANUP=1`, T014):
+sign-in plus the generated names only. The create-time pre-checks at the top
+of this section do not run, so teardown is never blocked because quota,
+offered sizes, or roles changed since setup.
+
 | Purpose | Command | Guard |
 |---|---|---|
 | Is there anything to remove? | `az group exists --name <generated>` | `false` → "nothing to clean" and exit 0 (FR-004 case 2). |
@@ -112,9 +117,7 @@ The stand-in is a small script placed first on `PATH`. Rules:
      vCPU (e.g. FSv2 limit 2 < 4) → plain refusal naming that family with
      its current and limit numbers, exit ≠ 0, and **no** `az group create`
      recorded.
-   - `bad-provider`: `STACK_MODE=nonsense` → refusal message naming the three
-     valid values.
-   - `mc-lingers`: after `az group delete`, `az group show --name
+    - `mc-lingers`: after `az group delete`, `az group show --name
      MC_<expected-exact-name>` still succeeds → plain warning naming that
      one group and the removal command, exit non-zero, and **no** second
      delete call recorded. The stand-in also proves isolation: other `MC_`
@@ -123,8 +126,16 @@ The stand-in is a small script placed first on `PATH`. Rules:
    - `partial`: group + cluster succeeded, `app` pool created, `persistent`
      add failed → the script stops, prints the plain report (group name,
      cluster name, pools that reached `running`), records **no** delete call.
-   - `cleanup-full`: group exists → one `az group delete --yes` call recorded.
-   - `cleanup-empty`: group doesn't exist → zero delete calls, exit 0.
+    - `cleanup-full`: group exists → one `az group delete --yes` call recorded.
+    - `cleanup-empty`: group doesn't exist → zero delete calls, exit 0.
+
+   Cleanup scenarios run the cleanup script in its cleanup mode: the helper
+   checks sign-in and computes the generated names, but the create-time probes
+   (`az role assignment list`, `az account list-locations`, `az vm list-usage`,
+   the resource-sku `az rest` call) never run, so these scenarios do not answer
+   them — the runner asserts those calls are absent. The stand-in's
+   `MC_LINGERS=1` knob makes `az group show --name MC_…` succeed so the
+   lingering-node-group path is exercised.
 3. **Never touch the network.**
 
 ## 3. Error-message style (all refusal and failure paths)

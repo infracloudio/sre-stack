@@ -197,8 +197,13 @@ destroy-cluster-autoscaler:
 destroy-yace:
 	$(CLUSTER_SCRIPT_PATH)/destroy-yace.sh
 
+ifeq ($(STACK_MODE),aks)
+cleanup-cluster:
+	$(CLUSTER_SCRIPT_PATH)/cleanup-cluster.sh
+else
 cleanup-cluster: destroy-cluster-autoscaler destroy-yace
 	$(CLUSTER_SCRIPT_PATH)/cleanup-cluster.sh
+endif
 
 
 cleanup: destroy-istio-gateway destroy-db-rds-mysql cleanup-cluster

@@ -1,6 +1,6 @@
 #!/bin/bash
-# run-offline-tests.sh — the no-cloud tests for the aks setup path
-# (specs/001-azure-aks-setup T012, contracts/azure-cli-contract.md §2).
+# run-offline-tests.sh — the no-cloud tests for the aks setup and cleanup
+# paths (specs/001-azure-aks-setup T012/T015, contracts/azure-cli-contract.md §2).
 #
 # One scenario per contract §2 entry. Each run:
 #   - gets a fresh directory with the fake `az` (fake-az.sh) and a fake
@@ -21,6 +21,7 @@ if [ -z "${_repo_root}" ]; then
 fi
 _here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 _setup="${_repo_root}/infra/scripts/cluster/setup-cluster-aks.sh"
+_cleanup="${_repo_root}/infra/scripts/cluster/cleanup-cluster.sh"
 _sandbox=$(mktemp -d "${_here}/.tmp-offline-XXXXXX")
 trap 'rm -rf "${_sandbox}"' EXIT
 
@@ -59,6 +60,21 @@ run_setup() {  # $1 <case-id>; sets RC and ERR for the case to assert on
     : > "${FAKE_AZ_LOG}"
     ERR="${_dir}/stderr.txt"
     PATH="${_dir}/bin:${PATH}" bash "${_setup}" 2> "${ERR}"
+    RC=$?
+}
+
+run_cleanup() {  # $1 <case-id>; sets RC, OUT and ERR for the case
+    local _case="$1"
+    local _dir="${_sandbox}/${_case}"
+    mkdir -p "${_dir}/bin"
+    ln -sf "${_here}/fake-az.sh" "${_dir}/bin/az"
+    FAKE_AZ_LOG="${_dir}/call.log"
+    FAKE_AZ_SCENARIO="${_here}/scenarios/${_case}.sh"
+    export FAKE_AZ_LOG FAKE_AZ_SCENARIO
+    : > "${FAKE_AZ_LOG}"
+    OUT="${_dir}/stdout.txt"
+    ERR="${_dir}/stderr.txt"
+    PATH="${_dir}/bin:${PATH}" bash "${_cleanup}" > "${OUT}" 2> "${ERR}"
     RC=$?
 }
 
@@ -163,6 +179,36 @@ check "partial:names app pool" "$([ "$(count 'node pool app' "$ERR")" -ge 1 ] &&
 check "partial:names not created" "$([ "$(count 'Not created' "$ERR")" -ge 1 ] && echo 1 || echo 0)"
 check "partial:zero delete calls" "$([ "$(count '^az group delete' "$(_log partial)")" = "0" ] && echo 1 || echo 0)"
 check "partial:zero deletes of pools" "$([ "$(count '^az aks nodepool delete' "$(_log partial)")" = "0" ] && echo 1 || echo 0)"
+
+# --- cleanup-full ---------------------------------------------------------------
+echo "case cleanup-full:"
+run_cleanup cleanup-full
+check "cleanup-full:exit-0" "$([ "${RC:-}" = "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "cleanup-full:exactly one delete" "$([ "$(count '^az group delete ' "$(_log cleanup-full)")" = "1" ] && echo 1 || echo 0)" "wanted 1"
+check "cleanup-full:delete with --yes" "$([ "$(count '^az group delete .*--yes' "$(_log cleanup-full)")" = "1" ] && echo 1 || echo 0)"
+check "cleanup-full:exact-name MC check" "$([ "$(count '^az group show --name MC_' "$(_log cleanup-full)")" = "1" ] && echo 1 || echo 0)" "wanted exactly one exact-name check"
+check "cleanup-full:no broad MC search" "$([ "$(count '^az group list' "$(_log cleanup-full)")" = "0" ] && echo 1 || echo 0)"
+check "cleanup-full:no create calls" "$([ "$(($(count '^az group create ' "$(_log cleanup-full)") + $(count '^az aks create ' "$(_log cleanup-full)")))" = "0" ] && echo 1 || echo 0)"
+check "cleanup-full:no create probes" "$([ "$(($(count '^az role assignment list' "$(_log cleanup-full)") + $(count '^az account list-locations' "$(_log cleanup-full)") + $(count '^az vm list-usage' "$(_log cleanup-full)") + $(count '^az rest ' "$(_log cleanup-full)")))" = "0" ] && echo 1 || echo 0)" "$(grep -E '^az (role assignment list|account list-locations|vm list-usage|rest )' "$(_log cleanup-full)" || true)"
+
+# --- cleanup-empty --------------------------------------------------------------
+echo "case cleanup-empty:"
+run_cleanup cleanup-empty
+check "cleanup-empty:exit-0" "$([ "${RC:-}" = "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "cleanup-empty:nothing-to-clean text" "$([ "$(count 'Nothing to clean' "$OUT")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$OUT")"
+check "cleanup-empty:zero deletes" "$([ "$(count '^az group delete' "$(_log cleanup-empty)")" = "0" ] && echo 1 || echo 0)"
+check "cleanup-empty:zero MC checks" "$([ "$(count '^az group show' "$(_log cleanup-empty)")" = "0" ] && echo 1 || echo 0)"
+
+# --- mc-lingers -----------------------------------------------------------------
+echo "case mc-lingers:"
+run_cleanup mc-lingers
+check "mc-lingers:exit-nonzero" "$([ "${RC:-}" != "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "mc-lingers:warning names our MC group" "$([ "$(count 'MC_' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "mc-lingers:warning gives removal command" "$([ "$(count 'az group delete --name MC_' "$ERR")" -ge 1 ] && echo 1 || echo 0)"
+check "mc-lingers:one delete only" "$([ "$(count '^az group delete' "$(_log mc-lingers)")" = "1" ] && echo 1 || echo 0)" "wanted 1"
+check "mc-lingers:exact-name MC check only" "$([ "$(count '^az group show --name MC_' "$(_log mc-lingers)")" = "1" ] && echo 1 || echo 0)"
+check "mc-lingers:no others' MC groups touched" "$([ "$(count 'MC_alice\|MC_bob' "$(_log mc-lingers)")" = "0" ] && echo 1 || echo 0)"
+check "mc-lingers:no broad MC search" "$([ "$(count '^az group list' "$(_log mc-lingers)")" = "0" ] && echo 1 || echo 0)"
 
 echo ""
 echo "offline tests: ${total} checks, ${failed} failed"

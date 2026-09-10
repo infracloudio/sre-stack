@@ -18,6 +18,8 @@
 #   SPOT_LIMIT/DSV5_LIMIT/FSV2_LIMIT  az vm list-usage limits (current 0)
 #   PRE_GROUP/PRE_CLUSTER/PRE_SC=1    what already exists before the run
 #   PRE_POOLS="app persistent …"      workload pools that already exist
+#   MC_LINGERS=1                      az group show --name MC_… succeeds
+#                                     (the node resource group outlives delete)
 #   CLUSTER_FAIL=1 / ADD_FAIL=<pool>  create steps that fail
 #   POOL_MODE=spot|regular            scaleSetPriority the list answer shows
 
@@ -168,6 +170,7 @@ PYEOF
                 case "$*" in
                     *user.name*) printf '%s\n' "${FAKE_USER}" ;;
                     *--query=id-*|*"--query id"*) printf '%s\n' "${FAKE_SUB}" ;;
+                    *"--output none"*) : ;;
                     *) printf '{ "id": "%s", "name": "Pune - Sandbox (TPM)", "user": { "name": "%s" } }\n' \
                         "${FAKE_SUB}" "${FAKE_USER}" ;;
                 esac
@@ -205,7 +208,9 @@ PYEOF
             delete)
                 : ;;
             show)
-                if _existed '^az group create ' && ! _existed '^az group delete '; then
+                if [ "${MC_LINGERS:-0}" = "1" ] && printf '%s\n' "$*" | grep -q 'MC_'; then
+                    printf '{ "name": "fake-mc" }\n'
+                elif _existed '^az group create ' && ! _existed '^az group delete '; then
                     printf '{ "name": "fake" }\n'
                 else
                     exit 1
