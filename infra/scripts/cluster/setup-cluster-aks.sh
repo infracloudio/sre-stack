@@ -30,7 +30,7 @@ _loc="${AZURE_LOCATION}"
 # Canonical step list (build order) and what landed. At failure time nothing
 # reached "done" is reported as not created — the §3 report.
 _steps=(group cluster system app persistent o11y loadgen kubecreds storage)
-_typeset_done=()
+_setup_done=()
 _system_pools_reached=0
 
 _step_label() {
@@ -85,7 +85,7 @@ _setup_fail() {
 }
 
 _mark() {
-    _typeset_done+=("$1")
+    _setup_done+=("$1")
 }
 
 echo "Settings: STACK_MODE=aks, location ${_loc}, mode ${AZURE_POOL_MODE}."

@@ -97,3 +97,56 @@ cluster to be a non-spot system pool regardless of allowance.
 - The choice is made once, before creation, from a documented command
   shape — the same check-rather-than-guess pattern every other pre-check
   in the helper uses.
+
+## AD-003 — Workload manifests need a toleration for Azure's spot auto-taint
+
+**Date**: 2026-09-10 · **Status**: Accepted · **Raised by**: T010 review
+discussion (`specs/001-azure-aks-setup/tasks.md`, Phase 3; grounding in
+`specs/001-azure-aks-setup/data-model.md` §3 and research.md fact 5).
+
+### Decision
+
+Any workload manifest that targets the four workload pools **when they run
+in spot mode** (`AZURE_POOL_MODE=spot`, AD-002) must carry one extra
+toleration for the taint Azure automatically adds to every spot node:
+
+```yaml
+tolerations:
+  - key: kubernetes.azure.com/scalesetpriority
+    operator: Equal
+    value: spot
+    effect: NoSchedule
+```
+
+AWS (eksctl) adds no such taint, so this is Azure-only glue: a spot pool on
+Azure is UnSchedulable for pods without it, exactly like the designed
+taints (`persistent=true:NoSchedule` etc.) already are. The verified
+cluster keeps the taint; the verify script excludes this one taint from
+its per-pool comparison and flags any other unexpected taint.
+
+### Why
+
+- The taint is Azure's own mechanic for reclaiming spot machines, not a
+  cluster-design decision. Blocking creation of spot pools to dodge it
+  (or un-tainting spot nodes, which Azure does not support) would give up
+  the cost benefit AD-002 was built for.
+- The data-model pools already run with NoSchedule taints and every
+  workload manifest is written to tolerate those one-per-pool; adding one
+  Azure-only toleration keeps that pattern ("taint + matching toleration")
+  instead of a special case.
+
+### What we gave up / consequences
+
+- **Workload manifests stop being 100% provider-agnostic in spot mode.**
+  A manifest without the toleration deploys fine on eks/local and on a
+  *regular-mode* aks cluster, but cannot schedule on a *spot-mode* aks
+  cluster. Cost-first mode therefore quietly requires this manifest
+  change; no script can fix it for the workload.
+- **On-demand-mode escape hatch documented**: today's subscription has
+  3/26 spot vCPU, so the helper picks `regular`, no auto-taint exists, and
+  manifests need nothing extra. The flip to spot (quota raised, new
+  cluster shape version) is the moment every workload story must check
+  this toleration — it is recorded in data-model §3 so the next stories
+  inherit the requirement rather than rediscovering the failure as
+  `Pending` pods on the nodes.
+
