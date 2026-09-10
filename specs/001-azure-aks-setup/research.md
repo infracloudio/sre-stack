@@ -59,16 +59,25 @@ characters): `app`, `persistent`, `o11y`, `loadgen`.
 bash glue; introducing an infrastructure tool would break the pattern of
 every other script. Azure portal — rejected: not repeatable.
 
-### 3. Cheap, take-back-able machines (spot) — deferred
+### 3. Cheap, take-back-able machines (spot) — superseded 2026-09-10
 
-**Decision** (updated 2026-09-09 by the story owner): the four workload pools
+> **Superseded by FR-014 / AD-002 (2026-09-10).** The regular-only decision
+> below was the law while the subscription's spot allowance (3 vCPU) could
+> not fit the shape at 26 spot vCPU. The shared helper now measures the
+> allowance before anything is created and **prefers spot** when it fits,
+> falling back to regular otherwise. The proven spot recipe further down is
+> the live command shape; the paragraphs marked superseded are kept as the
+> record of the manual try-out and the old decision.
+
+**Decision (superseded 2026-09-10 by FR-014 / AD-002 — kept for the record)**
+(updated 2026-09-09 by the story owner): the four workload pools
 start as **regular** on-demand pools — `az aks nodepool add --node-count <n>
 --node-vm-size <size> --labels ... --node-taints ... --enable-cluster-autoscaler
 --min-count <min> --max-count <max>` with no spot flags. One small **regular**
 system pool (Standard_D2s_v5, 1 machine) is created first, because Azure
 requires a non-spot system pool.
 
-**Why spot was deferred**: the subscription's regional spot vCPU quota
+**Why spot was deferred (historical)**: the subscription's regional spot vCPU quota
 (`lowPriorityCores`) is 3 vCPU, and the designed shape needs 26 spot vCPU at
 minimum counts (see "Manual pass findings" below) — every spot pool add fails
 with `ErrCode_InsufficientVCPUQuota` until the quota is raised. Clusters here
@@ -77,7 +86,9 @@ column in data-model.md §3 back to `yes`, bump `CLUSTER_SHAPE_VERSION` (fresh
 names, fresh cluster), rerun, and add one toleration per workload manifest for
 the Azure-only auto-taint `kubernetes.azure.com/scalesetpriority=spot:NoSchedule`.
 
-**The spot recipe, kept for the flip** (proven in the manual try-out):
+**The spot recipe, live whenever the allowance check picks spot** (proven in
+the manual try-out — the helper adds these flags only when
+`AZURE_POOL_MODE=spot`, FR-014/AD-002):
 `--priority Spot --eviction-policy Delete --spot-max-price -1`, with
 `--enable-cluster-autoscaler` and the min/max counts from the Amazon setup.
 Grounding: learn.microsoft.com/azure/aks/spot-node-pool — "A Spot node pool
@@ -401,13 +412,18 @@ with `name`, `count`, `vmSize`, `mode`, `scaleSetPriority`.
 (+ a few minutes of cluster `Updating`); `az group delete` with a live
 cluster inside ~6 min; resource-group create/delete rehearsal: seconds.
 
-**Story-owner decision (2026-09-09), recorded after the try-out**: workload
-pools start **regular** (spot deferred) because of the spot quota wall in
-fact 3. Consequences: the setup script must not pass the spot flags; the
-verify script must expect `scaleSetPriority: null` (or `Regular`) for all
-five pools; the offline stand-in answers with the regular-pool shapes above
-(the `nodepool1` entry shows the regular shape). The flip back to spot is
-specified in data-model.md §3 and research.md §3.
+**Story-owner decision (2026-09-09), recorded after the try-out —
+superseded 2026-09-10 by FR-014 / AD-002**: workload pools start
+**regular** (spot deferred) because of the spot quota wall in fact 3.
+Consequences (superseded — do not apply them): the setup script must not
+pass the spot flags; the verify script must expect `scaleSetPriority:
+null` (or `Regular`) for all five pools; the offline stand-in answers with
+the regular-pool shapes above (the `nodepool1` entry shows the regular
+shape). Current law: the helper measures the allowance and sets
+`AZURE_POOL_MODE` (spot preferred when it fits, regular otherwise); the
+setup script passes the spot flags only in spot mode, the verify script
+expects the chosen mode, and the stand-in answers per the scenario's pool
+mode (data-model.md §3, research.md §3).
 
 ### Full-shape redeploy (manual, eastus2, 2026-09-09)
 

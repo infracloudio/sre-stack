@@ -235,3 +235,11 @@ All phases are strictly sequential as numbered (T001 → T022). Every [P] pair i
 - [x] T027 Tighten the permission pre-check in `infra/scripts/cluster/azure-common.sh` so a management-group scope passes only when that management group is an ancestor of the subscription, matching contract §1 ("parent `…/managementGroups/*`") instead of accepting any management group per T024/contract §1 (partial)
 - [x] T028 Record the unlogged plan departures — the size pre-check switch from `az vm list-skus` to the `az rest` Resource Skus call and the parallel pre-check probes — in the "Plan Departures" section of `specs/001-azure-aks-setup/plan.md`, and align the `az vm list-skus` wording in `specs/001-azure-aks-setup/data-model.md` §1, per plan: size pre-check (contradicts)
 - [x] T029 Replace the placeholder comment in `specs/001-azure-aks-setup/quickstart.md` B3 with the real command `bash agent/tests/azure/run-offline-tests.sh` and the expected "offline tests: … failed" summary line per T022/quickstart B3 (partial)
+
+---
+
+## Phase 8: Convergence
+
+- [x] T030 Complete the FR-014/AD-002 spot-flip documentation sync: mark the superseded regular-only decision and its "must not pass the spot flags" consequences in `specs/001-azure-aks-setup/research.md` §3 as superseded (point to FR-014/AD-002, keep the proven spot recipe); correct the `Spot-capable?` column in `specs/001-azure-aks-setup/data-model.md` §3 to `yes` for the four workload pools and `no` for system; update the present-tense A6 note in `specs/001-azure-aks-setup/quickstart.md`; and record the AD-003 spot-mode exception to Constitution V in the Constitution Check/Complexity Tracking of `specs/001-azure-aks-setup/plan.md` — per FR-014 / AD-002 / AD-003 / Constitution V (contradicts)
+- [x] T031 Re-sync `specs/001-azure-aks-setup/contracts/azure-cli-contract.md` §1 with the finished scripts: add the verify script's read-only `kubectl get namespaces` check and the `az account show --query id` read, and drop or justify the per-pool `provisioningState` field that `verify-cluster-aks.sh` never compares — per T021 and the contract's same-commit sync rule (partial)
+- [x] T032 Remove or call the unused `_azure_refuse` helper in `infra/scripts/cluster/azure-common.sh` (defined at line 51, no caller) — per T005 and contract §3 refusal style (unrequested)

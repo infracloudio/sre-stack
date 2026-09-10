@@ -100,8 +100,11 @@ your region, pick the nearest available D-series and record it.)
 **A6. Add one workload pool with label, taint, and spot.**
 
 > Historical note: this step proved the *spot* command shape during the
-> try-out (2026-09-09). The current design keeps the workload pools regular
-> (no spot flags) until the subscription's spot quota is raised — the
+> try-out (2026-09-09). Current design (FR-014, AD-002): the shared helper
+> measures the allowance before creating anything and prefers spot when it
+> fits, so this exact command shape is used whenever the check picks spot;
+> in regular mode the same command runs without the three spot flags
+> (`--priority`, `--eviction-policy`, `--spot-max-price`). The
 > authoritative shape is the pool table in data-model.md §3 and plan.md.
 
 ```bash

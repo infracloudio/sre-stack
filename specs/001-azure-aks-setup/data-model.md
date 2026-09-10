@@ -81,10 +81,10 @@ stand-in answers with it.
 | Pool name | Machine size | Count (min–max) | Label | Taint | Spot-capable? | Pool kind |
 |---|---|---|---|---|---|---|
 | system | Standard_D2s_v5 | 1–1 | — | — | no | System |
-| app | Standard_D2s_v5 | 3–6 | `workload=app` | — | no | User |
-| persistent | Standard_D4s_v5 | 2–2 | `workload=persistent` | `persistent=true:NoSchedule` | no | User |
-| o11y | Standard_D4s_v5 | 2–3 | `workload=o11y` | `o11y=true:NoSchedule` | no | User |
-| loadgen | Standard_F4s_v2 | 1–1 | `workload=loadgen` | `loadgen=true:NoSchedule` | no | User |
+| app | Standard_D2s_v5 | 3–6 | `workload=app` | — | yes | User |
+| persistent | Standard_D4s_v5 | 2–2 | `workload=persistent` | `persistent=true:NoSchedule` | yes | User |
+| o11y | Standard_D4s_v5 | 2–3 | `workload=o11y` | `o11y=true:NoSchedule` | yes | User |
+| loadgen | Standard_F4s_v2 | 1–1 | `workload=loadgen` | `loadgen=true:NoSchedule` | yes | User |
 
 Notes:
 

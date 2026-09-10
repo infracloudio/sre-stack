@@ -143,7 +143,7 @@ cluster name    =  sre-stack-<short-code>
 | II. Pinned versions | Pass | Azure Kubernetes version, machine sizes, and the fallback location are pinned in `.env`. No Helm charts are installed in this story. |
 | III. One settings file | Pass | All new settings live in `.env`. Names are generated, not configured — the spec says so. |
 | IV. No secrets in git | Pass | Nothing secret is stored; the scripts use your existing Azure sign-in. |
-| V. Same labels, taints, and storage on every cluster | Pass | The table above reproduces them exactly, plus the `gp2` storage setting, so the app files deploy unchanged. |
+| V. Same labels, taints, and storage on every cluster | Pass with one tracked exception (AD-003) | The table above reproduces the labels, taints, and `gp2` storage setting exactly, so the app files deploy unchanged. One exception: in spot mode Azure itself adds `kubernetes.azure.com/scalesetpriority=spot:NoSchedule` to every workload pool — a mechanic of spot machines, not our design — so workload manifests later need one extra toleration (AD-003). This story ships no manifests; the exception is tracked in Complexity Tracking. |
 | VI. Spec stays non-technical | Pass | The spec talks only about behaviour and outcomes. |
 | VII. Plain language everywhere | Pass | This plan, the research, and the quickstart are written for someone new to the project, with examples. (Constitution 1.2.0 added two more principles on 2026-09-10; they were checked below after this table was first written.) |
 | VIII. Try it before you plan it | Pass | Phase 0 ran every original command by hand (T002, research.md). The one command the try-out did not cover — `az vm list-usage` for the allowance check (FR-014) — has a task (T023) that requires running it once by hand, together with the story owner, before any helper edit. |
@@ -262,4 +262,6 @@ a suggestion.
 
 > Fill ONLY if a constitution rule is broken and needs an excuse
 
-Nothing to write — no rule is broken.
+| Rule | Exception | Why this is the right trade | Cost accepted |
+|---|---|---|---|
+| V. Workload Placement Contract | In spot mode (`AZURE_POOL_MODE=spot`, AD-002) Azure auto-adds the taint `kubernetes.azure.com/scalesetpriority=spot:NoSchedule` to each workload pool, so the taint set is not byte-identical to EKS/k3d. | Recorded as AD-003 (raised in the T010 review, grounded in data-model §3 and research.md fact 5): the taint is Azure's own spot-reclaim mechanic, it cannot be removed, and refusing spot pools to dodge it gives up the cost benefit AD-002 exists for. Every other label, taint, and the `gp2` alias still match exactly. | Workload manifests targeting spot-mode pools must carry one extra toleration for that taint (AD-003, data-model §3). This story ships no workload manifests, so nothing here changes; the requirement passes to the workload-installation stories. The system pool is always regular and never carries the taint. |

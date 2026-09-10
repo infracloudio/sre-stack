@@ -48,13 +48,6 @@ else
     _azure_result_word="created"
 fi
 
-_azure_refuse() {
-    echo "Cannot start: $1" >&2
-    echo "$2" >&2
-    echo "Nothing was created." >&2
-    return 1
-}
-
 # --- STACK_MODE gate (FR-006) ------------------------------------------------
 # Skipped in cleanup mode: cleanup-cluster.sh dispatches on STACK_MODE itself
 # before sourcing the helper.
