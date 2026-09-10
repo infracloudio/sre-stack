@@ -133,6 +133,28 @@ _fake_name_arg() {  # pull the value of --name from "$@"
 # Dispatch: one branch per command shape the repo's scripts use
 # (contracts/azure-cli-contract.md §1).
 case "${1:-}" in
+    rest)
+        # the resource-sku answer for the size check: contract §1 speed pass
+        # (2026-09-10) — the helper reads Resource Skus List with a server-side
+        # location filter; the stand-in answers with the same JSON shape.
+        case "$*" in
+            *"Microsoft.Compute/skus"*)
+                FAKE_REST_LOCATIONS="${LOCATIONS}" FAKE_REST_SIZES="${SIZES}" python3 <<'PYEOF'
+import json, os
+
+doc = {"value": []}
+for size in (os.environ.get("FAKE_REST_SIZES") or "").split():
+    doc["value"].append({
+        "resourceType": "virtualMachines",
+        "name": size,
+        "restrictions": [],
+    })
+print(json.dumps(doc))
+PYEOF
+                ;;
+            *) echo "fake-az: unknown rest url: $*" >&2; exit 127 ;;
+        esac
+        ;;
     version)
         echo "2.90.0"
         ;;

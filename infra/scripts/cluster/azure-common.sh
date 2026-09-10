@@ -103,21 +103,48 @@ if [ -n "${AZURE_SUBSCRIPTION_ID:-}" ]; then
 fi
 
 # --- pre-check 2b: the signed-in identity may actually create things ----------
-# (contract §1; story-owner request 2026-09-10). Before anything is created
-# the helper must prove the identity (or the groups it belongs to) holds an
-# assignment that can build the whole stack on this subscription. Direct
-# proof: Owner or Contributor covering the subscription (the subscription
-# itself, "/", or a parent management group). Any other role counts only
-# when its permission list allows unrestricted writes ("*" or "*/write") or
-# container-service creates ("Microsoft.ContainerService/*"). Ancestor-
-# scope assignments must include groups because CFN-style group grants
-# otherwise appear absent. Command shapes validated live and recorded in
-# research.md (constitution VIII).
-_azure_sub_id=$(az account show --query id --output tsv 2>/dev/null)
-_azure_assignments=$(az role assignment list \
-    --assignee "${_azure_user}" --include-groups \
-    --query "[].{id: roleDefinitionId, role: roleDefinitionName, scope: scope}" \
-    --output tsv 2>/dev/null)
+# (contract §1; story-owner request 2026-09-10). The four independent
+# read-only probes — permission, location, machine sizes, allowance — run
+# in parallel (every az invocation boots ~1 s serially), then the checks
+# below evaluate their answers in the contract order: permission,
+# location, sizes, allowance.
+#
+# Speed note (2026-09-10): `az vm list-skus` downloads a multi-MB response
+# for all resource types and filters client-side — 90 s+ per call even with
+# exact filters (azure-cli issues #31592/#30389). The location filter on
+# the underlying REST API IS server-side, so the size check reads it
+# directly: `az rest` + Resource Skus List (api-version 2021-07-01; the
+# only supported $filter is location). Same --all semantics: names are
+# matched regardless of `restrictions` in the payload; no cache — one
+# small live GET per run.
+_azure_skus_out() {
+    az rest --method GET \
+        --url "https://management.azure.com/subscriptions/${_azure_sub_id}/providers/Microsoft.Compute/skus?api-version=2021-07-01&%24filter=location%20eq%20%27${AZURE_LOCATION}%27" 2>/dev/null
+}
+
+# AZURE_LOCATION resolved here so the parallel probes can use it; the
+# eastus2 fallback applies only when AZURE_LOCATION is empty (FR-010).
+AZURE_LOCATION="${AZURE_LOCATION:-eastus2}"
+
+_az_will_parallel_checks() {
+    _azure_sub_id=$(az account show --query id --output tsv 2>/dev/null)
+    _azure_jobsdir=$(mktemp -d)
+    az role assignment list \
+        --assignee "${_azure_user}" --include-groups \
+        --query "[].{id: roleDefinitionId, role: roleDefinitionName, scope: scope}" \
+        --output tsv > "${_azure_jobsdir}/rbac.out" 2>/dev/null &
+    az account list-locations --query "[?name=='${AZURE_LOCATION}'].name" --output tsv \
+        > "${_azure_jobsdir}/locations.out" 2>/dev/null &
+    az vm list-usage --location "${AZURE_LOCATION}" \
+        --query "[?name.value=='lowPriorityCores' || name.value=='standardDSv5Family' || name.value=='standardFSv2Family'].{name: name.value, what: name.localizedValue, cur: currentValue, lim: limit}" \
+        --output tsv > "${_azure_jobsdir}/usage.out" 2>/dev/null &
+    ( _azure_skus_out > "${_azure_jobsdir}/skus.out" 2>/dev/null ) &
+    wait
+}
+_az_will_parallel_checks
+
+# --- permission (pre-check 2b) -------------------------------------------------
+_azure_assignments=$(cat "${_azure_jobsdir}/rbac.out")
 if [ -z "${_azure_assignments}" ]; then
     echo "Cannot start: the role assignments for ${_azure_user} could not be read (az role assignment list returned nothing)." >&2
     echo "Check the sign-in and subscription (az role assignment list --assignee ${_azure_user} --include-groups). Nothing was created." >&2
@@ -158,9 +185,8 @@ fi
 echo "permission check: '${AZURE_RBAC_ROLE}' on ${AZURE_RBAC_SCOPE:+$AZURE_RBAC_SCOPE}"
 
 # --- pre-check 3: location is real ---------------------------------------------
-# The eastus2 fallback applies only when AZURE_LOCATION is empty (FR-010).
-AZURE_LOCATION="${AZURE_LOCATION:-eastus2}"
-if ! az account list-locations --query "[].name" --output tsv 2>/dev/null | grep -qx "${AZURE_LOCATION}"; then
+echo "checking: location '${AZURE_LOCATION}' is real (az account list-locations)..."
+if ! grep -qx "${AZURE_LOCATION}" "${_azure_jobsdir}/locations.out" 2>/dev/null; then
     echo "Cannot start: location '${AZURE_LOCATION}' is not a real Azure location for this account." >&2
     echo "Set AZURE_LOCATION in .env to a listed one (az account list-locations --query \"[].name\" -o tsv). Nothing was created." >&2
     return 1
@@ -168,15 +194,25 @@ fi
 
 # --- pre-check 4: every machine size offered there ------------------------------
 # No silent swap, no automatic move to another region (data-model §1).
-_azure_vm_sizes=$(az vm list-skus --location "${AZURE_LOCATION}" --all --query "[].name" --output tsv 2>/dev/null)
+# `az rest`-fetched file with the exact names; missing = refuse.
 for _azure_size in Standard_D2s_v5 Standard_D4s_v5 Standard_F4s_v2; do
-    if ! printf '%s\n' "${_azure_vm_sizes}" | grep -qx "${_azure_size}"; then
+    echo "checking: machine size ${_azure_size} offered in ${AZURE_LOCATION} (resource skus)..."
+    _azure_skus_file="${_azure_jobsdir}/skus.out"
+    if ! [ -s "${_azure_skus_file}" ] || \
+        ! AZURE_SIZE="${_azure_size}" AZURE_SKUS_FILE="${_azure_skus_file}" \
+        python3 -c "
+import json, os, sys
+size = os.environ['AZURE_SIZE']
+doc = json.load(open(os.environ['AZURE_SKUS_FILE']))
+names = {s.get('name') for s in doc.get('value', [])
+         if s.get('resourceType') == 'virtualMachines'}
+sys.exit(0 if size in names else 1)
+" 2>/dev/null; then
         echo "Cannot start: machine size ${_azure_size} is not offered in ${AZURE_LOCATION}." >&2
-        echo "Pick a location that offers it (az vm list-skus --location <loc> --all). Nothing was created." >&2
+        echo "Pick a location that offers it (Resource Skus List API). Nothing was created." >&2
         return 1
     fi
 done
-
 # --- pre-check 5: the machine allowance decides the workload pool mode --------
 # (FR-014, AD-002; contract §1). Spot first: the location's spot vCPU room
 # (limit − current) must cover the whole designed shape at minimum counts —
@@ -191,9 +227,7 @@ AZURE_SPOT_VCPU_NEEDED=26
 AZURE_DSV5_VCPU_NEEDED=22
 AZURE_FSV2_VCPU_NEEDED=4
 
-_azure_usage=$(az vm list-usage --location "${AZURE_LOCATION}" \
-    --query "[?name.value=='lowPriorityCores' || name.value=='standardDSv5Family' || name.value=='standardFSv2Family'].{name: name.value, what: name.localizedValue, cur: currentValue, lim: limit}" \
-    --output tsv 2>/dev/null)
+_azure_usage=$(cat "${_azure_jobsdir}/usage.out")
 if [ -z "${_azure_usage}" ]; then
     echo "Cannot start: the machine allowance for ${AZURE_LOCATION} could not be read (az vm list-usage returned nothing)." >&2
     echo "Check the location and sign-in (az vm list-usage --location ${AZURE_LOCATION}). Nothing was created." >&2
