@@ -19,12 +19,17 @@
 - **Stand-in command**: in an offline check, a lookalike of a cloud command-line tool that records what it was asked to do and returns a fixed answer, without contacting any cloud.
 - **Resource group**: a named container on Azure that groups everything created there, so it can all be removed together.
 - **Subscription**: the Azure billing account a person's work is charged to; a person may have access to one or several.
+- **Machine allowance**: how many machine cores a subscription may use in one location, tracked separately for cheaper (spot) machines and for each machine family. Azure calls this quota.
 
 ## Clarifications
 
+### Session 2026-09-10
+
+- Q: The review asks for cost minimization as a guiding light — does that change the "regular machines only" decision for the Azure node groups? → A: Yes. Cheaper spot machines are now preferred, with a checked fallback. Before creating anything, the shared helper reads the subscription's machine allowance in the chosen location. When the spot allowance fits the whole designed node-group shape, the workload groups are created on spot machines. When it does not, the helper checks the regular allowance per machine family and creates the groups on regular machines if all of them fit. When neither fits, the start command stops before creating anything and names the shortfall. The choice is all-or-nothing — no mixed shapes — and it is recorded in the architectural decisions doc (`docs/architectural-decisions.md`, AD-002).
+
 ### Session 2026-09-09
 
-- Q: Should the Azure workload node groups also run on spot machines, like their Amazon counterparts? → A: Not in this story. The subscription's spot-machine quota (3 spot vCPUs per region) cannot fit the documented cluster shape, so the Azure node groups start as regular on-demand machines with the same counts, sizes, labels, and taints. Switching them to spot later is a configuration-table change plus a cluster rebuild, not a rework of the scripts.
+- Q: Should the Azure workload node groups also run on spot machines, like their Amazon counterparts? → A: Not in this story. The subscription's spot-machine quota (3 spot vCPUs per region) cannot fit the documented cluster shape, so the Azure node groups start as regular on-demand machines with the same counts, sizes, labels, and taints. Switching them to spot later is a configuration-table change plus a cluster rebuild, not a rework of the scripts. (Superseded 2026-09-10 — spot is now checked and preferred per FR-014; see AD-002.)
 
 ### Session 2026-09-08
 
@@ -83,6 +88,7 @@ Anyone using the repository on Amazon or on their local machine continues exactl
 
 - What happens when the configuration file selects Azure but the Azure requirements (not signed in, subscription missing, unusable location) are not met? The start command must stop with a clear, plain-language message instead of half-creating anything.
 - What happens when the configuration file selects neither supported provider? The start command must stop with a clear message naming the valid choices.
+- What happens when the subscription's machine allowance cannot fit the designed node-group shape in the chosen location, on spot or on regular machines? The start command must stop before creating anything and name the allowance that fell short. (FR-014)
 - What happens when creation or removal stops partway (network drop, quota, permissions)? The command must stop, tell the user in plain language exactly what was already created, and leave it in place. Nothing is deleted automatically. The user then either reruns start, which reuses what already exists without duplicating it, or runs cleanup to remove everything and start fresh.
 
 ## Requirements *(mandatory)*
@@ -102,6 +108,7 @@ Anyone using the repository on Amazon or on their local machine continues exactl
 - **FR-011**: When creation or removal stops partway, the command MUST stop with a plain-language report of what was already created and MUST NOT delete or roll back anything automatically; the user retries start, which reuses what exists, or runs cleanup.
 - **FR-012**: After the start command succeeds, a verification check MUST inspect the live cluster and report in plain language whether the control plane is ready and every node group matches the documented Amazon setup in count, machine size, labels, and workload-separation markings. It MUST only read, never change cloud state.
 - **FR-013**: The start and cleanup commands MUST be checkable without any cloud access by running them against stand-in commands that record what they were asked to do and return fixed answers. These offline checks MUST cover: the actions taken, a rerun that creates nothing new, the clear refusal messages, and the partial-failure report.
+- **FR-014**: Before creating anything on Azure, the shared helper MUST check the subscription's machine allowance in the chosen location. If the cheaper spot-machine allowance fits the whole designed node-group shape at its documented minimum sizes, the workload node groups MUST be created on spot machines; otherwise, if the regular allowance fits for every machine family at those same minimums, they MUST be created on regular machines; if neither fits, the start command MUST refuse with a plain-language message naming the shortfall, and nothing is created. The system node group is always regular. Groups allowed to grow automatically are limited by the same allowance; nothing rearranges itself to dodge the limit.
 
 ## Success Criteria *(mandatory)*
 
@@ -119,4 +126,4 @@ Anyone using the repository on Amazon or on their local machine continues exactl
 - Cluster creation happens in the user's own Azure subscription with its own costs; no budget or billing controls are added in this story.
 - The empty-cluster scope covers the machines and the cluster itself only; connectivity to managed databases or secret stores comes in later stories.
 - Generated names (resource group, cluster) are built from stable ingredients — detected developer name plus a suffix derived from the settings — so identical settings always produce identical names and reruns find what earlier runs created.
-- Azure workload node groups start as regular (on-demand) machines; the Amazon groups' spot pricing is deliberately not mirrored in this story (see clarifications, 2026-09-09).
+- Azure workload node groups run on spot machines when the location's spot allowance fits the whole designed shape, and fall back to regular machines when it does not (FR-014, AD-002); the earlier "regular in this story" decision (2026-09-09) is superseded.

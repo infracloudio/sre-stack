@@ -13,6 +13,9 @@ AWS EKS or local k3d. Application code comes from upstream images.
 - `app/`, `monitoring/`, `scenarios/` contain workloads, tooling, and faults.
 - `agent/` contains source-of-truth policies, hooks, conformance tests, and loom.
 - `specs/<nnn>-<slug>/` contains each story's `spec.md`, `plan.md`, `tasks.md`.
+- `docs/architectural-decisions.md` is the shared ADR record (decision + why +
+  what was given up); append new decisions there, one entry, newest last, and
+  reference it by ID (AD-00n) from specs/plan/tasks instead of retelling.
 - `.specify/` (scripts, templates, manifests) and the Spec Kit commands in
   `.claude/skills/speckit-*`, `.agents/skills/speckit-*` (Codex),
   `.devin/skills/speckit-*`, and `.opencode/commands/speckit.*` are generated

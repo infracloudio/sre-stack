@@ -21,6 +21,7 @@ contract in the same commit.
 | Is the location real? | `az account list-locations --query "[].name" --output tsv` | Chosen (or fallback `eastus2`) location must appear in the list; else "location not available" and stop. |
 | Are the machine sizes offered there? | `az vm list-skus --location <location> --all --query "[].name" --output tsv` | Every size in the pool table (`Standard_D2s_v5`, `Standard_D4s_v5`, `Standard_F4s_v2`) must appear; else name the first missing size ("machine size X is not offered in Y; pick a location that offers it") and stop. No silent swap, no auto-fallback. `--all` includes sizes blocked for this subscription so the message can be precise. |
 | Does the group already exist? | `az group exists --name <generated>` | `true` → skip only the `az group create` step (per-resource idempotency, FR-003/FR-011). |
+| Does the allowance fit the designed shape? | `az vm list-usage --location <location> --output json` | Decides the workload-pool mode before anything is created (FR-014, AD-002). Spot first: the location's spot vCPU item (e.g. `lowPriorityCores` / "Low Priority Standard vCPUs"; the exact JSON field names are confirmed by hand and recorded in research.md) must cover 26 vCPU — the whole shape at minimum counts (app 6 + persistent 8 + o11y 8 + loadgen 4). Fits → export `AZURE_POOL_MODE=spot`. Else regular: per-family vCPU limits ("Standard DSv5 Family vCPUs" needs 22, "Standard FSv2 Family vCPUs" needs 4) must all fit at the same minimum counts → `AZURE_POOL_MODE=regular`. Else print "not enough machine allowance" naming the short family and its current+limit numbers, and stop — the refusal happens before `az group create`, so nothing is created. Judged at minimum counts; autoscaler growth is capped by the allowance, never dodged. |
 | Does the cluster already exist? | `az aks show --resource-group <rg> --name <cluster>` | Succeeds → skip `az aks create` (cluster and its system pool already exist). |
 | Does a node pool already exist? | `az aks nodepool show --resource-group <rg> --cluster-name <cluster> --name <pool>` | Succeeds → skip that pool's `az aks nodepool add`. Checked per pool, before each add. |
 | Does the storage setting already exist? | `kubectl get storageclass gp2` | Succeeds → skip `kubectl apply -f infra/azure/gp2-storageclass.yaml`. |
@@ -31,7 +32,7 @@ contract in the same commit.
 |---|---|
 | Make the group | `az group create --name <generated-rg> --location <location>` |
 | Make the cluster + system pool | `az aks create --resource-group <rg> --name <generated-cluster> --location <location> --kubernetes-version <pinned> --node-count 1 --node-vm-size Standard_D2s_v5 --generate-ssh-keys --no-wait` then wait for completion. (No `--mode` argument exists on `az aks create` — the initial pool is System by default; confirmed in the manual try-out.) |
-| Add each workload pool | `az aks nodepool add --resource-group <rg> --cluster-name <cluster> --name <pool> --node-count <n> --node-vm-size <size> --labels workload=<value> --node-taints <taint-or-omitted> --enable-cluster-autoscaler --min-count <min> --max-count <max>`. Workload pools are **regular** (on-demand) per data-model §3 — no spot flags. If the §3 table ever says `Spot` again, the spot flags live in research.md §3 and this contract must be re-synced in the same commit. |
+| Add each workload pool | `az aks nodepool add --resource-group <rg> --cluster-name <cluster> --name <pool> --node-count <n> --node-vm-size <size> --labels workload=<value> --node-taints <taint-or-omitted> --enable-cluster-autoscaler --min-count <min> --max-count <max>`. The four workload pools are always created with these base flags; counts/sizes/labels/taints come from the data-model §3 table. When the allowance check exported `AZURE_POOL_MODE=spot`, the command **also** carries the spot flags proved in the manual try-out (recorded in research.md §3 — `--priority Spot --eviction-policy Delete` shape); when it exported `regular`, no spot flags are added. All-or-nothing per run (FR-014, AD-002). |
 | Get kubectl access | `az aks get-credentials --resource-group <rg> --name <cluster> --overwrite-existing` |
 | Add the storage setting | `kubectl apply -f infra/azure/gp2-storageclass.yaml` |
 
@@ -43,11 +44,20 @@ contract in the same commit.
 | Does each pool match? | `az aks nodepool list --resource-group <rg> --cluster-name <cluster>` | per pool: `name`, `count`, `vmSize`, `nodeLabels`, `nodeTaints`, `minCount`, `maxCount`, `scaleSetPriority`, `provisioningState` |
 
 The verify script prints one plain line per pool, e.g.
-`✓ app: 3 nodes, Standard_D2s_v5, label workload=app — matches Amazon`
+`✓ app: 3 nodes, Standard_D2s_v5, label workload=app, regular — matches Amazon`
 or `✗ o11y: expected taint o11y=true:NoSchedule, found none`.
-With the current table all five pools are regular, so `scaleSetPriority`
-is `null` (or `Regular`) on every pool; the line never says "spot" unless
-the §3 table in data-model.md says so again.
+Every workload pool's `scaleSetPriority` is compared against the mode the
+allowance check chose (data-model §3): `Spot` when `AZURE_POOL_MODE=spot`,
+`null`/`Regular` when `regular`. A pool whose priority does not match the
+mode flagged otherwise in the report. The system pool is always checked as
+`null`/`Regular`.
+**Spot-mode taint exception**: in spot mode Azure auto-adds
+`kubernetes.azure.com/scalesetpriority=spot:NoSchedule` to every workload
+pool. That one taint is **excluded** from the `nodeTaints` comparison
+(healthy spot clusters would otherwise fail as "unexpected taint"); the
+data-model §3 taints are still compared on top of it, and any taint other
+than the expected ones plus this auto-taint is a mismatch (data-model §3
+records why manifests later need a toleration for it).
 
 ### Deleting (cleanup)
 
@@ -80,6 +90,16 @@ The stand-in is a small script placed first on `PATH`. Rules:
    - `missing-vm-size`: location real, but `az vm list-skus` omits
      `Standard_F4s_v2` → refusal message naming that size, nothing created,
      no `group create` recorded.
+   - `spot-fits`: the usage answer covers the whole shape with spot vCPU
+     (26+) → every `az aks nodepool add` for the four workload pools is
+     recorded **with** the spot flags; the system pool's creation carries
+     none.
+   - `spot-short`: spot vCPU below 26, regular per-family limits fit →
+     the same adds recorded **without** spot flags, and no refusal.
+   - `no-room`: spot short **and** one regular family below its needed
+     vCPU (e.g. FSv2 limit 2 < 4) → plain refusal naming that family with
+     its current and limit numbers, exit ≠ 0, and **no** `az group create`
+     recorded.
    - `bad-provider`: `STACK_MODE=nonsense` → refusal message naming the three
      valid values.
    - `mc-lingers`: after `az group delete`, `az group show --name

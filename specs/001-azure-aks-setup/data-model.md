@@ -25,6 +25,11 @@ plain-language messages, per FR-005/FR-006):
   with a plain message naming it — no silent swap, and no automatic move to
   another region (the `eastus2` fallback applies only when the setting is
   empty, never after a failed check).
+- The **machine allowance must fit the chosen mode** (`az vm list-usage
+  --location <loc> --output json`). Spot first (whole shape), then regular
+  per family; neither fits → plain refusal naming the short allowance
+  (FR-014, AD-002). This is the newest rule; details live in the spot
+  bullet of §3.
 - `AKS_KUBERNETES_VERSION` must be non-empty.
 
 ## 2. Generated names
@@ -70,7 +75,7 @@ One row per node pool. This table is the single source of truth; the setup
 script builds from it, the verify script checks against it, and the offline
 stand-in answers with it.
 
-| Pool name | Machine size | Count (min–max) | Label | Taint | Spot? | Pool kind |
+| Pool name | Machine size | Count (min–max) | Label | Taint | Spot-capable? | Pool kind |
 |---|---|---|---|---|---|---|
 | system | Standard_D2s_v5 | 1–1 | — | — | no | System |
 | app | Standard_D2s_v5 | 3–6 | `workload=app` | — | no | User |
@@ -83,20 +88,33 @@ Notes:
 - `system` is Azure's own housekeeping pool. Azure requires the first pool to
   be a non-spot system pool; it is not one of the four Amazon node groups and
   exists purely because AKS needs it.
-- **Workload pools start as regular (on-demand) machines**, deliberately not
-  mirroring the Amazon groups' spot pricing. Reason: the subscription's spot
-  vCPU quota (`lowPriorityCores`, 3 vCPU per region) cannot fit the designed
-  shape (26 spot vCPU at min counts). Workload pools are created without the
-  spot flags — `az aks nodepool add --node-count <n> --node-vm-size <size>
-  --labels ... --node-taints ... --enable-cluster-autoscaler --min-count <min>
-  --max-count <max>`.
-- **Flipping back to spot later** (when the quota is raised): change the
-  `Spot?` column back to `yes`, bump `CLUSTER_SHAPE_VERSION`, rerun setup
-  (fresh cluster), and add one toleration for the Azure-only auto-taint
-  `kubernetes.azure.com/scalesetpriority=spot:NoSchedule` to every workload
-  manifest that targets these pools (AWS/eksctl adds no such taint). Spot
-  flags and the real spot output shapes are recorded in research.md §3 and
-  the manual-pass findings.
+- **"Spot-capable?" and the mode actually used are different things.** Spot
+  capability marks which pools *may* run on cheaper spot machines (here:
+  all four workload pools). Which mode the setup actually uses is decided
+  at run time by the helper's allowance check (`az vm list-usage`),
+  **before anything is created** (FR-014, AD-002):
+    1. spot allowance in the location ≥ 26 vCPU (the whole shape at minimum
+       counts: app 6 + persistent 8 + o11y 8 + loadgen 4) → every
+       spot-capable pool is created with the spot flags from §3/​research.md
+       (`--priority Spot --eviction-policy Delete ...`);
+    2. else regular per-family allowances fit (DSv5 family needs 22, FSv2
+       family needs 4 — both at the minimum counts, like the spot case)
+       → same pools without spot flags;
+    3. else the setup refuses with a plain message naming the short
+       allowance, before creating anything.
+  All-or-nothing per mode; the `system` pool is always regular because
+  Azure requires the first pool on a cluster to be a non-spot system pool.
+  The allowance is judged against the documented **minimum counts** only;
+  when a pool grows automatically later, Azure simply stops granting
+  machines beyond the allowance — nothing in the scripts dodges or works
+  around that.
+- **When spot mode is on**, every workload manifest that targets these
+  pools needs one extra toleration for Azure's auto-taint
+  `kubernetes.azure.com/scalesetpriority=spot:NoSchedule` (AWS/eksctl adds
+  no such taint). Manifests are not part of this story — this is recorded
+  for the workload-installation stories (data-model change from the 1.0
+  "flip recipe": the mode is now chosen by the check, not folded into the
+  table).
 - State transitions (pool lifecycle): **absent → creating → running**.
   A pool that stops partway stays as-is; the script reports what reached
   `running` and what did not, and never deletes anything on its own (FR-011).

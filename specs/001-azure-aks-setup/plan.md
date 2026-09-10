@@ -88,14 +88,23 @@ are not placed on that machine. The label is how pods find the right machines.
 These are exactly the same labels and taints the Amazon cluster uses today.
 
 Extra facts:
-- The Amazon setup runs all four workload node groups on **spot** machines.
-  On Azure they start as **regular** (on-demand) machines: the subscription's
-  spot quota (3 spot vCPUs per region) cannot fit the table above (26 spot
-  vCPUs at minimum counts). Flipping the pool table back to spot later is a
-  one-column change plus a cluster rebuild — the scripts read the table, so
-  no rework is needed (see data-model.md §3 for the exact flip recipe). The
-  small extra system pool is regular regardless, because Azure requires the
-  first pool to be a non-spot system pool.
+- **Cost first: spot preferred, checked above, not guessed.** The Amazon
+  setup runs all four workload node groups on **spot** machines, and the
+  Azure script prefers that too — but only because a measured check allows
+  it (FR-014). One extra pre-check in the shared helper
+  (`az vm list-usage --location <loc>`) decides the mode, before anything
+  is created: if the subscription's spot vCPU allowance fits the whole
+  shape (26 spot vCPU at minimum counts), the four pools are created as
+  spot; else, when the regular allowances fit for every machine family at
+  those same minimums (DSv5 needs 22, FSv2 needs 4), they are created as
+  **regular**; else the script stops with a plain message naming the short
+  allowance — nothing is half-created. The allowance is judged against
+  minimum counts only; pools that can grow automatically are capped by the
+  allowance rather than dodging it. The choice is all-or-nothing (no mixed
+  pools), the
+  system pool is always regular (Azure requires a non-spot first pool),
+  and the spot command flags stay in research.md §3 so the helper and the
+  contract can be re-synced in the same commit (AD-002).
 - Before creating anything, the shared helper also checks that **every
   machine size in the table is actually offered in the chosen part of the
   world** (`az vm list-skus --location <loc> --all`). Azure regions differ;
@@ -136,7 +145,9 @@ cluster name    =  sre-stack-<short-code>
 | IV. No secrets in git | Pass | Nothing secret is stored; the scripts use your existing Azure sign-in. |
 | V. Same labels, taints, and storage on every cluster | Pass | The table above reproduces them exactly, plus the `gp2` storage setting, so the app files deploy unchanged. |
 | VI. Spec stays non-technical | Pass | The spec talks only about behaviour and outcomes. |
-| VII. Plain language everywhere | Pass | This plan, the research, and the quickstart are written for someone new to the project, with examples. |
+| VII. Plain language everywhere | Pass | This plan, the research, and the quickstart are written for someone new to the project, with examples. (Constitution 1.2.0 added two more principles on 2026-09-10; they were checked below after this table was first written.) |
+| VIII. Try it before you plan it | Pass | Phase 0 ran every original command by hand (T002, research.md). The one command the try-out did not cover — `az vm list-usage` for the allowance check (FR-014) — has a task (T023) that requires running it once by hand, together with the story owner, before any helper edit. |
+| IX. Plan in steps, with the user in the room | Pass | This plan was first written before IX existed, so the original plan cannot retroactively claim it. Everything added after 1.2.0 (FR-014 / allowance check, T023, the AD document) was written in step-by-step review with the story owner (PR 98 comment threads), and the reviewer saw each piece before it landed. The formal signature for this row is the reviewer's fresh `gate:plan-approved` on that approval. |
 
 No rule is broken, so no exception table is needed.
 
@@ -153,6 +164,10 @@ specs/001-azure-aks-setup/
 ├── research.md          # what we learned about Azure, with sources
 ├── data-model.md        # every setting, name, and node pool on paper
 ├── quickstart.md        # the step-by-step try-out and check guide
+├── ../../docs/architectural-decisions.md  # shared doc: the "why we chose
+│                                         #   this" record (AD-001…), kept
+│                                         #   outside specs/ because decisions
+│                                         #   span stories
 └── contracts/
     └── azure-cli-contract.md   # exactly which az commands we rely on,
                                 # and what the pretend-az must imitate
