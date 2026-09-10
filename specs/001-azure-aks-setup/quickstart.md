@@ -225,7 +225,7 @@ runs `make setup` and `make cleanup` once and confirms behaviour is as before.
 
 ## Done when
 
-- [ ] Part A complete; research.md "Manual pass findings" filled in.
-- [ ] B1 refusals, B2 second-run no-op + verify report, B3 offline tests,
+- [x] Part A complete; research.md "Manual pass findings" filled in.
+- [x] B1 refusals, B2 second-run no-op + verify report, B3 offline tests,
       B4 double cleanup all pass.
-- [ ] B5 diff shows zero Amazon/local file changes.
+- [x] B5 diff shows zero Amazon/local file changes.

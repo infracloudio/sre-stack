@@ -138,9 +138,9 @@ permissions allow unrestricted writes, before anything is created.
 
 **Purpose**: Final acceptance evidence and documentation sync
 
-- [ ] T020 Execute `specs/001-azure-aks-setup/quickstart.md` Part B end to end: B1 refusals (logged out, made-up subscription, made-up location, `STACK_MODE=nonsense`), B2 real run + second-run no-op + keep the verify report as the SC-004 evidence, B4 double cleanup + exact-name `MC_` "gone" check; attach all outputs as evidence (`evidence:attached`).
-- [ ] T021 [P] Re-read `specs/001-azure-aks-setup/contracts/azure-cli-contract.md` against the finished scripts: every `az` command the scripts call is listed in §1, the stand-in scenarios in §2 match the runner, and any drift found is fixed in the same commit.
-- [ ] T022 Final sweep: run `bash agent/tests/azure/run-offline-tests.sh` and `make lint` one last time, confirm every "Manual pass findings" checkbox in `specs/001-azure-aks-setup/research.md` is ticked, and confirm the quickstart "Done when" list is fully checked; report both outputs.
+- [x] T020 Execute `specs/001-azure-aks-setup/quickstart.md` Part B end to end: B1 refusals (logged out, made-up subscription, made-up location, `STACK_MODE=nonsense`), B2 real run + second-run no-op + keep the verify report as the SC-004 evidence, B4 double cleanup + exact-name `MC_` "gone" check; attach all outputs as evidence (`evidence:attached`).
+- [x] T021 [P] Re-read `specs/001-azure-aks-setup/contracts/azure-cli-contract.md` against the finished scripts: every `az` command the scripts call is listed in §1, the stand-in scenarios in §2 match the runner, and any drift found is fixed in the same commit.
+- [x] T022 Final sweep: run `bash agent/tests/azure/run-offline-tests.sh` and `make lint` one last time, confirm every "Manual pass findings" checkbox in `specs/001-azure-aks-setup/research.md` is ticked, and confirm the quickstart "Done when" list is fully checked; report both outputs.
 
 ---
 

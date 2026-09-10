@@ -15,6 +15,7 @@ contract in the same commit.
 
 | Purpose | Command | What the script does with the answer |
 |---|---|---|
+| Which CLI is this? | `az version --query azure-cli --output tsv` (fallback `az --version`) | Prints the version; warns plainly when older than the documented minimum 2.87.0; never stops. |
 | Am I signed in? | `az account show` | Fails → print "not signed in; run az login first" and stop (exit ≠ 0). |
 | Who am I? | `az account show --query user.name --output tsv` | Value feeds the resource-group name and the permission pre-check. Empty → "no usable principal name" and stop. |
 | May we create anything? | `az role assignment list --assignee <user.name> --include-groups` | The permission check before anything is created: the identity (or its groups) must hold an assignment that covers the subscription — an exact `/subscriptions/<id>` scope, `/`, or a parent `…/managementGroups/*` scope. Owner or Contributor pass directly; any other role passes only when `az role definition list --query "[?contains(id-list, id)]"` shows its actions include `"*"`, `"*/write"`, or `"Microsoft.ContainerService/*"` ("custom-role-with-create"). A resource-group-only or other-subscription assignment is not enough (the generated group is created new). No covering assignment → refusal and stop. Field order in list output follows the projected keys alphabetically (id, role, scope). |
