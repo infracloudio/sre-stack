@@ -44,13 +44,19 @@ if [ -z "${_pools_json}" ] || [ "${_pools_json}" = "[]" ]; then
 fi
 
 if [ -n "${_pools_json}" ] && [ "${_pools_json}" != "[]" ]; then
-    if ! VERIFY_POOL_JSON="${_pools_json}" \
+    _pool_rc=0
+    VERIFY_POOL_JSON="${_pools_json}" \
     VERIFY_MODE="${AZURE_POOL_MODE}" \
     VERIFY_AUTO_TAINT="kubernetes.azure.com/scalesetpriority=spot:NoSchedule" \
-    python3 <<'EOF'
+    python3 <<'EOF' || _pool_rc=$?
 import json, os, sys
 
-pools = json.loads(os.environ["VERIFY_POOL_JSON"])
+try:
+    pools = json.loads(os.environ["VERIFY_POOL_JSON"])
+except (KeyError, ValueError):
+    sys.exit(255)
+if not isinstance(pools, list):
+    sys.exit(255)
 mode = os.environ["VERIFY_MODE"]
 auto = os.environ["VERIFY_AUTO_TAINT"]
 fail = 0
@@ -144,20 +150,31 @@ for name, (size, mn, mx, label, want_taint) in TABLE.items():
         word = "spot" if mode == "spot" else "regular"
         good(name + ": " + str(count) + " nodes, " + size + ", label workload=" + label
              + ", " + word + " — matches Amazon")
+
+sys.exit(min(fail, 254))
 EOF
-    then
+    if [ "${_pool_rc}" -eq 255 ]; then
         _bad "node pools: verifier failed while reading pool data" "json shaped like research.md A7"
+    elif [ "${_pool_rc}" -gt 0 ]; then
+        failures=$((failures + _pool_rc))
     fi
 fi
 
 # --- 3. namespaces (FR-008) -------------------------------------------------------
-_ns=$(kubectl get namespaces --output name 2>/dev/null | sed 's,namespace/,,')
-for _n in ${_ns}; do
-    case "${_n}" in
-        default|kube-*) ;;
-        *) _bad "namespace ${_n} exists" "an empty cluster holds only default and kube-* namespaces" ;;
-    esac
-done
+# Fail closed: a failed or empty read must count as a mismatch, not vanish
+# into a list that looks like an empty cluster.
+if ! _ns_raw=$(kubectl get namespaces --output name 2>/dev/null) || [ -z "${_ns_raw}" ]; then
+    _bad "namespaces: kubectl get namespaces failed or returned nothing" \
+        "a reachable cluster (check kubectl and the kubeconfig context, then re-run)"
+else
+    _ns=$(printf '%s\n' "${_ns_raw}" | sed 's,namespace/,,')
+    for _n in ${_ns}; do
+        case "${_n}" in
+            default|kube-*) ;;
+            *) _bad "namespace ${_n} exists" "an empty cluster holds only default and kube-* namespaces" ;;
+        esac
+    done
+fi
 
 echo "report: ${failures} mismatch(es)"
 if [ "${failures}" -gt 0 ]; then
