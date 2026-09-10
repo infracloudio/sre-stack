@@ -13,6 +13,13 @@
 #   SIGNED_IN=1|0                     az account show succeeds/fails
 #   FAKE_USER / FAKE_SUB              identity for names and the RBAC check
 #   RBAC_ROLE=Contributor             role recorded in the assignment row
+#   RBAC_MG_SCOPE=ancestor|unrelated  a second assignment sits on a parent
+#                                     management group; the stand-in mirrors
+#                                     Azure: an ancestor row appears only
+#                                     when the call carries
+#                                     --include-inherited, an unrelated one
+#                                     never appears
+#   RBAC_MG_ID / RBAC_MG_ROLE         that management group and its role
 #   LOCATIONS="eastus2 centralindia"  az account list-locations answers
 #   SIZES="…"                         az vm list-skus answers
 #   SPOT_LIMIT/DSV5_LIMIT/FSV2_LIMIT  az vm list-usage limits (current 0)
@@ -292,6 +299,12 @@ PYEOF
                 fi
                 printf '/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/8e3af657\t%s\t/subscriptions/%s\n' \
                     "${FAKE_SUB}" "${RBAC_ROLE}" "${FAKE_SUB}"
+                if [ "${RBAC_MG_SCOPE:-}" = "ancestor" ] \
+                    && printf '%s\n' "$*" | grep -q -- '--include-inherited'; then
+                    printf '/providers/Microsoft.Management/managementGroups/%s/providers/Microsoft.Authorization/roleDefinitions/8e3af657\t%s\t/providers/Microsoft.Management/managementGroups/%s\n' \
+                        "${RBAC_MG_ID:-contoso-parent}" "${RBAC_MG_ROLE:-Contributor}" \
+                        "${RBAC_MG_ID:-contoso-parent}"
+                fi
                 ;;
             definition)
                 printf '[ ]\n'

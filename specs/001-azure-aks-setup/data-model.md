@@ -21,10 +21,13 @@ plain-language messages, per FR-005/FR-006):
 - Subscription (if set) must exist and be accessible.
 - Location (chosen or fallback) must appear in `az account list-locations`.
 - Every machine size in the pool table must be **offered in that location**
-  (`az vm list-skus --location <loc> --all`). A missing size stops the run
-  with a plain message naming it — no silent swap, and no automatic move to
-  another region (the `eastus2` fallback applies only when the setting is
-  empty, never after a failed check).
+  (Resource Skus List read with `az rest` + `Microsoft.Compute/skus`,
+  api-version 2021-07-01 — the same names-regardless-of-`restrictions`
+  rule the manual try-out proved with `az vm list-skus --all`; contract §1
+  records the shape). A missing size stops the run with a plain message
+  naming it — no silent swap, and no automatic move to another region (the
+  `eastus2` fallback applies only when the setting is empty, never after a
+  failed check).
 - The **machine allowance must fit the chosen mode** (`az vm list-usage
   --location <loc> --output json`). Spot first (whole shape), then regular
   per family; neither fits → plain refusal naming the short allowance

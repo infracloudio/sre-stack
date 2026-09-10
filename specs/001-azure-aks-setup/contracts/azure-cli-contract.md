@@ -18,7 +18,7 @@ contract in the same commit.
 | Which CLI is this? | `az version --query azure-cli --output tsv` (fallback `az --version`) | Prints the version; warns plainly when older than the documented minimum 2.87.0; never stops. |
 | Am I signed in? | `az account show` | Fails → print "not signed in; run az login first" and stop (exit ≠ 0). |
 | Who am I? | `az account show --query user.name --output tsv` | Value feeds the resource-group name and the permission pre-check. Empty → "no usable principal name" and stop. |
-| May we create anything? | `az role assignment list --assignee <user.name> --include-groups` | The permission check before anything is created: the identity (or its groups) must hold an assignment that covers the subscription — an exact `/subscriptions/<id>` scope, `/`, or a parent `…/managementGroups/*` scope. Owner or Contributor pass directly; any other role passes only when `az role definition list --query "[?contains(id-list, id)]"` shows its actions include `"*"`, `"*/write"`, or `"Microsoft.ContainerService/*"` ("custom-role-with-create"). A resource-group-only or other-subscription assignment is not enough (the generated group is created new). No covering assignment → refusal and stop. Field order in list output follows the projected keys alphabetically (id, role, scope). |
+| May we create anything? | `az role assignment list --assignee <user.name> --include-groups --include-inherited` | The permission check before anything is created: the identity (or its groups) must hold an assignment that covers the subscription — an exact `/subscriptions/<id>` scope, `/`, or a parent `…/managementGroups/*` scope. `--include-inherited` makes Azure return only assignments effective at the current subscription (its own scope, root, and the management-group scopes that actually contain it), so a management-group row is an ancestor by construction — T027 tightened this after T024 accepted any management-group string; an unrelated management group is never returned. Owner or Contributor pass directly; any other role passes only when `az role definition list --query "[?contains(id-list, id)]"` shows its actions include `"*"`, `"*/write"`, or `"Microsoft.ContainerService/*"` ("custom-role-with-create"). A resource-group-only or other-subscription assignment is not enough (the generated group is created new). No covering assignment → refusal and stop. Field order in list output follows the projected keys alphabetically (id, role, scope). |
 | Which bill? | `az account set --subscription "$AZURE_SUBSCRIPTION_ID"` | Only when the setting is non-empty. Fails → "subscription not found" and stop. |
 | Is the location real? | `az account list-locations --query "[?name=='<location>'].name" --output tsv` | Chosen (or fallback `eastus2`) location must appear in the list; else "location not available" and stop. (2026-09-10 speed pass: narrowed the query; the answer set is the same name list.) |
 | Are the machine sizes offered there? | `az rest --method GET --url "https://management.azure.com/subscriptions/<sub>/providers/Microsoft.Compute/skus?api-version=2021-07-01&$filter=location eq '<location>'"` (2026-09-10 speed pass replacing a plain-CLI `az vm list-skus` call that stalls 90 s–2 min; azure-cli issues #31592/#30389) — parsed locally for the three size names at the location (virtualMachines entries, names checked regardless of restrictions = the old `--all` semantics: `Standard_D2s_v5`, `Standard_D4s_v5`, `Standard_F4s_v2` must appear; else name the first missing size ("machine size X is not offered in Y; pick a location that offers it") and stop. No silent swap, no auto-fallback. |
@@ -105,9 +105,16 @@ The stand-in is a small script placed first on `PATH`. Rules:
    - `not-signed-in`: `az account show` fails → refusal message, and **no**
      create call recorded after it.
    - `bad-location`: location not in the list → refusal message, nothing created.
-   - `missing-vm-size`: location real, but the resource-sku answer omits
-     `Standard_F4s_v2` → refusal message naming that size, nothing created,
-     no `group create` recorded.
+    - `missing-vm-size`: location real, but the resource-sku answer omits
+      `Standard_F4s_v2` → refusal message naming that size, nothing created,
+      no `group create` recorded.
+    - `rbac-mg-ancestor`: the create-capable assignment is Contributor on a
+      management group that contains the subscription; the stand-in returns
+      that parent-scope row only when the call carries `--include-inherited`
+      (Azure's own semantics) → setup proceeds and records its create calls.
+    - `rbac-mg-unrelated`: the create-capable assignment sits on a management
+      group that does not contain the subscription; the stand-in never
+      returns it → refusal, and no create call.
    - `spot-fits`: the usage answer covers the whole shape with spot vCPU
      (26+) → every `az aks nodepool add` for the four workload pools is
      recorded **with** the spot flags; the system pool's creation carries

@@ -161,8 +161,14 @@ _azure_skus_out() {
 _az_will_parallel_checks() {
     _azure_sub_id=$(az account show --query id --output tsv 2>/dev/null)
     _azure_jobsdir=$(mktemp -d)
+    # --include-inherited lets Azure resolve its own scope hierarchy: only
+    # assignments at the current subscription and its parent scopes (the
+    # management-group chain, up to root) come back, so a management-group
+    # row is provably an ancestor of the subscription. An assignment on an
+    # unrelated management group is never returned, whatever its scope
+    # string says (contract §1, T027).
     az role assignment list \
-        --assignee "${_azure_user}" --include-groups \
+        --assignee "${_azure_user}" --include-groups --include-inherited \
         --query "[].{id: roleDefinitionId, role: roleDefinitionName, scope: scope}" \
         --output tsv > "${_azure_jobsdir}/rbac.out" 2>/dev/null &
     az account list-locations --query "[?name=='${AZURE_LOCATION}'].name" --output tsv \
@@ -185,6 +191,9 @@ fi
 AZURE_RBAC_ROLE=""
 AZURE_RBAC_SCOPE=""
 _azure_custom_defs=""
+# Covering scopes for the new resource group: the exact subscription, root,
+# or a parent management group — ancestry guaranteed by the inherited
+# lookup above, not by matching the scope string alone (T027).
 while IFS=$'\t' read -r _azure_def _azure_role _azure_scope; do
     case "${_azure_scope}" in
         "/subscriptions/${_azure_sub_id}"|"/"|"/providers/Microsoft.Management/managementGroups/"*) ;;

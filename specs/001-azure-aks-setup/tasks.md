@@ -227,3 +227,11 @@ All phases are strictly sequential as numbered (T001 → T022). Every [P] pair i
 - `az group delete` cascades to the `MC_` node resource group by Azure's documented behaviour; the script only ever checks that group by its one exact predicted name.
 - Nothing under `app/`, `monitoring/`, `scenarios/` is touched by any task here.
 - Commit after each task or logical group; stop at any checkpoint to validate the story independently.
+
+---
+
+## Phase 7: Convergence
+
+- [x] T027 Tighten the permission pre-check in `infra/scripts/cluster/azure-common.sh` so a management-group scope passes only when that management group is an ancestor of the subscription, matching contract §1 ("parent `…/managementGroups/*`") instead of accepting any management group per T024/contract §1 (partial)
+- [x] T028 Record the unlogged plan departures — the size pre-check switch from `az vm list-skus` to the `az rest` Resource Skus call and the parallel pre-check probes — in the "Plan Departures" section of `specs/001-azure-aks-setup/plan.md`, and align the `az vm list-skus` wording in `specs/001-azure-aks-setup/data-model.md` §1, per plan: size pre-check (contradicts)
+- [x] T029 Replace the placeholder comment in `specs/001-azure-aks-setup/quickstart.md` B3 with the real command `bash agent/tests/azure/run-offline-tests.sh` and the expected "offline tests: … failed" summary line per T022/quickstart B3 (partial)

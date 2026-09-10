@@ -236,6 +236,27 @@ a suggestion.
   `bash agent/tests/azure/run-offline-tests.sh` on every pull request
   (~80 s, no cloud). Workflows are a protected path, so a human applies the
   job change with `PROTECTED_OVERRIDE=1`.
+- **T005/T023 — size pre-check reads the Resource Skus REST API, and the
+  create-time probes run in parallel (2026-09-10 speed pass).**
+  `az vm list-skus` downloads every resource type and filters client-side —
+  90 s+ per run even with exact filters (azure-cli issues #31592/#30389).
+  The helper calls the same API directly instead (`az rest` +
+  `Microsoft.Compute/skus`, api-version 2021-07-01), where the location
+  filter is server-side, and keeps the documented `--all` semantics (size
+  names matched regardless of `restrictions`); contract §1 records the
+  shape and the reason the old `az vm list-skus` wording was replaced.
+  In the same pass the four independent read-only pre-check probes
+  (permission, location, sizes, allowance) run in parallel — wall time
+  only: same answers, same refusals, same order of evaluation.
+- **T027 — permission pre-check uses Azure's inherited listing instead of
+  matching management-group scope strings.** The T024 check accepted any
+  `…/managementGroups/*` scope without proving the management group
+  contains the subscription. The `az role assignment list` call now carries
+  `--include-inherited`, so Azure itself returns only assignments effective
+  at the current subscription (its scope, root, and its real parent
+  management groups); an unrelated management group never appears. Covered
+  offline by the `rbac-mg-ancestor` / `rbac-mg-unrelated` scenarios
+  (contract §1/§2).
 
 ## Complexity Tracking
 

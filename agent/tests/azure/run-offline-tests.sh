@@ -137,6 +137,19 @@ check "missing-vm-size:exit-nonzero" "$([ "${RC:-}" != "0" ] && echo 1 || echo 0
 check "missing-vm-size:names F4s_v2" "$([ "$(count 'Standard_F4s_v2 is not offered' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
 check "missing-vm-size:no group create" "$([ "$(count '^az group create' "$(_log missing-vm-size)")" = "0" ] && echo 1 || echo 0)"
 
+# --- rbac-mg-ancestor ---------------------------------------------------------------
+echo "case rbac-mg-ancestor:"
+run_setup rbac-mg-ancestor
+check "rbac-mg-ancestor:exit-0" "$([ "${RC:-}" = "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "rbac-mg-ancestor:create recorded" "$([ "$(count '^az group create ' "$(_log rbac-mg-ancestor)")" = "1" ] && echo 1 || echo 0)" "wanted 1"
+
+# --- rbac-mg-unrelated --------------------------------------------------------------
+echo "case rbac-mg-unrelated:"
+run_setup rbac-mg-unrelated
+check "rbac-mg-unrelated:exit-nonzero" "$([ "${RC:-}" != "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "rbac-mg-unrelated:refusal text" "$([ "$(count 'no permission' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "rbac-mg-unrelated:no create" "$([ "$(count '^az group create' "$(_log rbac-mg-unrelated)")" = "0" ] && echo 1 || echo 0)"
+
 # --- spot-fits ----------------------------------------------------------------------
 echo "case spot-fits:"
 run_setup spot-fits

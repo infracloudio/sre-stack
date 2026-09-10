@@ -197,13 +197,21 @@ That verify report is the acceptance evidence for SC-004. Keep it.
 ### B3. The no-cloud test (offline stand-in)
 
 ```bash
-# (exact command arrives with the tasks; the stand-in az lives in a test dir)
+bash agent/tests/azure/run-offline-tests.sh
 # runs every scenario from contracts/azure-cli-contract.md §2 and asserts:
 #   - the actions taken, in order
 #   - a second run creates nothing new
 #   - each refusal message appears
 #   - the partial-failure report names what was created and deletes nothing
 ```
+
+Expect one `PASS` line per check and a final summary line, currently:
+
+```text
+offline tests: 85 checks, 0 failed
+```
+
+(The check count grows as checks are added; the gate is `0 failed`.)
 
 ### B4. Teardown and leave-nothing check
 
