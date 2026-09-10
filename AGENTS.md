@@ -59,9 +59,10 @@ Commands are spelled `/speckit-<verb>`; OpenCode spells them `/speckit.<verb>`.
    change outside the story's `specs/` folder before this label.
 4. Builder runs `/speckit-implement`; plan departures and reasons go into
    `plan.md` in the same commit. Attach verification output (`evidence:attached`).
-5. Agent review ranks findings; an independent human approves; squash-merge
-   with the story's `specs/` folder.
-6. Run `/speckit-converge` on `main`; fix same-day gaps or file new stories.
+5. Builder runs `/speckit-converge` on the branch; if it appends tasks, run
+   `/speckit-implement` and converge again until "Converged".
+6. Agent review ranks findings; an independent human approves; squash-merge
+   with the story's `specs/` folder. Gaps found after merge become new stories.
 
 Changes require an accepted story and `gate:plan-approved`; informational
 questions do not. Do not invent scope or weaken tests, hooks, lint, or CI.

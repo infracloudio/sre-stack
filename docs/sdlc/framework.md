@@ -1,6 +1,6 @@
 # How We Build: AI-Native SDLC with Spec Kit
 
-Version 0.3 · Owner: Rijo · Reviewers: Abishek, Viknesh · Sponsor: Aman
+Version 0.4 · Owner: Rijo · Reviewers: Abishek, Viknesh · Sponsor: Aman
 
 This document explains how our team builds software with AI coding agents.
 Read it top to bottom once; after that you only need the checklist at the
@@ -70,7 +70,7 @@ you through writing the files, in order:
 | `/speckit-tasks` | `tasks.md` — the plan broken into a checklist of small tasks |
 | `/speckit-analyze` | a report of gaps and contradictions between spec, plan and tasks |
 | `/speckit-implement` | the actual code, ticking off the tasks |
-| `/speckit-converge` | after merge: a check of what the code still misses versus the spec |
+| `/speckit-converge` | before review: a check of what the code still misses versus the spec; gaps become more tasks |
 
 There is one more file, written once per repo, not per story:
 `.specify/memory/constitution.md` — our standing rules (things like "every
@@ -200,7 +200,18 @@ down). The Builder watches, steers, and re-runs. Two habits:
 - Paste the proof into the PR: command output, timings, a screenshot of
   the thing working. "Should work" doesn't count; output does.
 
-### Step 6 — Review and merge (Reviewer, same day)
+### Step 6 — Converge (Builder, 10 minutes, on the branch)
+
+Run `/speckit-converge` on the story branch once every task in `tasks.md` is
+ticked. The agent compares the code against `spec.md`, `plan.md` and
+`tasks.md` — it is a check of the current state, not a diff — and appends
+anything still missing or only partly done as new tasks at the bottom of
+`tasks.md`. If it appends any, run `/speckit-implement` to finish them and
+converge again; repeat until it reports "Converged". Only then ask for
+review. Anything discovered after the merge is a new story issue, not a
+reason to reopen this one.
+
+### Step 7 — Review and merge (Reviewer, same day)
 
 The Builder marks the PR ready. Two reviews happen:
 
@@ -215,13 +226,6 @@ The Builder marks the PR ready. Two reviews happen:
 
 Squash-merge. The `specs/001-<name>/` folder merges with the code — that's
 the story's permanent record.
-
-### Step 7 — Converge (Builder, 10 minutes)
-
-On `main`, run `/speckit-converge`. The agent compares the merged code
-against the spec and lists anything still missing or newly discovered.
-Each item either gets fixed in a small follow-up PR the same day, or
-becomes a new story issue. This is how the next story gets found.
 
 ### Step 8 — Show it (next daily sync, 2 minutes)
 
@@ -347,3 +351,4 @@ per person and per clone.
 | 0.1 | 2026-09-04 | First draft |
 | 0.2 | 2026-09-04 | Rewritten in plain linear form; stories cut to 1–2 days; one daily sync replaces separate ceremonies; migration re-sliced into 11 stories |
 | 0.3 | 2026-09-04 | Labels namespaced (`intent:accepted`, `gate:*`); command names match the installed harness spelling; constitution 1.0.0 ratified |
+| 0.4 | 2026-09-10 | Converge moved before review to match upstream Spec Kit: Step 6 converges on the branch and loops with implement; Step 7 reviews and merges |
