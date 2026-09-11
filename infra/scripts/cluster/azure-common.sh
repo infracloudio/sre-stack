@@ -176,8 +176,10 @@ _az_will_parallel_checks() {
     # Does the cluster (and its system pool) already exist? The allowance
     # check needs this: a rerun must not demand room for what already exists,
     # and a resume must keep the mode the existing workload pools use (T050).
+    # T057: a failed read is never "absent" — only a NotFound answer means
+    # absent; anything else refuses before anything is created.
     ( az aks show --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_CLUSTER_NAME}" \
-          --output none 2>/dev/null
+          --output none 2> "${_azure_jobsdir}/aks.err"
       echo $? > "${_azure_jobsdir}/aks.rc" ) &
     wait
 }
@@ -261,8 +263,11 @@ done
 # and a partly built cluster must keep the machine mode its existing workload
 # pools already use — flipping modes mid-build would create a mixed cluster.
 # Read-only; skipped when the cluster does not exist yet.
+# T057: only a NotFound answer means "absent". Any other non-zero read is a
+# failed read — refuse, never assume missing and create a duplicate.
 _azure_pools_json="[]"
-if [ "$(cat "${_azure_jobsdir}/aks.rc" 2>/dev/null)" = "0" ]; then
+_azure_aks_rc=$(cat "${_azure_jobsdir}/aks.rc" 2>/dev/null)
+if [ "${_azure_aks_rc}" = "0" ]; then
     if ! _azure_pools_json=$(az aks nodepool list \
             --resource-group "${AZURE_RESOURCE_GROUP}" --cluster-name "${AZURE_CLUSTER_NAME}" \
             --query "[].{name: name, mode: mode, priority: scaleSetPriority}" \
@@ -272,6 +277,10 @@ if [ "$(cat "${_azure_jobsdir}/aks.rc" 2>/dev/null)" = "0" ]; then
         return 1
     fi
     [ -n "${_azure_pools_json}" ] || _azure_pools_json="[]"
+elif [ -n "${_azure_aks_rc}" ] && ! grep -qiE 'ResourceNotFound|AgentPoolNotFound|was not found|not found|NotFound|could not be found' "${_azure_jobsdir}/aks.err" 2>/dev/null; then
+    echo "Cannot start: the state of cluster ${AZURE_CLUSTER_NAME} could not be read (az aks show failed)." >&2
+    echo "Check the sign-in, the resource group ${AZURE_RESOURCE_GROUP}, and the network, then try again. Nothing was created." >&2
+    return 1
 fi
 
 # --- pre-check 5: the machine allowance decides the workload pool mode --------
@@ -301,11 +310,54 @@ try:
 except (OSError, ValueError):
     sys.exit(1)
 
+# Real `az vm list-usage --output json` is a bare array of usage items
+# (T058). Accept a REST-style {"value": [...]} object only for backward
+# compat with older stand-ins; anything else is malformed.
+if isinstance(doc, dict):
+    items = doc.get("value")
+elif isinstance(doc, list):
+    items = doc
+else:
+    sys.exit(1)
+if not isinstance(items, list):
+    sys.exit(1)
+
+def to_int(v):
+    # The CLI may render numbers as ints or numeric strings (T058).
+    if isinstance(v, bool):
+        raise ValueError("bool is not a vCPU count")
+    if isinstance(v, int):
+        return v
+    if isinstance(v, float):
+        if not v.is_integer():
+            raise ValueError("non-integer vCPU count")
+        return int(v)
+    s = str(v).strip()
+    try:
+        return int(s)
+    except (TypeError, ValueError):
+        f = float(s)
+        if not f.is_integer():
+            raise ValueError("non-integer vCPU count")
+        return int(f)
+
 wanted = {"lowPriorityCores", "standardDSv5Family", "standardFSv2Family"}
-for item in (doc.get("value") or []):
+seen = set()
+for item in items:
+    if not isinstance(item, dict):
+        sys.exit(1)
     name = ((item.get("name") or {}).get("value")) or ""
-    if name in wanted:
-        print("%s\t%s\t%s" % (name, item.get("currentValue"), item.get("limit")))
+    if not isinstance(name, str) or name not in wanted:
+        continue
+    if name in seen:
+        continue
+    try:
+        cur = to_int(item.get("currentValue"))
+        lim = to_int(item.get("limit"))
+    except (TypeError, ValueError, AttributeError):
+        sys.exit(1)
+    seen.add(name)
+    print("%s\t%s\t%s" % (name, cur, lim))
 PYEOF
 )
 if [ -z "${_azure_usage_norm}" ]; then

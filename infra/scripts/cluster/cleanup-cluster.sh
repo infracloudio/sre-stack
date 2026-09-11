@@ -39,13 +39,16 @@ case "${STACK_MODE:-}" in
             exit 1
         fi
 
+        _cleanup_deleted_main=0
         if [ "${_cleanup_rg_state}" = "true" ]; then
             # Only the generated name is ever passed to delete (data-model §2,
             # contract §1 deleting); any other group is never touched.
             echo "deleting resource group ${_cleanup_rg} — this removes the cluster and its node resource group, and can take a few minutes..."
             if ! az group delete --name "${_cleanup_rg}" --yes; then
                 # A failed delete must say what is known to remain, or that
-                # the state could not be checked (T056) — never claim success.
+                # the state could not be checked (T056/T059) — never claim
+                # success, and never claim "nothing else was removed": a
+                # failed delete may have removed inner resources.
                 echo "Failed to delete resource group ${_cleanup_rg}." >&2
                 _cleanup_after=$(az group exists --name "${_cleanup_rg}" --output tsv 2>/dev/null)
                 _cleanup_after_rc=$?
@@ -53,7 +56,7 @@ case "${STACK_MODE:-}" in
                     || { [ "${_cleanup_after}" != "true" ] && [ "${_cleanup_after}" != "false" ]; }; then
                     echo "Could not confirm whether the resource group still exists (the follow-up read failed)." >&2
                 elif [ "${_cleanup_after}" = "true" ]; then
-                    echo "The resource group still exists; nothing else was removed." >&2
+                    echo "The resource group still exists; some resources may remain." >&2
                 else
                     echo "The resource group is gone despite the delete command's error." >&2
                 fi
@@ -61,6 +64,7 @@ case "${STACK_MODE:-}" in
                 echo "Check the sign-in, then run 'make cleanup-cluster' again. Some resources may remain." >&2
                 exit 1
             fi
+            _cleanup_deleted_main=1
         fi
 
         # The node resource group's name is fully predictable (contract §1
@@ -68,9 +72,25 @@ case "${STACK_MODE:-}" in
         # The check runs even when the main group was already absent (T051) —
         # an earlier delete may have removed the group while an orphaned node
         # group remains.
-        if ! _cleanup_mc_state=$(_az_group_state "${_cleanup_mc_group}"); then
+        # T059: a failed MC read after a successful main delete must not say
+        # "Nothing was deleted" — the main group is already gone.
+        _cleanup_mc_out=$(az group exists --name "${_cleanup_mc_group}" --output tsv 2>/dev/null)
+        _cleanup_mc_rc=$?
+        if [ "${_cleanup_mc_rc}" -ne 0 ] \
+            || { [ "${_cleanup_mc_out}" != "true" ] && [ "${_cleanup_mc_out}" != "false" ]; }; then
+            if [ "${_cleanup_deleted_main}" = "1" ]; then
+                echo "Cannot start: deleted resource group ${_cleanup_rg}, but could not check whether node resource group ${_cleanup_mc_group} still exists (the Azure read failed)." >&2
+                echo "Check the sign-in and the network, then run 'make cleanup-cluster' again. The main group was deleted; some resources may remain." >&2
+            elif [ "${_cleanup_rg_state}" = "true" ]; then
+                echo "Cannot start: could not check whether resource group ${_cleanup_mc_group} exists (the Azure read failed)." >&2
+                echo "Check the sign-in and the network, then run 'make cleanup-cluster' again. Nothing was confirmed deleted." >&2
+            else
+                echo "Cannot start: could not check whether resource group ${_cleanup_mc_group} exists (the Azure read failed)." >&2
+                echo "Check the sign-in and the network, then run 'make cleanup-cluster' again. The main group is already absent; the node group state is unknown and some resources may remain." >&2
+            fi
             exit 1
         fi
+        _cleanup_mc_state="${_cleanup_mc_out}"
         if [ "${_cleanup_mc_state}" = "true" ]; then
             echo "Resource group ${_cleanup_rg} is gone, but its node resource group still exists: ${_cleanup_mc_group}" >&2
             echo "Remove it with: az group delete --name ${_cleanup_mc_group} --yes" >&2

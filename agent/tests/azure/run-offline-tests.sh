@@ -172,6 +172,37 @@ check "missing-vm-size:exit-nonzero" "$([ "${RC:-}" != "0" ] && echo 1 || echo 0
 check "missing-vm-size:names F4s_v2" "$([ "$(count 'Standard_F4s_v2 is not offered' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
 check "missing-vm-size:no group create" "$([ "$(count '^az group create' "$(_log missing-vm-size)")" = "0" ] && echo 1 || echo 0)"
 
+# --- setup-group-read-error (T057) ------------------------------------------------
+echo "case setup-group-read-error:"
+run_setup setup-group-read-error
+check "setup-group-read-error:exit-nonzero" "$([ "${RC:-}" != "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "setup-group-read-error:names the failed read" "$([ "$(count 'could not check whether resource group' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "setup-group-read-error:no group create" "$([ "$(count '^az group create' "$(_log setup-group-read-error)")" = "0" ] && echo 1 || echo 0)"
+check "setup-group-read-error:no cluster create" "$([ "$(count '^az aks create' "$(_log setup-group-read-error)")" = "0" ] && echo 1 || echo 0)"
+check "setup-group-read-error:unknown not absent" "$([ "$(count 'Could not be checked' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
+
+# --- setup-cluster-read-error (T057) ----------------------------------------------
+echo "case setup-cluster-read-error:"
+run_setup setup-cluster-read-error
+check "setup-cluster-read-error:exit-nonzero" "$([ "${RC:-}" != "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "setup-cluster-read-error:names the failed read" "$([ "$(count 'could not.*cluster.*could not be read\|could not check whether cluster\|could not be read' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "setup-cluster-read-error:no cluster create" "$([ "$(count '^az aks create' "$(_log setup-cluster-read-error)")" = "0" ] && echo 1 || echo 0)"
+check "setup-cluster-read-error:no pool add" "$([ "$(count '^az aks nodepool add' "$(_log setup-cluster-read-error)")" = "0" ] && echo 1 || echo 0)"
+
+# --- setup-pool-read-error (T057) -------------------------------------------------
+echo "case setup-pool-read-error:"
+run_setup setup-pool-read-error
+check "setup-pool-read-error:exit-nonzero" "$([ "${RC:-}" != "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "setup-pool-read-error:names the failed read" "$([ "$(count 'could not check whether node pool persistent exists' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "setup-pool-read-error:no adds" "$([ "$(count '^az aks nodepool add' "$(_log setup-pool-read-error)")" = "0" ] && echo 1 || echo 0)"
+
+# --- setup-storage-read-error (T057) ----------------------------------------------
+echo "case setup-storage-read-error:"
+run_setup setup-storage-read-error
+check "setup-storage-read-error:exit-nonzero" "$([ "${RC:-}" != "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "setup-storage-read-error:names the failed read" "$([ "$(count 'could not check whether the gp2 storage setting exists' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "setup-storage-read-error:no storage apply" "$([ "$(count '^kubectl apply' "$(_log setup-storage-read-error)")" = "0" ] && echo 1 || echo 0)"
+
 # --- rbac-mg-ancestor ---------------------------------------------------------------
 echo "case rbac-mg-ancestor:"
 run_setup rbac-mg-ancestor
@@ -230,6 +261,20 @@ check "spot-resume-short:no mode flip" "$([ "$(count 'existing workload pools ru
 check "spot-resume-short:no adds" "$([ "$(count '^az aks nodepool add ' "$(_log spot-resume-short)")" = "0" ] && echo 1 || echo 0)"
 check "spot-resume-short:no group create" "$([ "$(count '^az group create' "$(_log spot-resume-short)")" = "0" ] && echo 1 || echo 0)"
 
+# --- usage-strings (T058) ---------------------------------------------------------
+echo "case usage-strings:"
+run_setup usage-strings
+check "usage-strings:exit-0" "$([ "${RC:-}" = "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "usage-strings:four adds" "$([ "$(count '^az aks nodepool add ' "$(_log usage-strings)")" = "4" ] && echo 1 || echo 0)" "numeric strings still parse"
+check "usage-strings:spot chosen" "$([ "$(count '^az aks nodepool add .*--priority Spot' "$(_log usage-strings)")" = "4" ] && echo 1 || echo 0)" "30 spot vCPU fits"
+
+# --- usage-malformed (T058) -------------------------------------------------------
+echo "case usage-malformed:"
+run_setup usage-malformed
+check "usage-malformed:exit-nonzero" "$([ "${RC:-}" != "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "usage-malformed:refusal names allowance" "$([ "$(count 'machine allowance.*could not be read' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "usage-malformed:no group create" "$([ "$(count '^az group create' "$(_log usage-malformed)")" = "0" ] && echo 1 || echo 0)"
+
 # --- regular-full-resume (T050) -----------------------------------------------------------
 echo "case regular-full-resume:"
 run_setup regular-full-resume
@@ -262,6 +307,8 @@ check "partial:names the group" "$([ "$(count 'resource group ' "$ERR")" -ge 1 ]
 check "partial:names the cluster" "$([ "$(count 'cluster sre-stack' "$ERR")" -ge 1 ] && echo 1 || echo 0)"
 check "partial:names app pool" "$([ "$(count 'node pool app' "$ERR")" -ge 1 ] && echo 1 || echo 0)"
 check "partial:names not created" "$([ "$(count 'Not created' "$ERR")" -ge 1 ] && echo 1 || echo 0)"
+check "partial:failed pool submitted not absent" "$([ "$(count 'Submitted but not confirmed' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "partial:persistent submitted" "$([ "$(count 'persistent pool' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
 check "partial:zero delete calls" "$([ "$(count '^az group delete' "$(_log partial)")" = "0" ] && echo 1 || echo 0)"
 check "partial:zero deletes of pools" "$([ "$(count '^az aks nodepool delete' "$(_log partial)")" = "0" ] && echo 1 || echo 0)"
 
@@ -275,6 +322,7 @@ check "partial-async:reports unreadable state" "$([ "$(count 'Could not read the
 check "partial-async:cluster submitted, not missing" "$([ "$(count 'Submitted but not confirmed' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
 check "partial-async:names the cluster as submitted" "$([ "$(count '  - cluster sre-stack' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
 check "partial-async:not-created has no cluster" "$([ "$(count 'Not created:.*cluster' "$ERR")" = "0" ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "partial-async:system submitted not absent" "$([ "$(count 'node pool system' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
 check "partial-async:zero delete calls" "$([ "$(count '^az group delete' "$(_log partial-async)")" = "0" ] && echo 1 || echo 0)"
 
 # --- cleanup-full ---------------------------------------------------------------
@@ -330,8 +378,18 @@ run_cleanup cleanup-delete-fail
 check "cleanup-delete-fail:exit-nonzero" "$([ "${RC:-}" != "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
 check "cleanup-delete-fail:reports failed delete" "$([ "$(count 'Failed to delete resource group' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
 check "cleanup-delete-fail:says the group remains" "$([ "$(count 'still exists' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "cleanup-delete-fail:never claims nothing else removed" "$([ "$(count 'nothing else was removed' "$ERR")" = "0" ] && echo 1 || echo 0)" "$(cat "$ERR")"
 check "cleanup-delete-fail:no success claim" "$([ "$(($(count 'Cleaned up' "$OUT") + $(count 'Cleaned up' "$ERR")))" = "0" ] && echo 1 || echo 0)" "$(cat "$OUT")$(cat "$ERR")"
 check "cleanup-delete-fail:one delete only" "$([ "$(count '^az group delete' "$(_log cleanup-delete-fail)")" = "1" ] && echo 1 || echo 0)" "wanted 1"
+
+# --- cleanup-mc-read-fail (T059) --------------------------------------------------
+echo "case cleanup-mc-read-fail:"
+run_cleanup cleanup-mc-read-fail
+check "cleanup-mc-read-fail:exit-nonzero" "$([ "${RC:-}" != "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "cleanup-mc-read-fail:names the failed MC read" "$([ "$(count 'could not check whether node resource group' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "cleanup-mc-read-fail:never says nothing was deleted" "$([ "$(count 'Nothing was deleted' "$ERR")" = "0" ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "cleanup-mc-read-fail:says main was deleted" "$([ "$(count 'Deleted resource group\|deleted.*main\|main group was deleted' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "cleanup-mc-read-fail:one delete only" "$([ "$(count '^az group delete' "$(_log cleanup-mc-read-fail)")" = "1" ] && echo 1 || echo 0)" "wanted 1"
 
 # --- verify-ok ----------------------------------------------------------------
 echo "case verify-ok:"
@@ -394,6 +452,23 @@ check "verify-wrong-context:exit-nonzero" "$([ "${RC:-}" != "0" ] && echo 1 || e
 check "verify-wrong-context:names the mismatch" "$([ "$(count '✗ kubectl context:' "$ERR")" = "1" ] && echo 1 || echo 0)" "$(cat "$ERR")"
 check "verify-wrong-context:no kubectl reads trusted" "$([ "$(count '✓ kubectl context' "$OUT")" = "0" ] && echo 1 || echo 0)"
 check "verify-wrong-context:report counts" "$([ "$(count 'report: 1 mismatch' "$OUT")" = "1" ] && echo 1 || echo 0)" "$(cat "$OUT")"
+
+# --- verify-extra-pool (T060) -----------------------------------------------------
+echo "case verify-extra-pool:"
+run_verify verify-extra-pool
+check "verify-extra-pool:exit-nonzero" "$([ "${RC:-}" != "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "verify-extra-pool:names the extra pool" "$([ "$(count '✗ unexpected pool' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "verify-extra-pool:names extra" "$([ "$(count "'extra'" "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "verify-extra-pool:report counts" "$([ "$(count 'report: 1 mismatch' "$OUT")" = "1" ] && echo 1 || echo 0)" "$(cat "$OUT")"
+check "verify-extra-pool:read-only" "$([ "$(($(count '^az .*create' "$(_log verify-extra-pool)") + $(count '^az .*delete' "$(_log verify-extra-pool)") + $(count '^kubectl apply' "$(_log verify-extra-pool)")))" = "0" ] && echo 1 || echo 0)"
+
+# --- verify-wrong-mode (T060) -----------------------------------------------------
+echo "case verify-wrong-mode:"
+run_verify verify-wrong-mode
+check "verify-wrong-mode:exit-nonzero" "$([ "${RC:-}" != "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "verify-wrong-mode:names the mode mismatch" "$([ "$(count 'mode .System.' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "verify-wrong-mode:report counts" "$([ "$(count 'report: [12] mismatch' "$OUT")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$OUT")"
+check "verify-wrong-mode:read-only" "$([ "$(($(count '^az .*create' "$(_log verify-wrong-mode)") + $(count '^az .*delete' "$(_log verify-wrong-mode)") + $(count '^kubectl apply' "$(_log verify-wrong-mode)")))" = "0" ] && echo 1 || echo 0)"
 
 # --- make setup / cleanup routing (T053) ------------------------------------------
 # `make` is the public entry point; these cases prove the aks path reaches

@@ -33,8 +33,12 @@ case "${1:-}" in
     get)
         case "${2:-}" in
             storageclass)
+                if [ "${KUBECTL_SC_FAIL:-0}" = "1" ]; then
+                    echo "fake-kubectl: simulated storageclass read failure" >&2
+                    exit 1
+                fi
                 grep -q '^kubectl apply -f .*gp2-storageclass.yaml' "${FAKE_AZ_LOG}" 2>/dev/null \
-                    || [ "${PRE_SC:-0}" = "1" ] || exit 1
+                    || [ "${PRE_SC:-0}" = "1" ] || { echo 'storageclass.storage.k8s.io "gp2" not found' >&2; exit 1; }
                 ;;
             namespaces)
                 if [ "${KUBECTL_NAMESPACES_FAIL:-0}" = "1" ]; then

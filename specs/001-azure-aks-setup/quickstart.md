@@ -231,7 +231,7 @@ bash agent/tests/azure/run-offline-tests.sh
 Expect one `PASS` line per check and a final summary line, currently:
 
 ```text
-offline tests: 175 checks, 0 failed
+offline tests: 214 checks, 0 failed
 ```
 
 (The check count grows as checks are added; the gate is `0 failed`.)

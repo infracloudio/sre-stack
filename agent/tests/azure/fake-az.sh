@@ -26,11 +26,25 @@
 #   SPOT_CURRENT/DSV5_CURRENT/FSV2_CURRENT
 #                                     az vm list-usage used vCPU (default 0);
 #                                     nonzero values model an existing cluster
+#   USAGE_NUMERIC_STRINGS=1           allowance answer uses numeric strings
+#                                     ("30" not 30) like the real CLI (T058)
+#   USAGE_MALFORMED=1                 allowance answer is not a usage array;
+#                                     helper must refuse plainly (T058)
 #   PRE_GROUP/PRE_CLUSTER/PRE_SC=1    what already exists before the run
 #   PRE_POOLS="app persistent …"      workload pools that already exist
 #   MC_LINGERS=1                      az group exists --name MC_… says true
 #                                     (the node resource group outlives delete)
 #   GROUP_READ_FAIL=1                 az group exists fails (unreadable state)
+#   MC_READ_FAIL=1                    only the MC_* node-group read fails
+#                                     (T059: main delete succeeded, node-group
+#                                     state unknown — must not say "Nothing
+#                                     was deleted")
+#   CLUSTER_READ_FAIL=1               az aks show existence read fails (not
+#                                     NotFound): setup/helper must stop, never
+#                                     treat as absent (T057)
+#   POOL_READ_FAIL=1|<pool>           az aks nodepool show fails for all pools
+#                                     (1) or one pool (name): must stop, never
+#                                     treat as absent (T057)
 #   DELETE_FAIL=1                     az group delete fails (partial delete)
 #   CLUSTER_FAIL=1 / ADD_FAIL=<pool>  create steps that fail
 #   CLUSTER_STATE_FAIL=1              az aks show provisioningState reads fail
@@ -45,6 +59,10 @@
 #                                     or <pool>.missing=1 to drop the row;
 #                                     <pool> is a workload name or `system`.
 #                                     Unknown target = stand-in error, exit 2
+#   EXTRA_POOLS="name[:mode[:count[:size]]]"
+#                                     extra pools beyond the documented five
+#                                     (T060, e.g. "extra:User:10" for the sixth
+#                                     pool case); unknown shape = error, exit 2
 
 if [ -z "${FAKE_AZ_LOG:-}" ]; then
     echo "fake-az: FAKE_AZ_LOG is not set." >&2
@@ -100,6 +118,7 @@ emit_pool_list() {
     FAKE_PRE_POOLS="${PRE_POOLS}" \
     FAKE_POOL_MODE="${POOL_MODE}" \
     FAKE_POOL_MUTATIONS="${POOL_MUTATIONS:-}" \
+    FAKE_EXTRA_POOLS="${EXTRA_POOLS:-}" \
     FAKE_LOG_PATH="${FAKE_AZ_LOG}" \
     python3 <<'PYEOF'
 import json, os
@@ -182,6 +201,29 @@ for spec in (os.environ.get("FAKE_POOL_MUTATIONS") or "").split():
         pools.remove(target)
     else:
         patch(target, field, value)
+
+# T060: extra pools beyond the documented five (e.g. a sixth User pool with
+# ten nodes). Format per entry: name[:mode[:count[:size]]] — defaults
+# User, 10, Standard_D2s_v5. Unknown shape = loud stand-in error.
+for spec in (os.environ.get("FAKE_EXTRA_POOLS") or "").split():
+    parts = spec.split(":")
+    if not parts[0] or len(parts) > 4:
+        print("fake-az: bad extra pool spec: " + spec, file=sys.stderr)
+        sys.exit(2)
+    _name = parts[0]
+    _mode = parts[1] if len(parts) > 1 and parts[1] else "User"
+    try:
+        _count = int(parts[2]) if len(parts) > 2 and parts[2] else 10
+    except ValueError:
+        print("fake-az: bad extra pool count: " + spec, file=sys.stderr)
+        sys.exit(2)
+    _size = parts[3] if len(parts) > 3 and parts[3] else "Standard_D2s_v5"
+    pools.append({
+        "name": _name, "mode": _mode,
+        "count": _count, "min": _count, "max": _count,
+        "size": _size, "labels": None, "taints": None,
+        "spot": None, "priority": None,
+    })
 
 print(json.dumps(pools))
 PYEOF
@@ -272,6 +314,12 @@ PYEOF
                     MC_*)
                         # Another person's or our own exact MC_ name both
                         # answer by name; only our predicted name is asked.
+                        # MC_READ_FAIL=1 (T059) fails only the node-group
+                        # read, after a successful main delete.
+                        if [ "${MC_READ_FAIL:-0}" = "1" ]; then
+                            echo "fake-az: simulated node resource group read failure" >&2
+                            exit 1
+                        fi
                         if [ "${MC_LINGERS:-0}" = "1" ]; then echo "true"; else echo "false"; fi
                         ;;
                     *)
@@ -304,7 +352,12 @@ PYEOF
     aks)
         case "${2:-}" in
             show)
+                if [ "${CLUSTER_READ_FAIL:-0}" = "1" ]; then
+                    echo "fake-az: simulated cluster existence read failure" >&2
+                    exit 1
+                fi
                 if ! cluster_exists; then
+                    echo "(ResourceNotFound) The Resource 'Microsoft.ContainerService/managedClusters/fake' under resource group 'fake' was not found." >&2
                     exit 1
                 fi
                 if [ "${CLUSTER_STATE_FAIL:-0}" = "1" ] \
@@ -335,9 +388,14 @@ PYEOF
                 case "${3:-}" in
                     show)
                         _pool=$(_fake_name_arg "$@")
+                        if [ "${POOL_READ_FAIL:-0}" = "1" ] || [ "${POOL_READ_FAIL:-}" = "${_pool}" ]; then
+                            echo "fake-az: simulated nodepool existence read failure for ${_pool}" >&2
+                            exit 1
+                        fi
                         if pool_exists "${_pool}"; then
                             printf '{ "name": "%s" }\n' "${_pool}"
                         else
+                            echo "(AgentPoolNotFound) Agent pool ${_pool} was not found." >&2
                             exit 1
                         fi
                         ;;
@@ -365,28 +423,40 @@ PYEOF
     vm)
         case "${2:-}" in
             list-usage)
+                if [ "${USAGE_MALFORMED:-0}" = "1" ]; then
+                    echo '{"bad": "shape, not a usage array"}'
+                    return 0
+                fi
                 if printf '%s\n' "$*" | grep -q -- '--output json'; then
-                    # T054: JSON parsed by field name. The keys are emitted in
-                    # a deliberately non-alphabetical order to prove the
-                    # reader never depends on it.
+                    # T058: the real CLI returns a bare array of usage items
+                    # (not a REST-style {"value": [...]} object). Parsed by
+                    # field name; numeric strings must also parse.
                     FAKE_SPOT_CURRENT="${SPOT_CURRENT}" FAKE_DSV5_CURRENT="${DSV5_CURRENT}" \
                     FAKE_FSV2_CURRENT="${FSV2_CURRENT}" FAKE_SPOT_LIMIT="${SPOT_LIMIT}" \
                     FAKE_DSV5_LIMIT="${DSV5_LIMIT}" FAKE_FSV2_LIMIT="${FSV2_LIMIT}" \
+                    FAKE_USAGE_STRINGS="${USAGE_NUMERIC_STRINGS:-0}" \
                     python3 <<'PYEOF'
 import json, os
 
+def num(v):
+    # USAGE_NUMERIC_STRINGS=1 proves the helper handles the CLI's numeric
+    # strings (T058): emit "0" instead of 0.
+    if os.environ.get("FAKE_USAGE_STRINGS") == "1":
+        return str(int(v))
+    return int(v)
+
 def item(name, display, current, limit):
     return {"name": {"localizedValue": display, "value": name},
-            "limit": int(limit), "unit": "Count", "currentValue": int(current)}
+            "limit": num(limit), "unit": "Count", "currentValue": num(current)}
 
-print(json.dumps({"value": [
+print(json.dumps([
     item("lowPriorityCores", "Total Regional Low-priority vCPUs",
          os.environ["FAKE_SPOT_CURRENT"], os.environ["FAKE_SPOT_LIMIT"]),
     item("standardDSv5Family", "Standard DSv5 Family vCPUs",
          os.environ["FAKE_DSV5_CURRENT"], os.environ["FAKE_DSV5_LIMIT"]),
     item("standardFSv2Family", "Standard FSv2 Family vCPUs",
          os.environ["FAKE_FSV2_CURRENT"], os.environ["FAKE_FSV2_LIMIT"]),
-]}))
+]))
 PYEOF
                 else
                     # Old object-projection TSV path: Azure documents no

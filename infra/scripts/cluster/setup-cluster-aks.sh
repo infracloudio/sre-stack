@@ -28,12 +28,15 @@ _cluster="${AZURE_CLUSTER_NAME}"
 _loc="${AZURE_LOCATION}"
 
 # Canonical step list (build order) and what landed. The report separates
-# three states (T056): confirmed created, submitted-but-unconfirmed (an
-# accepted --no-wait create or a create whose state could not be read), and
-# not created. Nothing reached "done" is ever asserted missing.
+# four states (T056/T059): confirmed created, submitted-but-unconfirmed (an
+# accepted --no-wait create or a create whose state could not be read),
+# could-not-be-checked (an existence read failed, so the state is unknown —
+# never reported as absent), and not created. Nothing reached "done" is ever
+# asserted missing, and nothing unreadable is ever asserted absent.
 _steps=(group cluster system app persistent o11y loadgen kubecreds storage)
 _setup_done=()
 _setup_submitted=()
+_setup_unknown=()
 _system_pools_reached=0
 
 _step_label() {
@@ -83,10 +86,22 @@ _setup_fail() {
     [ "${_any}" -eq 1 ] || echo "  - (nothing confirmed)" >&2
 
     if [ "${#_setup_submitted[@]}" -gt 0 ]; then
-        echo "Submitted but not confirmed (the create was accepted; re-run 'make setup-cluster' to check):" >&2
+        echo "Submitted but not confirmed (the create was accepted or may have been accepted; re-run 'make setup-cluster' to check):" >&2
         for _s in "${_setup_submitted[@]}"; do
             case "${_s}" in
                 cluster) echo "  - cluster ${_cluster}" >&2 ;;
+                system) echo "  - node pool system (running)" >&2 ;;
+                *)       echo "  - $(_step_short "${_s}")" >&2 ;;
+            esac
+        done
+    fi
+
+    if [ "${#_setup_unknown[@]}" -gt 0 ]; then
+        echo "Could not be checked (the read failed; may or may not exist — re-run to check):" >&2
+        for _s in "${_setup_unknown[@]}"; do
+            case "${_s}" in
+                cluster) echo "  - cluster ${_cluster}" >&2 ;;
+                system) echo "  - node pool system (running)" >&2 ;;
                 *)       echo "  - $(_step_short "${_s}")" >&2 ;;
             esac
         done
@@ -95,10 +110,15 @@ _setup_fail() {
     printf 'Not created:' >&2
     for _s in "${_steps[@]}"; do
         case "${_s}" in
-            system) [ "${_system_pools_reached}" -eq 1 ] && continue ;;
+            system)
+                [ "${_system_pools_reached}" -eq 1 ] && continue
+                printf '%s\n' "${_setup_submitted[@]:-}" | grep -qx "system" && continue
+                printf '%s\n' "${_setup_unknown[@]:-}" | grep -qx "system" && continue
+                ;;
             *) printf '%s\n' "${_setup_done[@]:-}" | grep -qx "${_s}" && continue ;;
         esac
         printf '%s\n' "${_setup_submitted[@]:-}" | grep -qx "${_s}" && continue
+        printf '%s\n' "${_setup_unknown[@]:-}" | grep -qx "${_s}" && continue
         printf ' %s,' "$(_step_short "${_s}")" >&2
     done
     echo " (pool adds that did not run may still be finishing on Azure's side; nothing was deleted by us)." >&2
@@ -117,11 +137,26 @@ _mark_submitted() {
     _setup_submitted+=("$1")
 }
 
+_mark_unknown() {
+    _setup_unknown+=("$1")
+}
+
 echo "Settings: STACK_MODE=aks, location ${_loc}, mode ${AZURE_POOL_MODE}."
 echo "Names: resource group ${_rg}, cluster ${_cluster}."
 
-# --- 1. resource group (exact-name check; FR-003) -----------------------------
-if [ "$(az group exists --name "${_rg}" --output tsv 2>/dev/null)" = "true" ]; then
+# --- 1. resource group (exact-name check; FR-003, T057) ------------------------
+# az group exists must answer exactly true/false with rc 0. Anything else is
+# a failed read — stop, never assume absent and create a duplicate.
+_azure_group_out=$(az group exists --name "${_rg}" --output tsv 2>/dev/null)
+_azure_group_rc=$?
+if [ "${_azure_group_rc}" -ne 0 ] \
+    || { [ "${_azure_group_out}" != "true" ] && [ "${_azure_group_out}" != "false" ]; }; then
+    echo "Cannot start: could not check whether resource group ${_rg} exists (the Azure read failed)." >&2
+    echo "Check the sign-in and the network, then try again. Nothing was created." >&2
+    _mark_unknown group
+    _setup_fail
+fi
+if [ "${_azure_group_out}" = "true" ]; then
     echo "already exists: resource group ${_rg}"
     _mark group
 else
@@ -133,8 +168,24 @@ else
     _mark group
 fi
 
-# --- 2. cluster + system pool (az aks show decides; §1) ------------------------
-if az aks show --resource-group "${_rg}" --name "${_cluster}" >/dev/null 2>&1; then
+# --- 2. cluster + system pool (az aks show decides; §1, T057) -------------------
+# Only a NotFound answer means "absent". Any other failed read stops before
+# creating — a duplicate cluster must never be started on unreadable state.
+_azure_cluster_err=$(mktemp)
+if az aks show --resource-group "${_rg}" --name "${_cluster}" --output none 2>"${_azure_cluster_err}"; then
+    _azure_cluster_state="exists"
+elif grep -qiE 'ResourceNotFound|AgentPoolNotFound|was not found|not found|NotFound|could not be found' "${_azure_cluster_err}" 2>/dev/null; then
+    _azure_cluster_state="absent"
+else
+    echo "Cannot start: could not check whether cluster ${_cluster} exists (az aks show failed)." >&2
+    echo "Check the sign-in, the resource group ${_rg}, and the network, then try again. Nothing was created." >&2
+    rm -f "${_azure_cluster_err}"
+    _mark_unknown cluster
+    _mark_unknown system
+    _setup_fail
+fi
+rm -f "${_azure_cluster_err}"
+if [ "${_azure_cluster_state}" = "exists" ]; then
     echo "already exists: cluster ${_cluster} (system pool included)"
     # Version drift (T043): a reused cluster is never upgraded in place.
     _live_version=$(az aks show --resource-group "${_rg}" --name "${_cluster}" \
@@ -177,6 +228,7 @@ else
                 echo "Could not read the state of cluster ${_cluster} after ${_read_failures} tries (az aks show failed)." >&2
                 echo "The create request was already accepted by Azure and may still be running." >&2
                 _mark_submitted cluster
+                _mark_submitted system
                 _setup_fail
             fi
             echo "  could not read the cluster state (try ${_read_failures}/${_poll_read_retries}); the create is already submitted..." >&2
@@ -186,12 +238,14 @@ else
         if [ "${_state}" = "Failed" ]; then
             echo "Cluster ${_cluster} reached provisioningState Failed." >&2
             _mark_submitted cluster
+            _mark_submitted system
             _setup_fail
         fi
         if [ "${_waited}" -ge "${_poll_timeout}" ]; then
             echo "Gave up waiting for cluster ${_cluster} after ${_poll_timeout}s (provisioningState: ${_state:-unknown})." >&2
             echo "The create request was already accepted by Azure and may still be finishing." >&2
             _mark_submitted cluster
+            _mark_submitted system
             _setup_fail
         fi
         echo "  still provisioning (${_state:-unknown}, ${_waited}s)..."
@@ -204,12 +258,23 @@ fi
 # --- 3. workload pools, §3 table; spot flags only when the helper chose spot ---
 _pool_add() {  # $1 name $2 size $3 count $4 min $5 max $6 label $7 taint
     local _name="$1" _size="$2" _count="$3" _min="$4" _max="$5" _label="$6" _taint="$7"
+    local _pool_err
+    _pool_err=$(mktemp)
     if az aks nodepool show --resource-group "${_rg}" --cluster-name "${_cluster}" \
-            --name "${_name}" >/dev/null 2>&1; then
+            --name "${_name}" --output none 2>"${_pool_err}"; then
+        rm -f "${_pool_err}"
         echo "already exists: node pool ${_name}"
         _mark "${_name}"
         return 0
     fi
+    if ! grep -qiE 'ResourceNotFound|AgentPoolNotFound|was not found|not found|NotFound|could not be found' "${_pool_err}" 2>/dev/null; then
+        echo "Cannot start: could not check whether node pool ${_name} exists (az aks nodepool show failed)." >&2
+        echo "Check the sign-in, the cluster ${_cluster}, and the network, then try again. Nothing was created." >&2
+        rm -f "${_pool_err}"
+        _mark_unknown "${_name}"
+        _setup_fail
+    fi
+    rm -f "${_pool_err}"
     echo "adding node pool ${_name} (${_count}× ${_size}) — this takes ~4 minutes..."
     local _cmd
     _cmd=(az aks nodepool add --resource-group "${_rg}" --cluster-name "${_cluster}" \
@@ -225,6 +290,8 @@ _pool_add() {  # $1 name $2 size $3 count $4 min $5 max $6 label $7 taint
     fi
     if ! "${_cmd[@]}" >/dev/null 2>&1; then
         echo "Failed to add node pool ${_name}." >&2
+        echo "The add was attempted but its result could not be confirmed — the pool may have been created on Azure's side." >&2
+        _mark_submitted "${_name}"
         _setup_fail
     fi
     _mark "${_name}"
@@ -244,10 +311,20 @@ if ! az aks get-credentials --resource-group "${_rg}" --name "${_cluster}" \
 fi
 _mark kubecreds
 
-# --- 5. gp2 storage setting -----------------------------------------------------
-if kubectl get storageclass gp2 >/dev/null 2>&1; then
+# --- 5. gp2 storage setting (T057: only NotFound means absent) ------------------
+_azure_sc_err=$(mktemp)
+if kubectl get storageclass gp2 --output name 2>"${_azure_sc_err}"; then
+    rm -f "${_azure_sc_err}"
     echo "already exists: gp2 storage setting"
 else
+    if ! grep -qiE 'not found|NotFound' "${_azure_sc_err}" 2>/dev/null; then
+        echo "Cannot start: could not check whether the gp2 storage setting exists (kubectl get failed)." >&2
+        echo "Check kubectl and the kubeconfig context, then try again. Nothing was created." >&2
+        rm -f "${_azure_sc_err}"
+        _mark_unknown storage
+        _setup_fail
+    fi
+    rm -f "${_azure_sc_err}"
     echo "applying infra/azure/gp2-storageclass.yaml..."
     if ! kubectl apply -f infra/azure/gp2-storageclass.yaml >/dev/null 2>&1; then
         echo "Failed to apply the gp2 storage setting." >&2

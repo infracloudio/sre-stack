@@ -114,6 +114,8 @@ for name, (size, mn, mx, label, want_taint) in TABLE.items():
     row = clean(row)
     count = row.get("count")
     errs = []
+    if row.get("mode") != "User":
+        errs.append("mode " + repr(row.get("mode")) + " (want User)")
     if not (isinstance(count, int) and mn <= count <= mx):
         errs.append("count " + repr(count) + " (want " + str(mn) + "–" + str(mx) + ")")
     if row.get("size") != size:
@@ -150,6 +152,19 @@ for name, (size, mn, mx, label, want_taint) in TABLE.items():
         word = "spot" if mode == "spot" else "regular"
         good(name + ": " + str(count) + " nodes, " + size + ", label workload=" + label
              + ", " + word + " — matches Amazon")
+
+# T060: the cluster must hold exactly the documented pools — one system pool
+# plus the four workload pools. Any extra User pool (e.g. a sixth pool with
+# ten nodes) is a mismatch, even when the five expected pools all match.
+# System-pool extras are already caught by the exactly-one-System check
+# above, so only non-System extras are flagged here.
+_expected_names = set(TABLE) | {p.get("name") for p in pools if p.get("mode") == "System"}
+for p in pools:
+    _n = p.get("name")
+    if _n not in _expected_names and p.get("mode") != "System":
+        bad("unexpected pool " + repr(_n) + ": mode " + repr(p.get("mode"))
+            + ", count " + repr(p.get("count")),
+            "one system pool plus the four workload pools only (data-model §3)")
 
 sys.exit(min(fail, 254))
 EOF
