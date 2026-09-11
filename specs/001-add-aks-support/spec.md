@@ -27,7 +27,7 @@ A platform engineer sets the cloud provider configuration in `.env` to Azure, su
 
 **Acceptance Scenarios**:
 
-1. **Given** `.env` is configured to target Azure with valid Azure settings, **When** the platform engineer runs the end-to-end setup command, **Then** an AKS cluster is created with four node pools whose names, `workload` labels, taints, and min/max node counts match the corresponding EKS node groups.
+1. **Given** `.env` is configured to target Azure with valid Azure settings, **When** the platform engineer runs the end-to-end setup command, **Then** an AKS cluster is created with five node pools (one system pool + four user pools) whose names, `workload` labels, taints, and min/max node counts match the corresponding EKS node groups (plus system pool in mode: System with no taint).
 2. **Given** the AKS cluster has been provisioned, **When** the platform engineer inspects it, **Then** no application, Istio, or observability workloads are present — only the empty cluster and node pool infrastructure.
 3. **Given** `.env` is configured to target Azure, **When** the platform engineer runs the dedicated cluster-provisioning command on its own, **Then** the AKS cluster and its node pools come up without requiring the rest of the end-to-end setup to run first.
 
@@ -79,7 +79,7 @@ A platform engineer who only ever targets AWS EKS or the local k3d environment r
 - **FR-002**: `.env` MUST gain a dedicated, clearly delimited Azure section holding only non-secret settings needed to target AKS (subscription, tenant, resource group, region, and cluster naming), additive to and independent from the existing AWS section. This section MUST NOT hold Azure credential secrets (for example, a service principal client secret).
 - **FR-003**: The end-to-end setup command MUST dynamically provision infrastructure against whichever provider is selected in `.env`, without requiring the platform engineer to invoke a different command per provider.
 - **FR-004**: A new cluster-provisioning command MUST provision and bring up the Kubernetes cluster (EKS or AKS) for the selected provider on its own, independent of the rest of the end-to-end setup sequence.
-- **FR-005**: When targeting Azure, the cluster-provisioning step MUST create exactly four node pools, matching the existing EKS node groups in name intent, `workload` label value, taint, minimum/maximum node counts, and compute sizing: app, persistent, observability, and loadgen. Compute sizing MUST match by selecting, for each pool, the nearest available general-purpose Azure VM SKU whose vCPU count and memory (GB) meet or exceed the corresponding EKS instance type's vCPU and memory.
+- **FR-005**: When targeting Azure, the cluster-provisioning step MUST create five node pools: one system pool (mode: System, Standard_D4s_v5 or equivalent, minimum 3 nodes, no taint) and four user pools matching the existing EKS node groups in name intent, `workload` label value, taint, minimum/maximum node counts, and compute sizing: app, persistent, observability, and loadgen. The system pool runs critical Kubernetes infrastructure pods (CoreDNS, metrics-server, kube-proxy). 
 - **FR-006**: Every AKS node pool MUST carry the same `workload=app|persistent|o11y|loadgen` labeling and matching taint scheme used on EKS, and the cluster MUST provide a storage class usable under the same alias (`gp2`) that existing persistent-volume-consuming manifests already reference, so that manifests written against EKS remain schedulable unchanged if deployed later.
 - **FR-007**: The teardown command MUST remove every Azure resource that the Azure provisioning path created (cluster, node pools, and supporting resources), leaving nothing billable behind.
 - **FR-008**: The teardown command MUST succeed without error when no AKS cluster currently exists.
@@ -102,7 +102,7 @@ A platform engineer who only ever targets AWS EKS or the local k3d environment r
 ### Measurable Outcomes
 
 - **SC-001**: A platform engineer can bring up an empty, correctly shaped AKS cluster with a single end-to-end command, with no manual follow-up steps required to match the target node pool architecture.
-- **SC-002**: 100% of the four AKS node pools match their corresponding EKS node group's `workload` label, taint, minimum/maximum node counts, and vCPU/memory (equal to or greater than the EKS instance type) when compared side by side.
+- **SC-002**: All five AKS node pools (four user pools + one system pool) are correctly configured: four user pools match their corresponding EKS node groups' `workload` label, taint, minimum/maximum node counts, and vCPU/memory; system pool has mode=System, Standard_D4s_v5 (4 vCPU, 16 GB), no taint, and ≥3 nodes.
 - **SC-003**: Running the setup or cluster-provisioning command twice in a row against Azure results in exactly the same set of Azure resources as running it once (zero duplicates).
 - **SC-004**: Running the teardown command against a provisioned AKS cluster leaves zero Azure resources behind that setup created.
 - **SC-005**: 100% of existing AWS/EKS and local k3d end-to-end setup runs produce infrastructure indistinguishable from pre-change behavior, with no `.env` variable renamed, removed, or redefaulted for those paths.
