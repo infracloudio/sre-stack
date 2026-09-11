@@ -1,6 +1,6 @@
 # How We Build: AI-Native SDLC with Spec Kit
 
-Version 0.4 · Owner: Rijo · Reviewers: Abishek, Viknesh · Sponsor: Aman
+Version 0.5 · Owner: Rijo · Reviewers: Abishek, Viknesh · Sponsor: Aman
 
 This document explains how our team builds software with AI coding agents.
 Read it top to bottom once; after that you only need the checklist at the
@@ -77,6 +77,70 @@ There is one more file, written once per repo, not per story:
 script must be safe to re-run" and "no secrets in git"). The agent reads it
 before every plan and follows it. When a rule changes, we change that file
 by pull request, like code.
+
+### Session boundaries and handoffs
+
+**Start a fresh agent session at major phase boundaries.** A new session
+after every command is optional. Keep related refinement together, and
+make the saved files sufficient for another session or person to resume.
+This is our recommended default, not an upstream Spec Kit requirement.
+
+| Work | Session approach |
+|---|---|
+| `/speckit-specify` → `/speckit-clarify` | Keep together while refining requirements. |
+| `/speckit-plan` → `/speckit-tasks` | Start fresh after spec approval, in the Builder's separate worktree. |
+| `/speckit-analyze` | Prefer a fresh session to assess the saved spec, plan and tasks. |
+| `/speckit-implement` | Start fresh after plan approval; split larger work into coherent, dependency-ordered batches. |
+| `/speckit-converge` and final agent review | Prefer fresh sessions to check the artifacts against actual code. Human approval remains separate. |
+
+For a larger implementation, give an explicit stopping point:
+
+```text
+/speckit-implement only execute tasks T011–T018, then stop and report progress
+```
+
+Choose a range whose prerequisites are complete. Validate the batch before
+continuing; a batch boundary does not mean the story is finished. If even
+a single phase is too large, revisit the story's scope with the Owner.
+
+Before ending a session:
+
+- Save requirements and clarification answers in `spec.md` and plan
+  departures with their reasons in `plan.md`. Architectural decisions go
+  in `docs/architectural-decisions.md`, referenced by ADR ID.
+- Update `tasks.md` to reflect actual completion. Record verification
+  output and blockers in the PR or story artifacts.
+- Leave a short handoff identifying the feature, worktree, branch, current
+  phase and next task range. Link to evidence and any unresolved blockers.
+
+A new-session prompt can be this short:
+
+```text
+Continue feature specs/<nnn>-<slug> in worktree <path>, branch <branch>.
+Read AGENTS.md and the feature artifacts.
+Current phase: implementation. Next scope: T011–T018.
+Check actual code and recorded verification before assuming tasks are complete.
+Evidence and blockers: <links or paths>.
+```
+
+Session changes do not replace approval gates. The new session must still
+check the story's approvals and follow the same workflow.
+
+The basis for this guidance (checked 2026-09-11):
+
+- **Upstream:** Spec Kit recommends limiting implementation runs to task
+  ranges or phases to manage context size. Its commands reload artifacts,
+  and completed tasks are recorded in `tasks.md`. See
+  [Handling Complex Features](https://github.github.com/spec-kit/concepts/complex-features.html)
+  and the [implementation template](https://github.com/github/spec-kit/blob/main/templates/commands/implement.md).
+- **User experience:** [Discussion #1554](https://github.com/github/spec-kit/discussions/1554)
+  describes resuming from files across sessions, with a context-reloading
+  cost. [Issue #1529](https://github.com/github/spec-kit/issues/1529) reports
+  restarting after every command, but also friction resuming debugging.
+  [Discussion #912](https://github.com/github/spec-kit/discussions/912)
+  reports context problems after repeated revisions and mixed experience
+  with subagents. These are anecdotes, not comparative benchmarks or a
+  settled community consensus.
 
 ---
 
@@ -352,3 +416,4 @@ per person and per clone.
 | 0.2 | 2026-09-04 | Rewritten in plain linear form; stories cut to 1–2 days; one daily sync replaces separate ceremonies; migration re-sliced into 11 stories |
 | 0.3 | 2026-09-04 | Labels namespaced (`intent:accepted`, `gate:*`); command names match the installed harness spelling; constitution 1.0.0 ratified |
 | 0.4 | 2026-09-10 | Converge moved before review to match upstream Spec Kit: Step 6 converges on the branch and loops with implement; Step 7 reviews and merges |
+| 0.5 | 2026-09-11 | Added session boundaries, implementation batching and handoffs, with upstream guidance and user reports |
