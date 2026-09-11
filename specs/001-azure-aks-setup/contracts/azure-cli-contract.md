@@ -85,7 +85,11 @@ The stand-in is a small script placed first on `PATH`. Rules:
    `kubectl` (`agent/tests/azure/fake-kubectl.sh`) on the same PATH and it
    records into the same log: after the apply is recorded, the `get
    storageclass gp2` check succeeds; a scenario's `PRE_SC=1` knob makes the
-   get succeed before any apply.
+   get succeed before any apply. It also answers the verifier's
+   `kubectl get namespaces --output name`: `FAKE_NAMESPACES` names what
+   exists (default the four built-in namespaces) and
+   `KUBECTL_NAMESPACES_FAIL=1` makes the read fail, so the verifier's
+   fail-closed namespace check (T034) is exercised offline too.
 1. **Record every call** — append the full argument list to a log file,
    one line per call, in order; unknown `az` commands exit non-zero.
 2. **Answer from a scenario file** — one file per scenario
@@ -94,7 +98,11 @@ The stand-in is a small script placed first on `PATH`. Rules:
    stand-in's answers carry JSON shaped like the real `az` output recorded
    in research.md A7/§4 (the nodepool list is rebuilt from the data-model
    §3 table, with `scaleSetPriority: Spot/null` and the spot auto-taint
-   following the scenario's pool mode). Required scenarios:
+   following the scenario's pool mode; the `POOL_MUTATIONS` knob perturbs
+   single rows for the verify scenarios — `pool.field=value` for
+   count/min/max/size/label/taints/spot/mode, or `pool.missing=1` to drop
+   the row, where `pool` is a workload name or `system`; an unknown target
+   is a loud stand-in error). Required scenarios:
    - `happy`: account exists, nothing exists yet → group create → cluster
      create → four nodepool adds → group exists true afterwards.
    - `already-there`: group, cluster, all five pools, and the gp2 StorageClass
@@ -140,8 +148,21 @@ The stand-in is a small script placed first on `PATH`. Rules:
    - `partial`: group + cluster succeeded, `app` pool created, `persistent`
      add failed → the script stops, prints the plain report (group name,
      cluster name, pools that reached `running`), records **no** delete call.
-    - `cleanup-full`: group exists → one `az group delete --yes` call recorded.
-    - `cleanup-empty`: group doesn't exist → zero delete calls, exit 0.
+   - `cleanup-full`: group exists → one `az group delete --yes` call recorded.
+   - `cleanup-empty`: group doesn't exist → zero delete calls, exit 0.
+   - `verify-ok`: the cluster and all four workload pools match the §3 table
+     in regular mode and only the built-in namespaces exist → the verifier
+     prints ✓ for the control plane and every pool, reports zero mismatches,
+     and exits 0 with **no** create or delete call recorded.
+   - `verify-pool-mismatch`: malformed pool rows (app count 99, persistent
+     wrong size, o11y's taint dropped, loadgen missing) → the verifier exits
+     non-zero with one ✗ per problem and a `report: 4 mismatch(es)` line.
+   - `verify-namespace-extra`: pools match but a `team-a` namespace exists →
+     the verifier exits non-zero naming that namespace (FR-008), while the
+     pool lines still report ✓.
+   - `verify-kubectl-fails`: `kubectl get namespaces` fails (bad kubeconfig)
+     → the verifier fails closed with a ✗ and a non-zero exit, never an
+     empty-cluster pass (T034 regression guard).
 
    Cleanup scenarios run the cleanup script in its cleanup mode: the helper
    checks sign-in and computes the generated names, but the create-time probes
@@ -150,6 +171,11 @@ The stand-in is a small script placed first on `PATH`. Rules:
    them — the runner asserts those calls are absent. The stand-in's
    `MC_LINGERS=1` knob makes `az group show --name MC_…` succeed so the
    lingering-node-group path is exercised.
+
+   Verify scenarios run `infra/scripts/cluster/verify-cluster-aks.sh`
+   directly (read-only): the scenario's `PRE_*`/`POOL_*` knobs satisfy its
+   `azure-common.sh` pre-checks, and the runner asserts the verifier recorded
+   no create or delete call (FR-012).
 3. **Never touch the network.**
 
 ## 3. Error-message style (all refusal and failure paths)

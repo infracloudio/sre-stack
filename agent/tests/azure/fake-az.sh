@@ -31,6 +31,13 @@
 #   POOL_MODE=spot|regular            scaleSetPriority the list answer shows
 #   K8S_VERSION=1.34                  live kubernetesVersion a reused cluster
 #                                     reports (setup compares it to the pin)
+#   POOL_MUTATIONS="…"                space-separated pool.field=value patches
+#                                     applied to the nodepool list answer:
+#                                     count/min/max/size/label/taints/spot/mode
+#                                     (taints=none clears, spot=none/null clears)
+#                                     or <pool>.missing=1 to drop the row;
+#                                     <pool> is a workload name or `system`.
+#                                     Unknown target = stand-in error, exit 2
 
 if [ -z "${FAKE_AZ_LOG:-}" ]; then
     echo "fake-az: FAKE_AZ_LOG is not set." >&2
@@ -82,6 +89,7 @@ pool_exists() {  # pre-existing from scenario, or added earlier in this run
 emit_pool_list() {
     FAKE_PRE_POOLS="${PRE_POOLS}" \
     FAKE_POOL_MODE="${POOL_MODE}" \
+    FAKE_POOL_MUTATIONS="${POOL_MUTATIONS:-}" \
     FAKE_LOG_PATH="${FAKE_AZ_LOG}" \
     python3 <<'PYEOF'
 import json, os
@@ -125,6 +133,40 @@ for name in pre + created:
         "taints": taints or None,
         "spot": ("Spot" if mode == "spot" else None),
     })
+
+# Malformed-row patches for the verify scenarios: pool.field=value, or
+# pool.missing=1 to drop the row. Unknown target = loud stand-in error.
+def patch(target, field, value):
+    if field == "count":
+        target["count"] = int(value)
+    elif field == "min":
+        target["min"] = int(value)
+    elif field == "max":
+        target["max"] = int(value)
+    elif field == "size":
+        target["size"] = value
+    elif field == "label":
+        target["labels"] = {"workload": value}
+    elif field == "taints":
+        target["taints"] = None if value == "none" else [value]
+    elif field == "spot":
+        target["spot"] = None if value in ("none", "null") else value
+    elif field == "mode":
+        target["mode"] = value
+
+for spec in (os.environ.get("FAKE_POOL_MUTATIONS") or "").split():
+    path, _, value = spec.partition("=")
+    name, _, field = path.partition(".")
+    target = next((p for p in pools if p.get("name") == name
+                   or (name == "system" and p.get("mode") == "System")), None)
+    if not name or not field or target is None:
+        print("fake-az: unknown pool mutation: " + spec, file=sys.stderr)
+        sys.exit(2)
+    if field == "missing" and value == "1":
+        pools.remove(target)
+    else:
+        patch(target, field, value)
+
 print(json.dumps(pools))
 PYEOF
 }

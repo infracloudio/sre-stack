@@ -6,7 +6,8 @@
 #   - gets a fresh directory with the fake `az` (fake-az.sh) and a fake
 #     `kubectl` (fake-kubectl.sh) first on PATH,
 #   - sets FAKE_AZ_LOG (the recorded call log) and FAKE_AZ_SCENARIO,
-#   - runs the real setup script (STACK_MODE=aks from the tracked .env),
+#   - runs the real setup, cleanup, or verify script (STACK_MODE=aks from
+#     the tracked .env),
 #   - asserts on the exit code, the log content (what was called, in what
 #     order, how many times), and the refusal/report text.
 #
@@ -22,6 +23,7 @@ fi
 _here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 _setup="${_repo_root}/infra/scripts/cluster/setup-cluster-aks.sh"
 _cleanup="${_repo_root}/infra/scripts/cluster/cleanup-cluster.sh"
+_verify="${_repo_root}/infra/scripts/cluster/verify-cluster-aks.sh"
 _sandbox=$(mktemp -d "${_here}/.tmp-offline-XXXXXX")
 trap 'rm -rf "${_sandbox}"' EXIT
 
@@ -75,6 +77,22 @@ run_cleanup() {  # $1 <case-id>; sets RC, OUT and ERR for the case
     OUT="${_dir}/stdout.txt"
     ERR="${_dir}/stderr.txt"
     PATH="${_dir}/bin:${PATH}" bash "${_cleanup}" > "${OUT}" 2> "${ERR}"
+    RC=$?
+}
+
+run_verify() {  # $1 <case-id>; sets RC, OUT and ERR for the case
+    local _case="$1"
+    local _dir="${_sandbox}/${_case}"
+    mkdir -p "${_dir}/bin"
+    ln -sf "${_here}/fake-az.sh" "${_dir}/bin/az"
+    ln -sf "${_here}/fake-kubectl.sh" "${_dir}/bin/kubectl"
+    FAKE_AZ_LOG="${_dir}/call.log"
+    FAKE_AZ_SCENARIO="${_here}/scenarios/${_case}.sh"
+    export FAKE_AZ_LOG FAKE_AZ_SCENARIO
+    : > "${FAKE_AZ_LOG}"
+    OUT="${_dir}/stdout.txt"
+    ERR="${_dir}/stderr.txt"
+    PATH="${_dir}/bin:${PATH}" bash "${_verify}" > "${OUT}" 2> "${ERR}"
     RC=$?
 }
 
@@ -231,6 +249,43 @@ check "mc-lingers:one delete only" "$([ "$(count '^az group delete' "$(_log mc-l
 check "mc-lingers:exact-name MC check only" "$([ "$(count '^az group show --name MC_' "$(_log mc-lingers)")" = "1" ] && echo 1 || echo 0)"
 check "mc-lingers:no others' MC groups touched" "$([ "$(count 'MC_alice\|MC_bob' "$(_log mc-lingers)")" = "0" ] && echo 1 || echo 0)"
 check "mc-lingers:no broad MC search" "$([ "$(count '^az group list' "$(_log mc-lingers)")" = "0" ] && echo 1 || echo 0)"
+
+# --- verify-ok ----------------------------------------------------------------
+echo "case verify-ok:"
+run_verify verify-ok
+check "verify-ok:exit-0" "$([ "${RC:-}" = "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "verify-ok:control plane tick" "$([ "$(count '✓ control plane: Succeeded / Running' "$OUT")" = "1" ] && echo 1 || echo 0)" "$(cat "$OUT")"
+for _p in app persistent o11y loadgen; do
+    check "verify-ok:${_p} tick" "$([ "$(count "✓ ${_p}:" "$OUT")" = "1" ] && echo 1 || echo 0)"
+done
+check "verify-ok:zero mismatches" "$([ "$(count 'report: 0 mismatch' "$OUT")" = "1" ] && echo 1 || echo 0)" "$(cat "$OUT")"
+check "verify-ok:read-only" "$([ "$(($(count '^az .*create' "$(_log verify-ok)") + $(count '^az .*delete' "$(_log verify-ok)") + $(count '^kubectl apply' "$(_log verify-ok)")))" = "0" ] && echo 1 || echo 0)"
+
+# --- verify-pool-mismatch -------------------------------------------------------
+echo "case verify-pool-mismatch:"
+run_verify verify-pool-mismatch
+check "verify-pool-mismatch:exit-nonzero" "$([ "${RC:-}" != "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "verify-pool-mismatch:app count" "$([ "$(count '✗ app: count 99' "$ERR")" = "1" ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "verify-pool-mismatch:persistent size" "$([ "$(count '✗ persistent: size' "$ERR")" = "1" ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "verify-pool-mismatch:o11y taint" "$([ "$(count 'missing taint o11y=true:NoSchedule' "$ERR")" = "1" ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "verify-pool-mismatch:loadgen missing" "$([ "$(count '✗ loadgen: pool missing' "$ERR")" = "1" ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "verify-pool-mismatch:report counts" "$([ "$(count 'report: 4 mismatch' "$OUT")" = "1" ] && echo 1 || echo 0)" "$(cat "$OUT")"
+check "verify-pool-mismatch:read-only" "$([ "$(($(count '^az .*create' "$(_log verify-pool-mismatch)") + $(count '^az .*delete' "$(_log verify-pool-mismatch)") + $(count '^kubectl apply' "$(_log verify-pool-mismatch)")))" = "0" ] && echo 1 || echo 0)"
+
+# --- verify-namespace-extra -------------------------------------------------------
+echo "case verify-namespace-extra:"
+run_verify verify-namespace-extra
+check "verify-namespace-extra:exit-nonzero" "$([ "${RC:-}" != "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "verify-namespace-extra:names team-a" "$([ "$(count '✗ namespace team-a exists' "$ERR")" = "1" ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "verify-namespace-extra:pools still pass" "$([ "$(count '✓ app:' "$OUT")" = "1" ] && echo 1 || echo 0)"
+check "verify-namespace-extra:report counts" "$([ "$(count 'report: 1 mismatch' "$OUT")" = "1" ] && echo 1 || echo 0)" "$(cat "$OUT")"
+
+# --- verify-kubectl-fails ---------------------------------------------------------
+echo "case verify-kubectl-fails:"
+run_verify verify-kubectl-fails
+check "verify-kubectl-fails:exit-nonzero" "$([ "${RC:-}" != "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "verify-kubectl-fails:failed read is a mismatch" "$([ "$(count '✗ namespaces: kubectl get namespaces failed' "$ERR")" = "1" ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "verify-kubectl-fails:report counts" "$([ "$(count 'report: 1 mismatch' "$OUT")" = "1" ] && echo 1 || echo 0)" "$(cat "$OUT")"
 
 echo ""
 echo "offline tests: ${total} checks, ${failed} failed"
