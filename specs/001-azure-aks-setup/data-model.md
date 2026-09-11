@@ -57,6 +57,10 @@ cluster name        = "sre-stack-<code>"      (e.g. sre-stack-4f2c9a)
   group, cluster, each node pool, the gp2 StorageClass — and creates only
   what is missing (FR-003). A rerun after a complete run creates nothing
   new; a rerun after a partial run continues where it stopped (FR-011).
+  If the reused cluster's live `kubernetesVersion` differs from the `.env`
+  pin, the setup prints a plain warning naming both versions and the
+  deliberate change path (`make cleanup-cluster`, then `make setup-cluster`)
+  — it never upgrades the cluster in place.
 - Deletion guard: cleanup deletes **only** a group whose name matches the
   pattern `*-aks-*` and equals the generated name — never an unrelated group.
 - The second, automatic folder: when the cluster is created, Azure quietly
@@ -96,12 +100,15 @@ Notes:
   all four workload pools). Which mode the setup actually uses is decided
   at run time by the helper's allowance check (`az vm list-usage`),
   **before anything is created** (FR-014, AD-002):
-    1. spot allowance in the location ≥ 26 vCPU (the whole shape at minimum
-       counts: app 6 + persistent 8 + o11y 8 + loadgen 4) → every
-       spot-capable pool is created with the spot flags from §3/​research.md
+    1. spot allowance in the location ≥ 26 vCPU (the four workload pools at
+       minimum counts: app 6 + persistent 8 + o11y 8 + loadgen 4) **and**
+       regular DSv5 room ≥ 2 vCPU for the always-regular system pool (1×
+       `Standard_D2s_v5`) → every spot-capable pool is created with the
+       spot flags from §3/​research.md
        (`--priority Spot --eviction-policy Delete ...`);
-    2. else regular per-family allowances fit (DSv5 family needs 22, FSv2
-       family needs 4 — both at the minimum counts, like the spot case)
+    2. else regular per-family allowances fit (DSv5 family needs 24 — 22
+       workload + 2 for the system pool; FSv2 family needs 4 — both at the
+       minimum counts, like the spot case)
        → same pools without spot flags;
     3. else the setup refuses with a plain message naming the short
        allowance, before creating anything.

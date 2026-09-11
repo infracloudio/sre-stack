@@ -90,8 +90,12 @@ az aks create \
   --location "$LOCATION" \
   --kubernetes-version <version-from-A4> \
   --node-count 1 --node-vm-size Standard_D2s_v5 \
-  --mode System --generate-ssh-keys
+  --generate-ssh-keys
 ```
+
+(The initial node pool is always `mode: System`, so `az aks create` has no
+`--mode` argument — CLI 2.90.0 rejects one; see research.md "Observed facts"
+#1.)
 
 Expect: takes several minutes; ends with JSON where
 `provisioningState` is `Succeeded`. (If Standard_D2s_v5 is unavailable in
@@ -138,9 +142,12 @@ research.md** — the pretend-`az` must imitate these.
 ```bash
 az aks get-credentials --resource-group "$RG" --name "$CLUSTER" --overwrite-existing
 kubectl get nodes   # expect 3 nodes: 1 system + 2 persistent
-kubectl apply -f infra/local/gp2-storageclass.yaml   # temporary; the real file comes later — edit the provisioner line to disk.csi.azure.com and skuName StandardSSD_LRS first
+kubectl apply -f infra/azure/gp2-storageclass.yaml   # the real manifest: disk.csi.azure.com + skuName: StandardSSD_LRS
 kubectl get storageclass gp2
 ```
+
+Never edit `infra/local/gp2-storageclass.yaml` for this: the local manifest
+must stay byte-identical for the US3 non-regression check.
 
 Expect: a `gp2` storage class exists. Optional but recommended: create a tiny
 test PVC and confirm it binds. **Delete that test PVC afterwards.**

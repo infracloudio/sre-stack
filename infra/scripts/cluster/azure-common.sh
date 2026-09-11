@@ -248,17 +248,21 @@ sys.exit(0 if size in names else 1)
     fi
 done
 # --- pre-check 5: the machine allowance decides the workload pool mode --------
-# (FR-014, AD-002; contract §1). Spot first: the location's spot vCPU room
-# (limit − current) must cover the whole designed shape at minimum counts —
-# app 6 + persistent 8 + o11y 8 + loadgen 4 = 26. Else regular: every
-# family's room must cover its need at the same minimum counts — DSv5 22
-# (app + persistent + o11y), FSv2 4 (loadgen). Neither fits → refuse naming
-# the short family with its numbers, before anything is created. Judged
-# against minimum counts only; autoscaler growth is capped by the allowance,
-# never dodged. Field names confirmed by hand and recorded in research.md
-# (T023, constitution VIII).
+# (FR-014, AD-002; contract §1). The system pool is always regular (Azure
+# requires the first pool to be non-spot), so the DSv5 family carries it in
+# every mode. Spot first: the location's spot vCPU room (limit − current)
+# must cover the four workload pools at minimum counts — app 6 + persistent
+# 8 + o11y 8 + loadgen 4 = 26 — and the regular DSv5 room must cover the 2
+# vCPU of the 1× Standard_D2s_v5 system pool. Else regular: every family's
+# room must cover its need at the same minimum counts — DSv5 24 (workload 22
+# + system 2), FSv2 4 (loadgen). Neither fits → refuse naming the short
+# family with its numbers, before anything is created. Judged against
+# minimum counts only; autoscaler growth is capped by the allowance, never
+# dodged. Field names confirmed by hand and recorded in research.md (T023,
+# constitution VIII).
 AZURE_SPOT_VCPU_NEEDED=26
-AZURE_DSV5_VCPU_NEEDED=22
+AZURE_DSV5_VCPU_NEEDED=24
+AZURE_DSV5_SYSTEM_NEEDED=2
 AZURE_FSV2_VCPU_NEEDED=4
 
 _azure_usage=$(cat "${_azure_jobsdir}/usage.out")
@@ -303,7 +307,8 @@ _azure_entryOrFail "${AZURE_DSV5_VCPU_CURRENT}" "${AZURE_DSV5_VCPU_LIMIT}" \
 _azure_entryOrFail "${AZURE_FSV2_VCPU_CURRENT}" "${AZURE_FSV2_VCPU_LIMIT}" \
     "standardFSv2Family (Standard FSv2 Family vCPUs)" || return 1
 
-if _azure_room_ok "${AZURE_SPOT_VCPU_LIMIT}" "${AZURE_SPOT_VCPU_CURRENT}" "${AZURE_SPOT_VCPU_NEEDED}"; then
+if _azure_room_ok "${AZURE_SPOT_VCPU_LIMIT}" "${AZURE_SPOT_VCPU_CURRENT}" "${AZURE_SPOT_VCPU_NEEDED}" \
+        && _azure_room_ok "${AZURE_DSV5_VCPU_LIMIT}" "${AZURE_DSV5_VCPU_CURRENT}" "${AZURE_DSV5_SYSTEM_NEEDED}"; then
     AZURE_POOL_MODE="spot"
 elif _azure_room_ok "${AZURE_DSV5_VCPU_LIMIT}" "${AZURE_DSV5_VCPU_CURRENT}" "${AZURE_DSV5_VCPU_NEEDED}" \
         && _azure_room_ok "${AZURE_FSV2_VCPU_LIMIT}" "${AZURE_FSV2_VCPU_CURRENT}" "${AZURE_FSV2_VCPU_NEEDED}"; then
@@ -311,7 +316,9 @@ elif _azure_room_ok "${AZURE_DSV5_VCPU_LIMIT}" "${AZURE_DSV5_VCPU_CURRENT}" "${A
 else
     # Name the first short family with its current and limit numbers; spot
     # fits-but-was-not-chosen is not itself a refusal (regular is the
-    # documented fallback), so the message is about the families.
+    # documented fallback), so the message is about the families. The DSv5
+    # need includes the always-regular system pool (2 vCPU), so a spot
+    # subscription with no DSv5 room is refused here too.
     if ! _azure_room_ok "${AZURE_DSV5_VCPU_LIMIT}" "${AZURE_DSV5_VCPU_CURRENT}" "${AZURE_DSV5_VCPU_NEEDED}"; then
         _azure_what="Standard DSv5 Family vCPUs"
         _azure_cur="${AZURE_DSV5_VCPU_CURRENT}"
@@ -327,7 +334,7 @@ else
     echo "Raise the quota (Azure Portal → Quotas → Compute), free machines, or pick a different location. Nothing was created." >&2
     return 1
 fi
-echo "allowance check: spot ${AZURE_SPOT_VCPU_CURRENT}/${AZURE_SPOT_VCPU_LIMIT} (need ${AZURE_SPOT_VCPU_NEEDED}), DSv5 ${AZURE_DSV5_VCPU_CURRENT}/${AZURE_DSV5_VCPU_LIMIT} (need ${AZURE_DSV5_VCPU_NEEDED}), FSv2 ${AZURE_FSV2_VCPU_CURRENT}/${AZURE_FSV2_VCPU_LIMIT} (need ${AZURE_FSV2_VCPU_NEEDED}) — chosen mode: ${AZURE_POOL_MODE}"
+echo "allowance check: spot ${AZURE_SPOT_VCPU_CURRENT}/${AZURE_SPOT_VCPU_LIMIT} (need ${AZURE_SPOT_VCPU_NEEDED} for the workload pools), DSv5 ${AZURE_DSV5_VCPU_CURRENT}/${AZURE_DSV5_VCPU_LIMIT} (need ${AZURE_DSV5_SYSTEM_NEEDED} for the system pool, ${AZURE_DSV5_VCPU_NEEDED} for regular mode), FSv2 ${AZURE_FSV2_VCPU_CURRENT}/${AZURE_FSV2_VCPU_LIMIT} (need ${AZURE_FSV2_VCPU_NEEDED}) — chosen mode: ${AZURE_POOL_MODE}"
 
 export AZURE_POOL_MODE AZURE_SPOT_VCPU_CURRENT AZURE_SPOT_VCPU_LIMIT \
     AZURE_DSV5_VCPU_CURRENT AZURE_DSV5_VCPU_LIMIT \

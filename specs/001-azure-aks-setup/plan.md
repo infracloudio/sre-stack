@@ -94,22 +94,29 @@ Extra facts:
   it (FR-014). One extra pre-check in the shared helper
   (`az vm list-usage --location <loc>`) decides the mode, before anything
   is created: if the subscription's spot vCPU allowance fits the whole
-  shape (26 spot vCPU at minimum counts), the four pools are created as
-  spot; else, when the regular allowances fit for every machine family at
-  those same minimums (DSv5 needs 22, FSv2 needs 4), they are created as
-  **regular**; else the script stops with a plain message naming the short
-  allowance — nothing is half-created. The allowance is judged against
-  minimum counts only; pools that can grow automatically are capped by the
-  allowance rather than dodging it. The choice is all-or-nothing (no mixed
+  shape (26 spot vCPU at minimum counts) and the regular DSv5 room covers
+  the 2 vCPU of the always-regular system pool, the four workload pools
+  are created as spot; else, when the regular allowances fit for every
+  machine family at those same minimums (DSv5 needs 24 — 22 workload + 2
+  system; FSv2 needs 4), they are created as **regular**; else the script
+  stops with a plain message naming the short allowance — nothing is
+  half-created. The allowance is judged against minimum counts only; pools
+  that can grow automatically are capped by the allowance rather than
+  dodging it. The choice is all-or-nothing (no mixed
   pools), the
   system pool is always regular (Azure requires a non-spot first pool),
   and the spot command flags stay in research.md §3 so the helper and the
   contract can be re-synced in the same commit (AD-002).
 - Before creating anything, the shared helper also checks that **every
   machine size in the table is actually offered in the chosen part of the
-  world** (`az vm list-skus --location <loc> --all`). Azure regions differ;
-  if one size is missing, the script stops with a plain message naming the
-  missing size — it does not silently swap anything.
+  world**. It asks the Resource Skus List API directly for the chosen
+  location — `az rest` + `Microsoft.Compute/skus`, api-version 2021-07-01,
+  filtered server-side by location (exact shape in contract §1). The older
+  `az vm list-skus --location <loc> --all` wording was replaced in the
+  2026-09-10 speed pass (see Plan Departures); the semantics are the same:
+  names are checked regardless of `restrictions`, every size in the table
+  is checked, and if one size is missing the script stops with a plain
+  message naming it — it does not silently swap anything.
 - The Azure version of Kubernetes is pinned in `.env`. The exact number is
   confirmed during the manual try-out (the Amazon pin, 1.27, is too old to
   request on Azure today).

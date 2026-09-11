@@ -4,7 +4,7 @@ metadata:
   name: gp2
 provisioner: disk.csi.azure.com
 parameters:
-  type: StandardSSD_LRS
+  skuName: StandardSSD_LRS
 reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: true

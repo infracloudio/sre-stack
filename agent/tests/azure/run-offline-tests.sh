@@ -46,7 +46,7 @@ count() {
 
 # --- the common env for every case -----------------------------------------
 export FAKE_USER="rijo-tester@contoso.com"
-export FAKE_SUB="674579f0-b52a-4352-9913-f81135cc01e0"
+export FAKE_SUB="11111111-1111-1111-1111-111111111111"
 
 run_setup() {  # $1 <case-id>; sets RC and ERR for the case to assert on
     local _case="$1"
@@ -102,6 +102,8 @@ check "already-there:no group create"    "$([ "$(count '^az group create ' "$(_l
 check "already-there:no cluster create"  "$([ "$(count '^az aks create ' "$(_log already-there)")" = "0" ] && echo 1 || echo 0)"
 check "already-there:no pool add"        "$([ "$(count '^az aks nodepool add ' "$(_log already-there)")" = "0" ] && echo 1 || echo 0)"
 check "already-there:no storage apply"   "$([ "$(count '^kubectl apply ' "$(_log already-there)")" = "0" ] && echo 1 || echo 0)"
+check "already-there:version drift warning" "$([ "$(count 'runs Kubernetes' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "already-there:no in-place upgrade" "$([ "$(count '^az aks update' "$(_log already-there)")" = "0" ] && echo 1 || echo 0)"
 
 # --- resume -------------------------------------------------------------------
 echo "case resume:"
@@ -180,6 +182,13 @@ check "no-room:exit-nonzero" "$([ "${RC:-}" != "0" ] && echo 1 || echo 0)" "rc=$
 check "no-room:refusal names FSv2" "$([ "$(count 'FSv2' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
 check "no-room:refusal names numbers" "$([ "$(count 'is 0' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
 check "no-room:no group create" "$([ "$(count '^az group create' "$(_log no-room)")" = "0" ] && echo 1 || echo 0)"
+
+# --- system-blocked ---------------------------------------------------------------------
+echo "case system-blocked:"
+run_setup system-blocked
+check "system-blocked:exit-nonzero" "$([ "${RC:-}" != "0" ] && echo 1 || echo 0)" "rc=${RC:-}"
+check "system-blocked:refusal names DSv5" "$([ "$(count 'Standard DSv5 Family' "$ERR")" -ge 1 ] && echo 1 || echo 0)" "$(cat "$ERR")"
+check "system-blocked:no group create" "$([ "$(count '^az group create' "$(_log system-blocked)")" = "0" ] && echo 1 || echo 0)"
 
 # --- partial ===========================================================================
 echo "case partial:"

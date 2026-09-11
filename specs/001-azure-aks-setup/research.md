@@ -259,14 +259,14 @@ account or cost.
 ## Manual pass findings
 
 > Filled in during the manual try-out (2026-09-09, eastus2, subscription
-> `Pune - Sandbox (TPM)` — `674579f0-b52a-4352-9913-f81135cc01e0`, Azure CLI
-> 2.90.0) before any script was written. Raw command outputs from the session
-> were recorded and the numbers below are transcribed from them.
+> `<subscription-name>` (`<subscription-id>`), Azure CLI 2.90.0) before any
+> script was written. Raw command outputs from the session were recorded and
+> the numbers below are transcribed from them.
 
 - [x] Sign-in check works (`az account show`)
-      — user `rijo.john@improving.com`
+      — signed-in user `<user-name>`
 - [x] Subscription set works (`az account set --subscription`)
-      — `674579f0-b52a-4352-9913-f81135cc01e0` "Pune - Sandbox (TPM)"
+      — `<subscription-id>` (`<subscription-name>`)
 - [x] Location list shows the chosen location
       — `eastus2` exact match (109 locations; Azure has no `eastus-2`)
 - [x] Machine sizes offered in the chosen location confirmed
@@ -314,8 +314,8 @@ account or cost.
       2026-09-10): `az role assignment list --assignee <user.name>
       --include-groups` returns `roleDefinitionId`, `roleDefinitionName`
       (`role`), `scope` — projected keys come back alphabetically. Live:
-      rijo.john@improving.com holds `Contributor` on
-      `/subscriptions/674579f0-…` → Owner/Contributor pass directly.
+      `<user-name>` holds `Contributor` on
+      `/subscriptions/<subscription-id>` → Owner/Contributor pass directly.
       `az role definition show` does not exist in CLI 2.90.0
       ("unrecognized arguments"); a custom role's write actions are read
       with `az role definition list --query "[?contains(ids, id)]"`.

@@ -29,6 +29,8 @@
 #                                     (the node resource group outlives delete)
 #   CLUSTER_FAIL=1 / ADD_FAIL=<pool>  create steps that fail
 #   POOL_MODE=spot|regular            scaleSetPriority the list answer shows
+#   K8S_VERSION=1.34                  live kubernetesVersion a reused cluster
+#                                     reports (setup compares it to the pin)
 
 if [ -z "${FAKE_AZ_LOG:-}" ]; then
     echo "fake-az: FAKE_AZ_LOG is not set." >&2
@@ -178,7 +180,7 @@ PYEOF
                     *user.name*) printf '%s\n' "${FAKE_USER}" ;;
                     *--query=id-*|*"--query id"*) printf '%s\n' "${FAKE_SUB}" ;;
                     *"--output none"*) : ;;
-                    *) printf '{ "id": "%s", "name": "Pune - Sandbox (TPM)", "user": { "name": "%s" } }\n' \
+                    *) printf '{ "id": "%s", "name": "Example Subscription", "user": { "name": "%s" } }\n' \
                         "${FAKE_SUB}" "${FAKE_USER}" ;;
                 esac
                 ;;
@@ -233,8 +235,10 @@ PYEOF
                     exit 1
                 fi
                 case "$*" in
-                    *'{s: provisioningState, p: powerState.code}'*)
+                    *'[provisioningState, powerState.code]'*)
                         printf 'Succeeded\tRunning\n' ;;
+                    *kubernetesVersion*)
+                        printf '%s\n' "${K8S_VERSION:-1.34}" ;;
                     *provisioningState*)
                         printf 'Succeeded\n' ;;
                     *) : ;;

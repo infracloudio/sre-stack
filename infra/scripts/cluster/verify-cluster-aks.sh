@@ -24,7 +24,7 @@ _bad() {  # print a ✗ line plus the expectation, count the failure
 
 # --- 1. control plane -----------------------------------------------------------
 _read=$(az aks show --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_CLUSTER_NAME}" \
-    --query '{s: provisioningState, p: powerState.code}' --output tsv 2>/dev/null)
+    --query '[provisioningState, powerState.code]' --output tsv 2>/dev/null)
 _state="${_read%%	*}"
 _power="${_read##*	}"
 if [ -z "${_read}" ]; then

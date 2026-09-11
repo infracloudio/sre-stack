@@ -107,6 +107,13 @@ fi
 # --- 2. cluster + system pool (az aks show decides; §1) ------------------------
 if az aks show --resource-group "${_rg}" --name "${_cluster}" >/dev/null 2>&1; then
     echo "already exists: cluster ${_cluster} (system pool included)"
+    # Version drift (T043): a reused cluster is never upgraded in place.
+    _live_version=$(az aks show --resource-group "${_rg}" --name "${_cluster}" \
+        --query kubernetesVersion --output tsv 2>/dev/null)
+    if [ -n "${_live_version}" ] && [ "${_live_version}" != "${AKS_KUBERNETES_VERSION}" ]; then
+        echo "WARNING: cluster ${_cluster} runs Kubernetes ${_live_version} but .env pins ${AKS_KUBERNETES_VERSION}." >&2
+        echo "No automatic upgrade happens. To move deliberately: run 'make cleanup-cluster', then 'make setup-cluster'." >&2
+    fi
     _mark cluster
     _mark system
     _system_pools_reached=1
