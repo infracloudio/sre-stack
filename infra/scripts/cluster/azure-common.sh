@@ -166,10 +166,19 @@ _az_will_parallel_checks() {
         --output tsv > "${_azure_jobsdir}/rbac.out" 2>/dev/null &
     az account list-locations --query "[?name=='${AZURE_LOCATION}'].name" --output tsv \
         > "${_azure_jobsdir}/locations.out" 2>/dev/null &
+    # Allowance: plain JSON, parsed by field name below (T054). Object-shaped
+    # TSV has no ordering guarantee — Azure sorts projected keys alphabetically
+    # as a best effort, so a reader that trusts `{name, what, cur, lim}` order
+    # can silently swap the numbers. JSON keyed by name cannot.
     az vm list-usage --location "${AZURE_LOCATION}" \
-        --query "[?name.value=='lowPriorityCores' || name.value=='standardDSv5Family' || name.value=='standardFSv2Family'].{name: name.value, what: name.localizedValue, cur: currentValue, lim: limit}" \
-        --output tsv > "${_azure_jobsdir}/usage.out" 2>/dev/null &
+        --output json > "${_azure_jobsdir}/usage.json" 2>/dev/null &
     ( _azure_skus_out > "${_azure_jobsdir}/skus.out" 2>/dev/null ) &
+    # Does the cluster (and its system pool) already exist? The allowance
+    # check needs this: a rerun must not demand room for what already exists,
+    # and a resume must keep the mode the existing workload pools use (T050).
+    ( az aks show --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AZURE_CLUSTER_NAME}" \
+          --output none 2>/dev/null
+      echo $? > "${_azure_jobsdir}/aks.rc" ) &
     wait
 }
 _az_will_parallel_checks
@@ -247,27 +256,60 @@ sys.exit(0 if size in names else 1)
         return 1
     fi
 done
+# --- existing cluster inventory (FR-003/FR-011, T050) ---------------------------
+# A rerun must never demand fresh capacity for resources that already exist,
+# and a partly built cluster must keep the machine mode its existing workload
+# pools already use — flipping modes mid-build would create a mixed cluster.
+# Read-only; skipped when the cluster does not exist yet.
+_azure_pools_json="[]"
+if [ "$(cat "${_azure_jobsdir}/aks.rc" 2>/dev/null)" = "0" ]; then
+    if ! _azure_pools_json=$(az aks nodepool list \
+            --resource-group "${AZURE_RESOURCE_GROUP}" --cluster-name "${AZURE_CLUSTER_NAME}" \
+            --query "[].{name: name, mode: mode, priority: scaleSetPriority}" \
+            --output json 2>/dev/null); then
+        echo "Cannot start: the node pools of the existing cluster ${AZURE_CLUSTER_NAME} could not be read." >&2
+        echo "Check the sign-in and the cluster (az aks nodepool list), then try again. Nothing was created." >&2
+        return 1
+    fi
+    [ -n "${_azure_pools_json}" ] || _azure_pools_json="[]"
+fi
+
 # --- pre-check 5: the machine allowance decides the workload pool mode --------
-# (FR-014, AD-002; contract §1). The system pool is always regular (Azure
-# requires the first pool to be non-spot), so the DSv5 family carries it in
-# every mode. Spot first: the location's spot vCPU room (limit − current)
-# must cover the four workload pools at minimum counts — app 6 + persistent
-# 8 + o11y 8 + loadgen 4 = 26 — and the regular DSv5 room must cover the 2
-# vCPU of the 1× Standard_D2s_v5 system pool. Else regular: every family's
-# room must cover its need at the same minimum counts — DSv5 24 (workload 22
-# + system 2), FSv2 4 (loadgen). Neither fits → refuse naming the short
+# (FR-014, AD-002, T050; contract §1). The usage answer is plain JSON parsed
+# by field name (T054) — never by column order. The needs below are for the
+# resources that do not exist yet: a full cluster reruns with needs 0 and can
+# never be blocked by its own consumption. The system pool is always regular
+# (Azure requires the first pool to be non-spot), so the DSv5 family carries
+# it whenever the cluster itself is missing. Fresh cluster: spot first (the
+# four workload pools at minimum counts — app 6 + persistent 8 + o11y 8 +
+# loadgen 4 = 26 — plus 2 DSv5 for the system pool), then regular per family
+# (DSv5 24 = workload 22 + system 2; FSv2 4), else refuse naming the short
 # family with its numbers, before anything is created. Judged against
 # minimum counts only; autoscaler growth is capped by the allowance, never
 # dodged. Field names confirmed by hand and recorded in research.md (T023,
 # constitution VIII).
-AZURE_SPOT_VCPU_NEEDED=26
-AZURE_DSV5_VCPU_NEEDED=24
+# Full-shape vCPU at minimum counts (data-model §3): workload pools 26 spot
+# / 22 DSv5 + 4 FSv2 regular; the system pool adds 2 DSv5 while the cluster
+# itself is missing. The per-run needs below count only missing resources.
 AZURE_DSV5_SYSTEM_NEEDED=2
-AZURE_FSV2_VCPU_NEEDED=4
 
-_azure_usage=$(cat "${_azure_jobsdir}/usage.out")
-if [ -z "${_azure_usage}" ]; then
-    echo "Cannot start: the machine allowance for ${AZURE_LOCATION} could not be read (az vm list-usage returned nothing)." >&2
+_azure_usage_norm=$(AZURE_USAGE_FILE="${_azure_jobsdir}/usage.json" python3 - <<'PYEOF'
+import json, os, sys
+
+try:
+    doc = json.load(open(os.environ["AZURE_USAGE_FILE"]))
+except (OSError, ValueError):
+    sys.exit(1)
+
+wanted = {"lowPriorityCores", "standardDSv5Family", "standardFSv2Family"}
+for item in (doc.get("value") or []):
+    name = ((item.get("name") or {}).get("value")) or ""
+    if name in wanted:
+        print("%s\t%s\t%s" % (name, item.get("currentValue"), item.get("limit")))
+PYEOF
+)
+if [ -z "${_azure_usage_norm}" ]; then
+    echo "Cannot start: the machine allowance for ${AZURE_LOCATION} could not be read (az vm list-usage gave nothing usable)." >&2
     echo "Check the location and sign-in (az vm list-usage --location ${AZURE_LOCATION}). Nothing was created." >&2
     return 1
 fi
@@ -277,13 +319,13 @@ AZURE_DSV5_VCPU_CURRENT=""
 AZURE_DSV5_VCPU_LIMIT=""
 AZURE_FSV2_VCPU_CURRENT=""
 AZURE_FSV2_VCPU_LIMIT=""
-while IFS=$'\t' read -r _azure_item _azure_what _azure_cur _azure_lim; do
+while IFS=$'\t' read -r _azure_item _azure_cur _azure_lim; do
     case "${_azure_item}" in
         lowPriorityCores)   AZURE_SPOT_VCPU_CURRENT="${_azure_cur}" ; AZURE_SPOT_VCPU_LIMIT="${_azure_lim}" ;;
         standardDSv5Family) AZURE_DSV5_VCPU_CURRENT="${_azure_cur}" ; AZURE_DSV5_VCPU_LIMIT="${_azure_lim}" ;;
         standardFSv2Family) AZURE_FSV2_VCPU_CURRENT="${_azure_cur}" ; AZURE_FSV2_VCPU_LIMIT="${_azure_lim}" ;;
     esac
-done <<< "${_azure_usage}"
+done <<< "${_azure_usage_norm}"
 
 _azure_room_ok() {
     # room = limit − current must cover the needed vCPU; integer math.
@@ -307,34 +349,142 @@ _azure_entryOrFail "${AZURE_DSV5_VCPU_CURRENT}" "${AZURE_DSV5_VCPU_LIMIT}" \
 _azure_entryOrFail "${AZURE_FSV2_VCPU_CURRENT}" "${AZURE_FSV2_VCPU_LIMIT}" \
     "standardFSv2Family (Standard FSv2 Family vCPUs)" || return 1
 
-if _azure_room_ok "${AZURE_SPOT_VCPU_LIMIT}" "${AZURE_SPOT_VCPU_CURRENT}" "${AZURE_SPOT_VCPU_NEEDED}" \
-        && _azure_room_ok "${AZURE_DSV5_VCPU_LIMIT}" "${AZURE_DSV5_VCPU_CURRENT}" "${AZURE_DSV5_SYSTEM_NEEDED}"; then
-    AZURE_POOL_MODE="spot"
-elif _azure_room_ok "${AZURE_DSV5_VCPU_LIMIT}" "${AZURE_DSV5_VCPU_CURRENT}" "${AZURE_DSV5_VCPU_NEEDED}" \
-        && _azure_room_ok "${AZURE_FSV2_VCPU_LIMIT}" "${AZURE_FSV2_VCPU_CURRENT}" "${AZURE_FSV2_VCPU_NEEDED}"; then
-    AZURE_POOL_MODE="regular"
-else
-    # Name the first short family with its current and limit numbers; spot
-    # fits-but-was-not-chosen is not itself a refusal (regular is the
-    # documented fallback), so the message is about the families. The DSv5
-    # need includes the always-regular system pool (2 vCPU), so a spot
-    # subscription with no DSv5 room is refused here too.
-    if ! _azure_room_ok "${AZURE_DSV5_VCPU_LIMIT}" "${AZURE_DSV5_VCPU_CURRENT}" "${AZURE_DSV5_VCPU_NEEDED}"; then
-        _azure_what="Standard DSv5 Family vCPUs"
-        _azure_cur="${AZURE_DSV5_VCPU_CURRENT}"
-        _azure_lim="${AZURE_DSV5_VCPU_LIMIT}"
-        _azure_need="${AZURE_DSV5_VCPU_NEEDED}"
-    else
-        _azure_what="Standard FSv2 Family vCPUs"
-        _azure_cur="${AZURE_FSV2_VCPU_CURRENT}"
-        _azure_lim="${AZURE_FSV2_VCPU_LIMIT}"
-        _azure_need="${AZURE_FSV2_VCPU_NEEDED}"
-    fi
-    echo "Cannot start: not enough machine allowance in ${AZURE_LOCATION} — $_azure_what is ${_azure_cur} used of ${_azure_lim} allowed, but ${_azure_need} free are needed." >&2
-    echo "Raise the quota (Azure Portal → Quotas → Compute), free machines, or pick a different location. Nothing was created." >&2
+# Which workload pools already exist, and on what priority? JSON parsed by
+# field name (the nodepool row order is not promised either).
+_azure_existing_pools=$(AZURE_POOLS_JSON="${_azure_pools_json}" python3 - <<'PYEOF'
+import json, os
+
+try:
+    pools = json.loads(os.environ.get("AZURE_POOLS_JSON") or "[]")
+except ValueError:
+    pools = []
+
+workload = ("app", "persistent", "o11y", "loadgen")
+for p in (pools if isinstance(pools, list) else []):
+    name = p.get("name")
+    if name not in workload:
+        continue
+    prio = p.get("priority")
+    if prio in (None, "", "null"):
+        prio = "regular"
+    elif prio == "Spot":
+        prio = "spot"
+    else:
+        prio = str(prio).lower()
+    print("%s\t%s" % (name, prio))
+PYEOF
+)
+_azure_have_app=0
+_azure_have_persistent=0
+_azure_have_o11y=0
+_azure_have_loadgen=0
+_azure_spot_seen=0
+_azure_regular_seen=0
+_azure_priority_unknown=""
+while IFS=$'\t' read -r _azure_pool_name _azure_priority; do
+    [ -n "${_azure_pool_name}" ] || continue
+    case "${_azure_pool_name}" in
+        app)        _azure_have_app=1 ;;
+        persistent) _azure_have_persistent=1 ;;
+        o11y)       _azure_have_o11y=1 ;;
+        loadgen)    _azure_have_loadgen=1 ;;
+    esac
+    case "${_azure_priority}" in
+        spot)    _azure_spot_seen=1 ;;
+        regular) _azure_regular_seen=1 ;;
+        *)       _azure_priority_unknown="${_azure_pool_name}=${_azure_priority}" ;;
+    esac
+done <<< "${_azure_existing_pools}"
+
+if [ -n "${_azure_priority_unknown}" ]; then
+    echo "Cannot start: the existing workload pool ${_azure_priority_unknown} reports an unexpected machine priority." >&2
+    echo "Expected Spot or regular (null) machines (az aks nodepool list). Nothing was created." >&2
     return 1
 fi
-echo "allowance check: spot ${AZURE_SPOT_VCPU_CURRENT}/${AZURE_SPOT_VCPU_LIMIT} (need ${AZURE_SPOT_VCPU_NEEDED} for the workload pools), DSv5 ${AZURE_DSV5_VCPU_CURRENT}/${AZURE_DSV5_VCPU_LIMIT} (need ${AZURE_DSV5_SYSTEM_NEEDED} for the system pool, ${AZURE_DSV5_VCPU_NEEDED} for regular mode), FSv2 ${AZURE_FSV2_VCPU_CURRENT}/${AZURE_FSV2_VCPU_LIMIT} (need ${AZURE_FSV2_VCPU_NEEDED}) — chosen mode: ${AZURE_POOL_MODE}"
+if [ "${_azure_spot_seen}" -eq 1 ] && [ "${_azure_regular_seen}" -eq 1 ]; then
+    echo "Cannot start: the existing ${AZURE_CLUSTER_NAME} workload pools mix spot and regular machines." >&2
+    echo "One cluster runs one mode (AD-002): run 'make cleanup-cluster' and build again. Nothing was created." >&2
+    return 1
+fi
+
+# Needs are only for the missing resources (T050); the system pool travels
+# with the cluster, so it is missing exactly when the cluster is.
+_azure_missing_spot=0
+_azure_missing_dsv5=0
+_azure_missing_fsv2=0
+[ "${_azure_have_app}" -eq 0 ] && {
+    _azure_missing_spot=$((_azure_missing_spot + 6))
+    _azure_missing_dsv5=$((_azure_missing_dsv5 + 6))
+}
+[ "${_azure_have_persistent}" -eq 0 ] && {
+    _azure_missing_spot=$((_azure_missing_spot + 8))
+    _azure_missing_dsv5=$((_azure_missing_dsv5 + 8))
+}
+[ "${_azure_have_o11y}" -eq 0 ] && {
+    _azure_missing_spot=$((_azure_missing_spot + 8))
+    _azure_missing_dsv5=$((_azure_missing_dsv5 + 8))
+}
+[ "${_azure_have_loadgen}" -eq 0 ] && {
+    _azure_missing_spot=$((_azure_missing_spot + 4))
+    _azure_missing_fsv2=$((_azure_missing_fsv2 + 4))
+}
+_azure_missing_system=0
+[ "$(cat "${_azure_jobsdir}/aks.rc" 2>/dev/null)" = "0" ] || _azure_missing_system="${AZURE_DSV5_SYSTEM_NEEDED}"
+
+_azure_allowance_refuse() {
+    # $1 quota display name, $2 current, $3 limit, $4 needed, $5 context phrase
+    echo "Cannot start: not enough machine allowance in ${AZURE_LOCATION} — ${5:+existing workload pools run on ${5} machines, but }$1 is ${2} used of ${3} allowed, and ${4} free are needed for the missing pools." >&2
+    echo "Raise the quota (Azure Portal → Quotas → Compute), free machines, or pick a different location. Nothing was created." >&2
+}
+
+if [ "${_azure_spot_seen}" -eq 1 ]; then
+    # Resume: keep the spot mode the existing pools use (T050). No regular
+    # fallback here — switching mid-build would mix machine types.
+    if _azure_room_ok "${AZURE_SPOT_VCPU_LIMIT}" "${AZURE_SPOT_VCPU_CURRENT}" "${_azure_missing_spot}"; then
+        AZURE_POOL_MODE="spot"
+    else
+        _azure_allowance_refuse "lowPriorityCores (Total Regional Low-priority vCPUs)" \
+            "${AZURE_SPOT_VCPU_CURRENT}" "${AZURE_SPOT_VCPU_LIMIT}" "${_azure_missing_spot}" "spot"
+        return 1
+    fi
+elif [ "${_azure_regular_seen}" -eq 1 ]; then
+    # Resume: keep the regular mode the existing pools use (T050).
+    if ! _azure_room_ok "${AZURE_DSV5_VCPU_LIMIT}" "${AZURE_DSV5_VCPU_CURRENT}" "${_azure_missing_dsv5}"; then
+        _azure_allowance_refuse "Standard DSv5 Family vCPUs" \
+            "${AZURE_DSV5_VCPU_CURRENT}" "${AZURE_DSV5_VCPU_LIMIT}" "${_azure_missing_dsv5}" "regular"
+        return 1
+    fi
+    if ! _azure_room_ok "${AZURE_FSV2_VCPU_LIMIT}" "${AZURE_FSV2_VCPU_CURRENT}" "${_azure_missing_fsv2}"; then
+        _azure_allowance_refuse "Standard FSv2 Family vCPUs" \
+            "${AZURE_FSV2_VCPU_CURRENT}" "${AZURE_FSV2_VCPU_LIMIT}" "${_azure_missing_fsv2}" "regular"
+        return 1
+    fi
+    AZURE_POOL_MODE="regular"
+else
+    # Fresh cluster: spot preferred, then regular, else refuse (FR-014).
+    if _azure_room_ok "${AZURE_SPOT_VCPU_LIMIT}" "${AZURE_SPOT_VCPU_CURRENT}" "${_azure_missing_spot}" \
+            && _azure_room_ok "${AZURE_DSV5_VCPU_LIMIT}" "${AZURE_DSV5_VCPU_CURRENT}" "${_azure_missing_system}"; then
+        AZURE_POOL_MODE="spot"
+    elif _azure_room_ok "${AZURE_DSV5_VCPU_LIMIT}" "${AZURE_DSV5_VCPU_CURRENT}" "$(( _azure_missing_dsv5 + _azure_missing_system ))" \
+            && _azure_room_ok "${AZURE_FSV2_VCPU_LIMIT}" "${AZURE_FSV2_VCPU_CURRENT}" "${_azure_missing_fsv2}"; then
+        AZURE_POOL_MODE="regular"
+    else
+        # Name the first short family with its current and limit numbers; spot
+        # fits-but-was-not-chosen is not itself a refusal (regular is the
+        # documented fallback), so the message is about the families. The DSv5
+        # need includes the always-regular system pool (2 vCPU), so a spot
+        # subscription with no DSv5 room is refused here too.
+        if ! _azure_room_ok "${AZURE_DSV5_VCPU_LIMIT}" "${AZURE_DSV5_VCPU_CURRENT}" "$(( _azure_missing_dsv5 + _azure_missing_system ))"; then
+            _azure_allowance_refuse "Standard DSv5 Family vCPUs" \
+                "${AZURE_DSV5_VCPU_CURRENT}" "${AZURE_DSV5_VCPU_LIMIT}" "$(( _azure_missing_dsv5 + _azure_missing_system ))" ""
+        else
+            _azure_allowance_refuse "Standard FSv2 Family vCPUs" \
+                "${AZURE_FSV2_VCPU_CURRENT}" "${AZURE_FSV2_VCPU_LIMIT}" "${_azure_missing_fsv2}" ""
+        fi
+        return 1
+    fi
+fi
+echo "allowance check: spot ${AZURE_SPOT_VCPU_CURRENT}/${AZURE_SPOT_VCPU_LIMIT} (need ${_azure_missing_spot} for missing workload pools), DSv5 ${AZURE_DSV5_VCPU_CURRENT}/${AZURE_DSV5_VCPU_LIMIT} (need ${_azure_missing_dsv5} + ${_azure_missing_system} for the system pool), FSv2 ${AZURE_FSV2_VCPU_CURRENT}/${AZURE_FSV2_VCPU_LIMIT} (need ${_azure_missing_fsv2}) — chosen mode: ${AZURE_POOL_MODE}"
 
 export AZURE_POOL_MODE AZURE_SPOT_VCPU_CURRENT AZURE_SPOT_VCPU_LIMIT \
     AZURE_DSV5_VCPU_CURRENT AZURE_DSV5_VCPU_LIMIT \

@@ -22,12 +22,19 @@
 #   RBAC_MG_ID / RBAC_MG_ROLE         that management group and its role
 #   LOCATIONS="eastus2 centralindia"  az account list-locations answers
 #   SIZES="…"                         az rest resource-skus answers
-#   SPOT_LIMIT/DSV5_LIMIT/FSV2_LIMIT  az vm list-usage limits (current 0)
+#   SPOT_LIMIT/DSV5_LIMIT/FSV2_LIMIT  az vm list-usage limits
+#   SPOT_CURRENT/DSV5_CURRENT/FSV2_CURRENT
+#                                     az vm list-usage used vCPU (default 0);
+#                                     nonzero values model an existing cluster
 #   PRE_GROUP/PRE_CLUSTER/PRE_SC=1    what already exists before the run
 #   PRE_POOLS="app persistent …"      workload pools that already exist
-#   MC_LINGERS=1                      az group show --name MC_… succeeds
+#   MC_LINGERS=1                      az group exists --name MC_… says true
 #                                     (the node resource group outlives delete)
+#   GROUP_READ_FAIL=1                 az group exists fails (unreadable state)
+#   DELETE_FAIL=1                     az group delete fails (partial delete)
 #   CLUSTER_FAIL=1 / ADD_FAIL=<pool>  create steps that fail
+#   CLUSTER_STATE_FAIL=1              az aks show provisioningState reads fail
+#                                     after the create was submitted (T056)
 #   POOL_MODE=spot|regular            scaleSetPriority the list answer shows
 #   K8S_VERSION=1.34                  live kubernetesVersion a reused cluster
 #                                     reports (setup compares it to the pin)
@@ -62,6 +69,9 @@ SIZES="${SIZES:-Standard_D2s_v5 Standard_D4s_v5 Standard_F4s_v2}"
 SPOT_LIMIT="${SPOT_LIMIT:-0}"
 DSV5_LIMIT="${DSV5_LIMIT:-50}"
 FSV2_LIMIT="${FSV2_LIMIT:-50}"
+SPOT_CURRENT="${SPOT_CURRENT:-0}"
+DSV5_CURRENT="${DSV5_CURRENT:-0}"
+FSV2_CURRENT="${FSV2_CURRENT:-0}"
 PRE_GROUP="${PRE_GROUP:-0}"
 PRE_CLUSTER="${PRE_CLUSTER:-0}"
 PRE_SC="${PRE_SC:-0}"
@@ -131,7 +141,11 @@ for name in pre + created:
         "size": row["size"],
         "labels": {"workload": row["label"]},
         "taints": taints or None,
+        # `spot` is what the verifier projects; `priority` is what the
+        # helper's allowance check projects (T050). The stand-in answers the
+        # full object either way, exactly like a real unqueried az answer.
         "spot": ("Spot" if mode == "spot" else None),
+        "priority": ("Spot" if mode == "spot" else None),
     })
 
 # Malformed-row patches for the verify scenarios: pool.field=value, or
@@ -150,7 +164,9 @@ def patch(target, field, value):
     elif field == "taints":
         target["taints"] = None if value == "none" else [value]
     elif field == "spot":
-        target["spot"] = None if value in ("none", "null") else value
+        _spot = None if value in ("none", "null") else value
+        target["spot"] = _spot
+        target["priority"] = _spot
     elif field == "mode":
         target["mode"] = value
 
@@ -247,23 +263,38 @@ PYEOF
     group)
         case "${2:-}" in
             exists)
-                if [ "${PRE_GROUP}" = "1" ] || _existed '^az group create '; then
-                    echo "true"
-                else
-                    echo "false"
+                if [ "${GROUP_READ_FAIL:-0}" = "1" ]; then
+                    echo "fake-az: simulated resource group read failure" >&2
+                    exit 1
                 fi
+                _group=$(_fake_name_arg "$@")
+                case "${_group}" in
+                    MC_*)
+                        # Another person's or our own exact MC_ name both
+                        # answer by name; only our predicted name is asked.
+                        if [ "${MC_LINGERS:-0}" = "1" ]; then echo "true"; else echo "false"; fi
+                        ;;
+                    *)
+                        if [ "${PRE_GROUP}" = "1" ] || _existed '^az group create '; then
+                            # A simulated failed delete must not make the
+                            # group disappear (T056 partial-delete case).
+                            if _existed '^az group delete ' && [ "${DELETE_FAIL:-0}" != "1" ]; then
+                                echo "false"
+                            else
+                                echo "true"
+                            fi
+                        else
+                            echo "false"
+                        fi
+                        ;;
+                esac
                 ;;
             create)
                 printf '{ "properties": { "provisioningState": "Succeeded" } }\n'
                 ;;
             delete)
-                : ;;
-            show)
-                if [ "${MC_LINGERS:-0}" = "1" ] && printf '%s\n' "$*" | grep -q 'MC_'; then
-                    printf '{ "name": "fake-mc" }\n'
-                elif _existed '^az group create ' && ! _existed '^az group delete '; then
-                    printf '{ "name": "fake" }\n'
-                else
+                if [ "${DELETE_FAIL:-0}" = "1" ]; then
+                    echo "fake-az: simulated resource group delete failure" >&2
                     exit 1
                 fi
                 ;;
@@ -274,6 +305,13 @@ PYEOF
         case "${2:-}" in
             show)
                 if ! cluster_exists; then
+                    exit 1
+                fi
+                if [ "${CLUSTER_STATE_FAIL:-0}" = "1" ] \
+                    && printf '%s\n' "$*" | grep -q 'provisioningState'; then
+                    # The create was accepted (--no-wait) but the state read
+                    # fails: setup must report it as submitted, not missing.
+                    echo "fake-az: simulated cluster state read failure" >&2
                     exit 1
                 fi
                 case "$*" in
@@ -311,6 +349,9 @@ PYEOF
                         printf '{ "name": "%s" }\n' "${_pool}"
                         ;;
                     list)
+                        if ! cluster_exists; then
+                            exit 1
+                        fi
                         emit_pool_list
                         ;;
                     *) echo "fake-az: unknown nodepool subcommand: $3" >&2; exit 127 ;;
@@ -324,9 +365,41 @@ PYEOF
     vm)
         case "${2:-}" in
             list-usage)
-                printf 'lowPriorityCores\tTotal Regional Low-priority vCPUs\t0\t%s\n' "${SPOT_LIMIT}"
-                printf 'standardDSv5Family\tStandard DSv5 Family vCPUs\t0\t%s\n' "${DSV5_LIMIT}"
-                printf 'standardFSv2Family\tStandard FSv2 Family vCPUs\t0\t%s\n' "${FSV2_LIMIT}"
+                if printf '%s\n' "$*" | grep -q -- '--output json'; then
+                    # T054: JSON parsed by field name. The keys are emitted in
+                    # a deliberately non-alphabetical order to prove the
+                    # reader never depends on it.
+                    FAKE_SPOT_CURRENT="${SPOT_CURRENT}" FAKE_DSV5_CURRENT="${DSV5_CURRENT}" \
+                    FAKE_FSV2_CURRENT="${FSV2_CURRENT}" FAKE_SPOT_LIMIT="${SPOT_LIMIT}" \
+                    FAKE_DSV5_LIMIT="${DSV5_LIMIT}" FAKE_FSV2_LIMIT="${FSV2_LIMIT}" \
+                    python3 <<'PYEOF'
+import json, os
+
+def item(name, display, current, limit):
+    return {"name": {"localizedValue": display, "value": name},
+            "limit": int(limit), "unit": "Count", "currentValue": int(current)}
+
+print(json.dumps({"value": [
+    item("lowPriorityCores", "Total Regional Low-priority vCPUs",
+         os.environ["FAKE_SPOT_CURRENT"], os.environ["FAKE_SPOT_LIMIT"]),
+    item("standardDSv5Family", "Standard DSv5 Family vCPUs",
+         os.environ["FAKE_DSV5_CURRENT"], os.environ["FAKE_DSV5_LIMIT"]),
+    item("standardFSv2Family", "Standard FSv2 Family vCPUs",
+         os.environ["FAKE_FSV2_CURRENT"], os.environ["FAKE_FSV2_LIMIT"]),
+]}))
+PYEOF
+                else
+                    # Old object-projection TSV path: Azure documents no
+                    # ordering guarantee and alphabetizes keys as a best
+                    # effort (cur, lim, name, what). Returning that order
+                    # makes any order-dependent reader fail loudly offline.
+                    printf '%s\t%s\tlowPriorityCores\tTotal Regional Low-priority vCPUs\n' \
+                        "${SPOT_CURRENT}" "${SPOT_LIMIT}"
+                    printf '%s\t%s\tstandardDSv5Family\tStandard DSv5 Family vCPUs\n' \
+                        "${DSV5_CURRENT}" "${DSV5_LIMIT}"
+                    printf '%s\t%s\tstandardFSv2Family\tStandard FSv2 Family vCPUs\n' \
+                        "${FSV2_CURRENT}" "${FSV2_LIMIT}"
+                fi
                 ;;
             *) echo "fake-az: unknown vm subcommand: $2" >&2; exit 127 ;;
         esac

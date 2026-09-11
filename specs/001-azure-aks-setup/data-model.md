@@ -29,8 +29,11 @@ plain-language messages, per FR-005/FR-006):
   `eastus2` fallback applies only when the setting is empty, never after a
   failed check).
 - The **machine allowance must fit the chosen mode** (`az vm list-usage
-  --location <loc> --output json`). Spot first (whole shape), then regular
-  per family; neither fits → plain refusal naming the short allowance
+  --location <loc> --output json`, parsed by field name — object-shaped TSV
+  has no ordering guarantee). Needs cover only resources that do not exist
+  yet, and the mode already used by existing workload pools is preserved on
+  a resume (T050): spot first (whole missing shape), then regular per
+  family; neither fits → plain refusal naming the short allowance
   (FR-014, AD-002). This is the newest rule; details live in the spot
   bullet of §3.
 - `AKS_KUBERNETES_VERSION` must be non-empty.
@@ -57,6 +60,10 @@ cluster name        = "sre-stack-<code>"      (e.g. sre-stack-4f2c9a)
   group, cluster, each node pool, the gp2 StorageClass — and creates only
   what is missing (FR-003). A rerun after a complete run creates nothing
   new; a rerun after a partial run continues where it stopped (FR-011).
+  The allowance check reserves room only for what is missing, so a
+  complete cluster reruns (and verifies) even when it already consumes the
+  full allowance, and a partly built cluster continues in the machine mode
+  its existing workload pools already use — never a mixed one (T050).
   If the reused cluster's live `kubernetesVersion` differs from the `.env`
   pin, the setup prints a plain warning naming both versions and the
   deliberate change path (`make cleanup-cluster`, then `make setup-cluster`)
@@ -74,7 +81,9 @@ cluster name        = "sre-stack-<code>"      (e.g. sre-stack-4f2c9a)
   and location) — a subscription shared by several people contains other
   people's `MC_` groups too, so the script never searches by the `MC_`
   prefix. If the exact group still exists after deletion, it warns with the
-  removal command (never deletes it blindly).
+  removal command (never deletes it blindly). The same check runs when the
+  main group is already absent, so a retry catches an orphaned node group;
+  a failed existence read is never treated as "nothing to clean" (T051).
 
 ## 3. The cluster shape (what "mirror the Amazon cluster" means)
 
@@ -99,19 +108,24 @@ Notes:
   capability marks which pools *may* run on cheaper spot machines (here:
   all four workload pools). Which mode the setup actually uses is decided
   at run time by the helper's allowance check (`az vm list-usage`),
-  **before anything is created** (FR-014, AD-002):
-    1. spot allowance in the location ≥ 26 vCPU (the four workload pools at
-       minimum counts: app 6 + persistent 8 + o11y 8 + loadgen 4) **and**
+  **before anything is created** (FR-014, AD-002). The needs count only the
+  pools that do not exist yet, and when workload pools already exist their
+  mode is kept (T050), so a resume never mixes modes and a complete rerun
+  needs no fresh capacity:
+    1. spot allowance in the location ≥ 26 vCPU for the **missing** workload
+       pools (full shape: app 6 + persistent 8 + o11y 8 + loadgen 4) **and**
        regular DSv5 room ≥ 2 vCPU for the always-regular system pool (1×
-       `Standard_D2s_v5`) → every spot-capable pool is created with the
-       spot flags from §3/​research.md
+       `Standard_D2s_v5`) when the cluster is also missing → every
+       spot-capable pool is created with the spot flags from §3/​research.md
        (`--priority Spot --eviction-policy Delete ...`);
-    2. else regular per-family allowances fit (DSv5 family needs 24 — 22
-       workload + 2 for the system pool; FSv2 family needs 4 — both at the
-       minimum counts, like the spot case)
+    2. else regular per-family allowances fit for the missing pools (full
+       shape: DSv5 family 24 — 22 workload + 2 for the system pool; FSv2
+       family 4 — both at the minimum counts, like the spot case)
        → same pools without spot flags;
     3. else the setup refuses with a plain message naming the short
-       allowance, before creating anything.
+       allowance, before creating anything. A resume with existing spot
+       pools whose remaining spot room cannot cover the missing pools is
+       refused the same way — never flipped to regular.
   All-or-nothing per mode; the `system` pool is always regular because
   Azure requires the first pool on a cluster to be a non-spot system pool.
   The allowance is judged against the documented **minimum counts** only;

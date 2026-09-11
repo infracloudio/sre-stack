@@ -23,9 +23,10 @@ contract in the same commit.
 | Which bill? | `az account set --subscription "$AZURE_SUBSCRIPTION_ID"` | Only when the setting is non-empty. Fails → "subscription not found" and stop. |
 | Is the location real? | `az account list-locations --query "[?name=='<location>'].name" --output tsv` | Chosen (or fallback `eastus2`) location must appear in the list; else "location not available" and stop. (2026-09-10 speed pass: narrowed the query; the answer set is the same name list.) |
 | Are the machine sizes offered there? | `az rest --method GET --url "https://management.azure.com/subscriptions/<sub>/providers/Microsoft.Compute/skus?api-version=2021-07-01&\$filter=location eq '<location>'"` (2026-09-10 speed pass replacing a plain-CLI `az vm list-skus` call that stalls 90 s–2 min; azure-cli issues #31592/#30389) — parsed locally for the three size names at the location (virtualMachines entries, names checked regardless of restrictions = the old `--all` semantics: `Standard_D2s_v5`, `Standard_D4s_v5`, `Standard_F4s_v2` must appear; else name the first missing size ("machine size X is not offered in Y; pick a location that offers it") and stop. No silent swap, no auto-fallback. |
-| Does the group already exist? | `az group exists --name <generated>` | `true` → skip only the `az group create` step (per-resource idempotency, FR-003/FR-011). |
-| Does the allowance fit the designed shape? | `az vm list-usage --location <location> --output json` | Decides the workload-pool mode before anything is created (FR-014, AD-002). The system pool is always regular (Azure requires a non-spot first pool), so its 2 DSv5 vCPU count in every mode. Spot first: the location's spot vCPU item (e.g. `lowPriorityCores` / "Low Priority Standard vCPUs"; the exact JSON field names are confirmed by hand and recorded in research.md) must cover 26 vCPU — the four workload pools at minimum counts (app 6 + persistent 8 + o11y 8 + loadgen 4) — **and** the regular DSv5 room must cover the 2 vCPU of the 1× `Standard_D2s_v5` system pool. Fits → export `AZURE_POOL_MODE=spot`. Else regular: per-family vCPU limits ("Standard DSv5 Family vCPUs" needs 24 — workload 22 + system 2, "Standard FSv2 Family vCPUs" needs 4) must all fit at the same minimum counts → `AZURE_POOL_MODE=regular`. Else print "not enough machine allowance" naming the short family and its current+limit numbers, and stop — the refusal happens before `az group create`, so nothing is created. Judged at minimum counts; autoscaler growth is capped by the allowance, never dodged. |
-| Does the cluster already exist? | `az aks show --resource-group <rg> --name <cluster>` | Succeeds → skip `az aks create` (cluster and its system pool already exist). |
+| Does the group already exist? | `az group exists --name <generated>` | `true` → skip only the `az group create` step (per-resource idempotency, FR-003/FR-011). In cleanup the answer must be exactly `true`/`false`; see the deleting table for the failed-read rule (T051). |
+| Does the allowance fit the designed shape? | `az vm list-usage --location <location> --output json` | Decides the workload-pool mode before anything is created (FR-014, AD-002). The answer is plain JSON parsed **by field name** — object-shaped TSV has no ordering guarantee; Azure alphabetizes projected keys only as a best effort, so `{name, what, cur, lim}` may come back `cur, lim, name, what` (T054). The system pool is always regular (Azure requires a non-spot first pool), so its 2 DSv5 vCPU count whenever the cluster itself is missing. The needs cover only resources that do not exist yet (T050): the helper first reads the existing workload pools (next row), so a complete-cluster rerun has needs 0 and can never be blocked by its own consumption. Fresh cluster, spot first: the location's spot vCPU item (e.g. `lowPriorityCores` / "Total Regional Low-priority vCPUs"; exact JSON field names confirmed by hand and recorded in research.md) must cover 26 vCPU — the four workload pools at minimum counts (app 6 + persistent 8 + o11y 8 + loadgen 4) — **and** the regular DSv5 room must cover the 2 vCPU of the 1× `Standard_D2s_v5` system pool → `AZURE_POOL_MODE=spot`. Else regular: per-family vCPU limits ("Standard DSv5 Family vCPUs" needs 24 — workload 22 + system 2, "Standard FSv2 Family vCPUs" needs 4) must all fit at the same minimum counts → `AZURE_POOL_MODE=regular`. When workload pools already exist, their mode is preserved (spot resume keeps spot, regular resume keeps regular; a mixed spot/regular cluster is refused) and the room must cover only the missing pools' minimum counts. Else print "not enough machine allowance" naming the short family and its current+limit numbers, and stop — the refusal happens before `az group create`, so nothing is created. Judged at minimum counts; autoscaler growth is capped by the allowance, never dodged. |
+| Which workload pools already exist? | `az aks nodepool list --resource-group <rg> --cluster-name <cluster> --query "[].{name: name, mode: mode, priority: scaleSetPriority}" --output json` | Read only when `az aks show` succeeded, parsed by field name. The four expected names and their `scaleSetPriority` (`Spot` vs `null`/`Regular`) decide the preserved mode and subtract already-created pools from the allowance needs (T050). A failed read refuses before anything is created; the cluster is never upgraded or reshaped in place. |
+| Does the cluster already exist? | `az aks show --resource-group <rg> --name <cluster>` | Succeeds → skip `az aks create` (cluster and its system pool already exist). The helper also runs it once with `--output none` before the allowance check, because the system pool and every existing pool change what the check needs to reserve (T050). |
 | Does a node pool already exist? | `az aks nodepool show --resource-group <rg> --cluster-name <cluster> --name <pool>` | Succeeds → skip that pool's `az aks nodepool add`. Checked per pool, before each add. |
 | Does the storage setting already exist? | `kubectl get storageclass gp2` | Succeeds → skip `kubectl apply -f infra/azure/gp2-storageclass.yaml`. |
 
@@ -45,7 +46,9 @@ contract in the same commit.
 |---|---|---|
 | Is the control plane ready? | `az aks show --resource-group <rg> --name <cluster>` | `provisioningState` = `Succeeded`, `powerState.code` = `Running` |
 | Does each pool match? | `az aks nodepool list --resource-group <rg> --cluster-name <cluster>` | per pool: `name`, `mode` (finds the system pool — Azure names it itself, e.g. `nodepool1`), `count`, `vmSize`, `nodeLabels`, `nodeTaints`, `minCount`, `maxCount`, `scaleSetPriority`. The per-pool `provisioningState` was dropped: a pool legitimately reads `Updating` for minutes after a change (research.md fact 6), so verification gates on the cluster-level `az aks show` state plus the live `count`s instead of racing a field that settles on its own. |
-| Is the cluster still empty? | `kubectl get namespaces --output name` | Only `default` and `kube-*` may exist; any other namespace is a mismatch (FR-008). Read-only. |
+| Which cluster do the kubectl reads target? | `kubectl config view --minify -o jsonpath='{.contexts[0].context.cluster}'` | Must equal the generated cluster name. A failed read or a different cluster is a mismatch **and the namespace/workload checks are skipped** (T055) — reads against another cluster prove nothing. |
+| Is the cluster still empty (namespaces)? | `kubectl get namespaces --output name` | Only `default` and `kube-*` may exist; any other namespace is a mismatch (FR-008). Read-only; a failed or empty read is a mismatch. |
+| Is the cluster still empty (workloads)? | `kubectl get deployments,statefulsets,daemonsets,jobs,cronjobs,pods --all-namespaces --output json` | Any workload whose namespace is not `kube-*` is a mismatch (FR-008): housekeeping workloads in kube-* namespaces are legitimate, an application Deployment in `default` is not (T055). Read-only; a failed read is a mismatch. |
 
 The verify script prints one plain line per pool, e.g.
 `✓ app: 3 nodes, Standard_D2s_v5, label workload=app, regular — matches Amazon`
@@ -72,9 +75,9 @@ offered sizes, or roles changed since setup.
 
 | Purpose | Command | Guard |
 |---|---|---|
-| Is there anything to remove? | `az group exists --name <generated>` | `false` → "nothing to clean" and exit 0 (FR-004 case 2). |
-| Remove it all | `az group delete --name <generated> --yes` | Name must equal the generated name; a mismatch never deletes. |
-| Confirm the automatic second folder is gone | `az group show --name MC_<generated-rg>_<generated-cluster>_<location>` | The node resource group's name is fully predictable — `MC_<our-rg>_<our-cluster>_<location>` — so the script checks **only that exact name**, never a broad `MC_*` search. The subscription may be shared by several people, each with their own `MC_` groups; those belong to them and must never be touched or even reported by us. If the exact group still exists after the delete finishes, print a plain warning naming it and how to remove it (`az group delete --name <that-exact-group> --yes`), and exit non-zero. Never delete an `MC_` group by hand unless the cluster is already gone. |
+| Is there anything to remove? | `az group exists --name <generated>` | Must answer exactly `true` or `false`. `false` = the main group is confirmed absent; the node-group check below still runs (T051). Any other exit code or output is a **failed read**: cleanup stops non-zero with "could not check ... Nothing was deleted" — it never prints "Nothing to clean" on unreadable state (T051). |
+| Remove it all | `az group delete --name <generated> --yes` | Name must equal the generated name; a mismatch never deletes. On failure, a read-only follow-up `az group exists` names whether the group still exists, or that its state could not be checked; exit non-zero with no second delete (T056). |
+| Confirm the automatic second folder is gone | `az group exists --name MC_<generated-rg>_<generated-cluster>_<location>` | Same confirmed/read-failed contract as the first row. The node resource group's name is fully predictable — `MC_<our-rg>_<our-cluster>_<location>` — so the script checks **only that exact name**, never a broad `MC_*` search or list. The subscription may be shared by several people, each with their own `MC_` groups; those belong to them and must never be touched or even reported by us. The check runs after a successful delete **and** when the main group was already absent (T051), so a retry after a partial teardown catches an orphaned node group. If the exact group exists, print a plain warning naming it and how to remove it (`az group delete --name <that-exact-group> --yes`), and exit non-zero. Never delete an `MC_` group by hand unless the cluster is already gone. |
 
 ## 2. What the pretend `az` must imitate (offline tests, FR-013)
 
@@ -85,13 +88,25 @@ The stand-in is a small script placed first on `PATH`. Rules:
    `kubectl` (`agent/tests/azure/fake-kubectl.sh`) on the same PATH and it
    records into the same log: after the apply is recorded, the `get
    storageclass gp2` check succeeds; a scenario's `PRE_SC=1` knob makes the
-   get succeed before any apply. It also answers the verifier's
-   `kubectl get namespaces --output name`: `FAKE_NAMESPACES` names what
-   exists (default the four built-in namespaces) and
-   `KUBECTL_NAMESPACES_FAIL=1` makes the read fail, so the verifier's
-   fail-closed namespace check (T034) is exercised offline too.
+   get succeed before any apply. It also answers the verifier's kubectl
+   reads: `kubectl config view --minify …` returns `FAKE_CONTEXT` (the
+   runner seeds it with the generated cluster name, a scenario overrides it
+   to prove the wrong-context mismatch, T055); `kubectl get namespaces
+   --output name` returns `FAKE_NAMESPACES` (default the four built-in
+   namespaces) and `KUBECTL_NAMESPACES_FAIL=1` makes the read fail;
+   `kubectl get deployments,… --all-namespaces --output json` returns the
+   `FAKE_WORKLOADS` entries (`namespace/Kind/name`, default none), so the
+   workload check and the fail-closed namespace check (T034/T055) are
+   exercised offline too.
 1. **Record every call** — append the full argument list to a log file,
    one line per call, in order; unknown `az` commands exit non-zero.
+   The `vm list-usage` answer is plain JSON only when `--output json` is
+   asked for; the legacy object-projection TSV path returns the real
+   alphabetical column order (`cur, lim, name, what`) so an order-dependent
+   reader fails loudly offline (T054). `SPOT_CURRENT`/`DSV5_CURRENT`/
+   `FSV2_CURRENT` model an existing cluster that already consumes allowance.
+   `GROUP_READ_FAIL=1`, `DELETE_FAIL=1`, and `CLUSTER_STATE_FAIL=1` drive
+   the failed-read / failed-delete / async-create paths (T051/T056).
 2. **Answer from a scenario file** — one file per scenario
    (`agent/tests/azure/scenarios/<name>.sh`), sourced by the stand-in; the
    scenario knobs describe the world in plain shell variables, and the
@@ -129,9 +144,20 @@ The stand-in is a small script placed first on `PATH`. Rules:
      (26+) → every `az aks nodepool add` for the four workload pools is
      recorded **with** the spot flags; the system pool's creation carries
      none.
-   - `spot-short`: spot vCPU below 26, regular per-family limits fit →
-     the same adds recorded **without** spot flags, and no refusal.
-   - `no-room`: spot short **and** one regular family below its needed
+    - `spot-short`: spot vCPU below 26, regular per-family limits fit →
+      the same adds recorded **without** spot flags, and no refusal.
+    - `spot-resume`: group, cluster, and two spot workload pools exist
+      (their 14 vCPU already count against a 30 spot limit) → the remaining
+      two pools are added **with** the spot flags, the existing pools are
+      not re-added, and no create call is recorded. The mode follows the
+      existing pools, never the free allowance.
+    - `spot-resume-short`: the same partial spot cluster but the spot
+      allowance is exhausted (14/14) → plain refusal naming the spot
+      allowance, exit ≠ 0, **no** adds, and never a silent flip to regular.
+    - `regular-full-resume`: a complete regular cluster consumes every
+      allowed DSv5 (24) and FSv2 (4) vCPU → the no-op rerun succeeds with
+      needs 0, records no adds, no creates, and no deletes (T050).
+    - `no-room`: spot short **and** one regular family below its needed
      vCPU (e.g. FSv2 limit 2 < 4) → plain refusal naming that family with
      its current and limit numbers, exit ≠ 0, and **no** `az group create`
      recorded.
@@ -139,17 +165,35 @@ The stand-in is a small script placed first on `PATH`. Rules:
      the regular DSv5 room is below the 2 vCPU the always-regular system
      pool needs (limit 1) → plain refusal naming DSv5 with its numbers,
      exit ≠ 0, and **no** `az group create` recorded.
-    - `mc-lingers`: after `az group delete`, `az group show --name
-     MC_<expected-exact-name>` still succeeds → plain warning naming that
-     one group and the removal command, exit non-zero, and **no** second
-     delete call recorded. The stand-in also proves isolation: other `MC_`
-     groups (other people's) exist in the scenario, and the script must
-     never call a list/search over `MC_*`.
-   - `partial`: group + cluster succeeded, `app` pool created, `persistent`
-     add failed → the script stops, prints the plain report (group name,
-     cluster name, pools that reached `running`), records **no** delete call.
-   - `cleanup-full`: group exists → one `az group delete --yes` call recorded.
-   - `cleanup-empty`: group doesn't exist → zero delete calls, exit 0.
+     - `mc-lingers`: after `az group delete`, the exact predicted name
+      answers `az group exists --name MC_<expected-exact-name>` = `true` →
+      plain warning naming that one group and the removal command, exit
+      non-zero, and **no** second delete call recorded. The stand-in also
+      proves isolation: other `MC_` groups (other people's) exist in the
+      scenario, and the script must never call a list/search over `MC_*`.
+    - `partial`: group + cluster succeeded, `app` pool created, `persistent`
+      add failed → the script stops, prints the plain report (group name,
+      cluster name, pools that reached `running`), records **no** delete call.
+    - `partial-async`: `az aks create` is accepted (`--no-wait`) and every
+      subsequent `provisioningState` read fails (`CLUSTER_STATE_FAIL=1`,
+      retries forced to 1) → the script stops and reports the cluster under
+      "Submitted but not confirmed", **never** under "Not created", records
+      no delete call (T056).
+    - `cleanup-full`: group exists, its exact MC name does not → one
+      `az group delete --yes` call recorded and exactly one exact-name
+      `az group exists --name MC_…` check.
+    - `cleanup-empty`: neither group exists → zero delete calls, exit 0, and
+      the exact-name MC check still runs once (T051).
+    - `cleanup-read-error`: `az group exists` fails (`GROUP_READ_FAIL=1`) →
+      "could not check whether resource group … exists", exit ≠ 0, zero
+      deletes, and **never** "Nothing to clean" (T051).
+    - `cleanup-orphan-retry`: the main group is confirmed absent but the
+      exact predicted MC name answers `true` (`MC_LINGERS=1`) → warning
+      naming the orphan plus the removal command, exit ≠ 0, zero deletes
+      (T051).
+    - `cleanup-delete-fail`: `az group delete` fails (`DELETE_FAIL=1`) → the
+      follow-up read confirms the group still exists, exit ≠ 0, exactly one
+      delete attempt, no success claim (T056).
    - `verify-ok`: the cluster and all four workload pools match the §3 table
      in regular mode and only the built-in namespaces exist → the verifier
      prints ✓ for the control plane and every pool, reports zero mismatches,
@@ -160,9 +204,25 @@ The stand-in is a small script placed first on `PATH`. Rules:
    - `verify-namespace-extra`: pools match but a `team-a` namespace exists →
      the verifier exits non-zero naming that namespace (FR-008), while the
      pool lines still report ✓.
-   - `verify-kubectl-fails`: `kubectl get namespaces` fails (bad kubeconfig)
-     → the verifier fails closed with a ✗ and a non-zero exit, never an
-     empty-cluster pass (T034 regression guard).
+    - `verify-kubectl-fails`: `kubectl get namespaces` fails (bad kubeconfig)
+      → the verifier fails closed with a ✗ and a non-zero exit, never an
+      empty-cluster pass (T034 regression guard).
+    - `verify-ok-full-quota`: the complete regular cluster from
+      `regular-full-resume` → the verifier passes with zero mismatches
+      without any free capacity for a second cluster (T050).
+    - `verify-workload-extra`: pools and namespaces match, but
+      `FAKE_WORKLOADS` holds `default/Deployment/robot-shop` → the verifier
+      exits non-zero with one ✗ naming that workload while the pool lines
+      stay ✓ (T055).
+    - `verify-wrong-context`: `FAKE_CONTEXT` names a different cluster → the
+      verifier exits non-zero with one ✗ naming the context and trusts no
+      kubectl read (no namespace/workload claims, T055).
+
+   The public entry points are covered too (T053): `make setup` and
+   `make cleanup` run with `STACK_MODE=aks` and the fake PATH, and must
+   record only the cluster scripts' calls (no Amazon targets); `make
+   STACK_MODE=nonsense setup` refuses at make time, names the three valid
+   values, and records no call at all — no cloud is touched.
 
    Cleanup scenarios run the cleanup script in its cleanup mode: the helper
    checks sign-in and computes the generated names, but the create-time probes
@@ -191,13 +251,31 @@ Run 'az login' first, then try again. Nothing was created.
 Partial-failure report example:
 
 ```text
-Setup stopped partway. Created so far:
+Setup stopped partway.
+Confirmed created:
   - resource group rijo-aks-4f2c9a
   - cluster sre-stack-4f2c9a
   - node pool system (running)
   - node pool app (running)
-Not created: persistent, o11y, loadgen, gp2 storage setting.
+Not created: persistent pool, o11y pool, loadgen pool, gp2 storage setting,
+ (pool adds that did not run may still be finishing on Azure's side; nothing
+ was deleted by us).
 Nothing was deleted. Options:
   - run 'make setup-cluster' again to continue, or
   - run 'make cleanup-cluster' to remove everything and start fresh.
+```
+
+When the cluster create was accepted (`--no-wait`) but its state could not
+be read, or polling timed out, the report gains a middle section instead of
+asserting the cluster missing (T056):
+
+```text
+Setup stopped partway.
+Confirmed created:
+  - resource group rijo-aks-4f2c9a
+Submitted but not confirmed (the create was accepted; re-run 'make setup-cluster' to check):
+  - cluster sre-stack-4f2c9a
+Not created: system pool, app pool, persistent pool, o11y pool, loadgen pool, kube credentials, gp2 storage setting,
+ (pool adds that did not run may still be finishing on Azure's side; nothing
+ was deleted by us).
 ```

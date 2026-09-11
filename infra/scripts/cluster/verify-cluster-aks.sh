@@ -160,20 +160,79 @@ EOF
     fi
 fi
 
-# --- 3. namespaces (FR-008) -------------------------------------------------------
-# Fail closed: a failed or empty read must count as a mismatch, not vanish
-# into a list that looks like an empty cluster.
-if ! _ns_raw=$(kubectl get namespaces --output name 2>/dev/null) || [ -z "${_ns_raw}" ]; then
-    _bad "namespaces: kubectl get namespaces failed or returned nothing" \
-        "a reachable cluster (check kubectl and the kubeconfig context, then re-run)"
+# --- 3. the kubectl reads target our cluster (FR-012, T055) ----------------------
+# Everything read through kubectl below must come from the Azure cluster just
+# checked, not from another kubeconfig context. A failed or mismatched context
+# counts as a mismatch and the kubectl checks are skipped — reads against the
+# wrong cluster prove nothing.
+_kube_ctx=$(kubectl config view --minify -o jsonpath='{.contexts[0].context.cluster}' 2>/dev/null)
+if [ -z "${_kube_ctx}" ]; then
+    _bad "kubectl context: could not read which cluster the current context targets" \
+        "run: az aks get-credentials --resource-group ${AZURE_RESOURCE_GROUP} --name ${AZURE_CLUSTER_NAME} --overwrite-existing"
+elif [ "${_kube_ctx}" != "${AZURE_CLUSTER_NAME}" ]; then
+    _bad "kubectl context: current context targets '${_kube_ctx}', not '${AZURE_CLUSTER_NAME}'" \
+        "run: az aks get-credentials --resource-group ${AZURE_RESOURCE_GROUP} --name ${AZURE_CLUSTER_NAME} --overwrite-existing"
 else
-    _ns=$(printf '%s\n' "${_ns_raw}" | sed 's,namespace/,,')
-    for _n in ${_ns}; do
-        case "${_n}" in
-            default|kube-*) ;;
-            *) _bad "namespace ${_n} exists" "an empty cluster holds only default and kube-* namespaces" ;;
-        esac
-    done
+    echo "✓ kubectl context: ${_kube_ctx}"
+
+    # --- 4. namespaces (FR-008) ---------------------------------------------------
+    # Fail closed: a failed or empty read must count as a mismatch, not vanish
+    # into a list that looks like an empty cluster.
+    if ! _ns_raw=$(kubectl get namespaces --output name 2>/dev/null) || [ -z "${_ns_raw}" ]; then
+        _bad "namespaces: kubectl get namespaces failed or returned nothing" \
+            "a reachable cluster (check kubectl and the kubeconfig context, then re-run)"
+    else
+        _ns=$(printf '%s\n' "${_ns_raw}" | sed 's,namespace/,,')
+        for _n in ${_ns}; do
+            case "${_n}" in
+                default|kube-*) ;;
+                *) _bad "namespace ${_n} exists" "an empty cluster holds only default and kube-* namespaces" ;;
+            esac
+        done
+    fi
+
+    # --- 5. workloads (FR-008, T055) ----------------------------------------------
+    # Namespaces are not enough: an application Deployment in `default` would
+    # pass the namespace check. Housekeeping workloads in kube-* namespaces
+    # are legitimate; any workload elsewhere means the cluster is not empty.
+    _wl_json=$(kubectl get deployments,statefulsets,daemonsets,jobs,cronjobs,pods \
+        --all-namespaces --output json 2>/dev/null)
+    if [ -z "${_wl_json}" ]; then
+        _bad "workloads: kubectl get workloads failed or returned nothing" \
+            "a reachable cluster (check kubectl and the kubeconfig context, then re-run)"
+    else
+        _wl_rc=0
+        VERIFY_WORKLOAD_JSON="${_wl_json}" python3 <<'EOF' || _wl_rc=$?
+import json, os, sys
+
+try:
+    doc = json.loads(os.environ["VERIFY_WORKLOAD_JSON"])
+except (KeyError, ValueError):
+    sys.exit(255)
+if not isinstance(doc, dict) or not isinstance(doc.get("items"), list):
+    sys.exit(255)
+
+fail = 0
+for item in doc["items"]:
+    meta = item.get("metadata") or {}
+    ns = meta.get("namespace") or ""
+    kind = item.get("kind") or "?"
+    name = meta.get("name") or "?"
+    if not ns.startswith("kube-"):
+        print("✗ " + kind.lower() + " " + name + " in namespace " + (ns or "?") + " exists",
+              file=sys.stderr)
+        print("   expected: an empty cluster (only kube-* housekeeping workloads)",
+              file=sys.stderr)
+        fail += 1
+sys.exit(min(fail, 254))
+EOF
+        if [ "${_wl_rc}" -eq 255 ]; then
+            _bad "workloads: verifier failed while reading workload data" \
+                "json shaped like kubectl get --all-namespaces --output json"
+        elif [ "${_wl_rc}" -gt 0 ]; then
+            failures=$((failures + _wl_rc))
+        fi
+    fi
 fi
 
 echo "report: ${failures} mismatch(es)"

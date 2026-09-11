@@ -27,10 +27,13 @@ _rg="${AZURE_RESOURCE_GROUP}"
 _cluster="${AZURE_CLUSTER_NAME}"
 _loc="${AZURE_LOCATION}"
 
-# Canonical step list (build order) and what landed. At failure time nothing
-# reached "done" is reported as not created — the §3 report.
+# Canonical step list (build order) and what landed. The report separates
+# three states (T056): confirmed created, submitted-but-unconfirmed (an
+# accepted --no-wait create or a create whose state could not be read), and
+# not created. Nothing reached "done" is ever asserted missing.
 _steps=(group cluster system app persistent o11y loadgen kubecreds storage)
 _setup_done=()
+_setup_submitted=()
 _system_pools_reached=0
 
 _step_label() {
@@ -47,34 +50,56 @@ _step_label() {
     esac
 }
 
+_step_short() {
+    case "$1" in
+        group)     printf 'resource group' ;;
+        cluster)   printf 'cluster' ;;
+        system)    printf 'system pool' ;;
+        app)       printf 'app pool' ;;
+        persistent) printf 'persistent pool' ;;
+        o11y)      printf 'o11y pool' ;;
+        loadgen)   printf 'loadgen pool' ;;
+        kubecreds) printf 'kube credentials' ;;
+        storage)   printf 'gp2 storage setting' ;;
+    esac
+}
+
 _setup_fail() {
-    echo "Setup stopped partway. Created so far:" >&2
-    local _s
+    echo "Setup stopped partway." >&2
+    local _s _any=0
+    echo "Confirmed created:" >&2
     for _s in "${_steps[@]}"; do
         case "${_s}" in
-            system) [ "${_system_pools_reached}" -eq 1 ] && echo "  - node pool system (running)" >&2 ;;
+            system) if [ "${_system_pools_reached}" -eq 1 ]; then
+                        echo "  - node pool system (running)" >&2
+                        _any=1
+                    fi ;;
             *) if printf '%s\n' "${_setup_done[@]:-}" | grep -qx "${_s}"; then
                    echo "  - $(_step_label "${_s}")" >&2
+                   _any=1
                fi ;;
         esac
     done
-        printf 'Not created:' >&2
+    [ "${_any}" -eq 1 ] || echo "  - (nothing confirmed)" >&2
+
+    if [ "${#_setup_submitted[@]}" -gt 0 ]; then
+        echo "Submitted but not confirmed (the create was accepted; re-run 'make setup-cluster' to check):" >&2
+        for _s in "${_setup_submitted[@]}"; do
+            case "${_s}" in
+                cluster) echo "  - cluster ${_cluster}" >&2 ;;
+                *)       echo "  - $(_step_short "${_s}")" >&2 ;;
+            esac
+        done
+    fi
+
+    printf 'Not created:' >&2
     for _s in "${_steps[@]}"; do
         case "${_s}" in
             system) [ "${_system_pools_reached}" -eq 1 ] && continue ;;
             *) printf '%s\n' "${_setup_done[@]:-}" | grep -qx "${_s}" && continue ;;
         esac
-        case "${_s}" in
-            group)     printf ' resource group,' >&2 ;;
-            cluster)   printf ' cluster,' >&2 ;;
-            system)    printf ' system pool,' >&2 ;;
-            app)       printf ' app pool,' >&2 ;;
-            persistent) printf ' persistent pool,' >&2 ;;
-            o11y)      printf ' o11y pool,' >&2 ;;
-            loadgen)   printf ' loadgen pool,' >&2 ;;
-            kubecreds) printf ' kube credentials,' >&2 ;;
-            storage)   printf ' gp2 storage setting,' >&2 ;;
-        esac
+        printf '%s\n' "${_setup_submitted[@]:-}" | grep -qx "${_s}" && continue
+        printf ' %s,' "$(_step_short "${_s}")" >&2
     done
     echo " (pool adds that did not run may still be finishing on Azure's side; nothing was deleted by us)." >&2
     echo "" >&2
@@ -86,6 +111,10 @@ _setup_fail() {
 
 _mark() {
     _setup_done+=("$1")
+}
+
+_mark_submitted() {
+    _setup_submitted+=("$1")
 }
 
 echo "Settings: STACK_MODE=aks, location ${_loc}, mode ${AZURE_POOL_MODE}."
@@ -127,19 +156,42 @@ else
         _setup_fail
     fi
     # az aks create ran with --no-wait; poll provisioningState until Succeeded.
+    # A failed read is not a provisioning failure (T056): retry a few times,
+    # then stop and report the create as submitted — never as "Not created".
+    # The interval/retry knobs let the offline suite exercise this quickly.
+    _poll_interval=${AZURE_POLL_INTERVAL:-15}
+    _poll_timeout=${AZURE_POLL_TIMEOUT:-1800}
+    _poll_read_retries=${AZURE_POLL_READ_RETRIES:-3}
     _state=""
     _waited=0
+    _read_failures=0
     while [ "${_state}" != "Succeeded" ]; do
-        sleep 15
-        _waited=$((_waited + 15))
+        sleep "${_poll_interval}"
+        _waited=$((_waited + _poll_interval))
         _state=$(az aks show --resource-group "${_rg}" --name "${_cluster}" \
             --query provisioningState --output tsv 2>/dev/null)
+        _show_rc=$?
+        if [ "${_show_rc}" -ne 0 ]; then
+            _read_failures=$((_read_failures + 1))
+            if [ "${_read_failures}" -ge "${_poll_read_retries}" ]; then
+                echo "Could not read the state of cluster ${_cluster} after ${_read_failures} tries (az aks show failed)." >&2
+                echo "The create request was already accepted by Azure and may still be running." >&2
+                _mark_submitted cluster
+                _setup_fail
+            fi
+            echo "  could not read the cluster state (try ${_read_failures}/${_poll_read_retries}); the create is already submitted..." >&2
+            continue
+        fi
+        _read_failures=0
         if [ "${_state}" = "Failed" ]; then
             echo "Cluster ${_cluster} reached provisioningState Failed." >&2
+            _mark_submitted cluster
             _setup_fail
         fi
-        if [ "${_waited}" -ge 1800 ]; then
-            echo "Gave up waiting for cluster ${_cluster} after 30 minutes (provisioningState: ${_state:-unknown})." >&2
+        if [ "${_waited}" -ge "${_poll_timeout}" ]; then
+            echo "Gave up waiting for cluster ${_cluster} after ${_poll_timeout}s (provisioningState: ${_state:-unknown})." >&2
+            echo "The create request was already accepted by Azure and may still be finishing." >&2
+            _mark_submitted cluster
             _setup_fail
         fi
         echo "  still provisioning (${_state:-unknown}, ${_waited}s)..."

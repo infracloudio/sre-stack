@@ -30,6 +30,13 @@ include .env
 BASE_SCRIPT_PATH := ./infra/scripts
 CLUSTER_SCRIPT_PATH := $(BASE_SCRIPT_PATH)/cluster
 
+# FR-006: refuse before scheduling anything when no supported provider is
+# selected. A value set on the command line (`make STACK_MODE=... setup`)
+# overrides .env, so the refusal also covers that path.
+ifeq ($(filter $(STACK_MODE),eks local aks),)
+$(error STACK_MODE is '$(STACK_MODE)' but must be eks | local | aks — set it in .env)
+endif
+
 REQUIRED_VARS := AWS_REGION CLUSTER_NAME RDS_MYSQL_DB_NAME AUTO_SCALING_GROUP_POLICY_NAME MONITORING_NS RABBITMQ_NS APP_NS RDS_MYSQL_DB_MASTER_PASSWORD APP_RELEASE_NAME APP_SETUP_TIMEOUT LOCAL_APP_SETUP_TIMEOUT APP_STACK STACK_MODE LOCAL_NODES INOTIFY_MAX_USER_INSTANCES INOTIFY_MAX_USER_WATCHES
 MYSQL_HOST=$(shell aws rds describe-db-instances --db-instance-identifier $(RDS_MYSQL_DB_NAME)  --region $(AWS_REGION) --query 'DBInstances[*].Endpoint.Address' --output text --no-cli-pager)
 ifeq ($(STACK_MODE),eks)
@@ -43,7 +50,12 @@ $(foreach var,$(REQUIRED_VARS),$(if $(value $(var)),,$(error $(var) is not set))
 CHECK_ISTIO_GATEWAY_EXISTS := $(shell helm status istio-ingressgateway -n istio-system 2>/dev/null)
 setup:
 
-ifeq ($(APP_STACK),hotrod)
+ifeq ($(STACK_MODE),aks)
+# The aks lifecycle is the empty cluster only (FR-008): no Amazon helpers,
+# no application or observability installs. The workloads come in later
+# stories, exactly as the Azure spec scopes them.
+setup: setup-cluster
+else ifeq ($(APP_STACK),hotrod)
 setup: setup-cluster setup-cluster-autoscaler setup-istio setup-observability setup-hotrod setup-gateway get-service-endpoints
 else ifeq ($(APP_STACK),robot-shop)
 setup: setup-cluster setup-cluster-autoscaler setup-yace setup-istio setup-observability setup-db-rds-mysql setup-rabbitmq-operator setup-robot-shop setup-gateway get-service-endpoints
@@ -206,7 +218,13 @@ cleanup-cluster: destroy-cluster-autoscaler destroy-yace
 endif
 
 
+ifeq ($(STACK_MODE),aks)
+# Azure cleanup is the cluster lifecycle only (FR-004): no gateway, RDS, or
+# other Amazon-only teardown steps run before it.
+cleanup: cleanup-cluster
+else
 cleanup: destroy-istio-gateway destroy-db-rds-mysql cleanup-cluster
+endif
 
 lint:
 	@bash agent/hooks/check-hooks-enabled.sh

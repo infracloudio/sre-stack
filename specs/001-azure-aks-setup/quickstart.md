@@ -178,10 +178,11 @@ writing start.
 ### B1. Refusals, with no cloud needed
 
 Edit `.env` so `STACK_MODE=aks` and the Azure settings are set, but do not
-sign in (`az logout`). Then:
+sign in (`az logout`). Then (top-level `make setup` reaches the same script
+through the `aks` dispatch):
 
 ```bash
-make setup-cluster
+make setup
 ```
 
 Expect: a plain message telling you to run `az login` first, and **nothing
@@ -194,13 +195,18 @@ each must refuse clearly before creating anything. Also set
 Sign in (`az login`), put real values in `.env`, then:
 
 ```bash
-make setup-cluster          # expect: resource group + cluster + 5 pools + gp2
-make setup-cluster          # run again — expect: "already exists", nothing new
+make setup                  # expect: resource group + cluster + 5 pools + gp2
+make setup                  # run again — expect: "already exists", nothing new
 bash infra/scripts/cluster/verify-cluster-aks.sh
-                            # expect: ✓ per pool, matching the table in plan.md
+                            # expect: ✓ per pool + ✓ kubectl context, matching
+                            # the table in plan.md
 kubectl get namespaces      # expect: only the expected namespaces — the setup
                             # installs nothing beyond the cluster itself (FR-008)
 ```
+
+With `STACK_MODE=aks`, `make setup` schedules the empty-cluster lifecycle
+only (no Amazon helpers, no application installs, FR-008); `make
+setup-cluster` runs the same script directly if you prefer it.
 
 That verify report is the acceptance evidence for SC-004. Keep it.
 
@@ -213,12 +219,19 @@ bash agent/tests/azure/run-offline-tests.sh
 #   - a second run creates nothing new
 #   - each refusal message appears
 #   - the partial-failure report names what was created and deletes nothing
+#   - a resume keeps the existing machine mode and needs room only for the
+#     missing pools (a full cluster reruns and verifies at zero free quota)
+#   - an unreadable group state is a failure, never "nothing to clean", and an
+#     orphaned node group is still caught when the main group is already gone
+#   - the verifier catches an unexpected workload and a wrong kubectl context
+#   - make setup/cleanup reach only the aks cluster scripts, and an invalid
+#     STACK_MODE refuses at make time
 ```
 
 Expect one `PASS` line per check and a final summary line, currently:
 
 ```text
-offline tests: 85 checks, 0 failed
+offline tests: 175 checks, 0 failed
 ```
 
 (The check count grows as checks are added; the gate is `0 failed`.)
@@ -226,12 +239,17 @@ offline tests: 85 checks, 0 failed
 ### B4. Teardown and leave-nothing check
 
 ```bash
-make cleanup-cluster        # expect: the generated folder deleted
-make cleanup-cluster        # again — expect: "nothing to clean", exit 0
+make cleanup                # same aks dispatch as make setup (FR-004)
+make cleanup                # again — expect: "nothing to clean", exit 0
 az group show --name "MC_<your-rg>_<your-cluster>_<location>" 2>/dev/null \
   && echo "STILL THERE" || echo "gone"   # expect: "gone" for OUR name only —
                                          # other people's MC_ groups must be left alone
 ```
+
+`make cleanup-cluster` runs the same script directly. If a read fails,
+cleanup never claims "nothing to clean" — it stops non-zero and says what
+could not be checked. It also re-checks our one exact `MC_` name even when
+the main group is already gone, so a retry catches an orphaned node group.
 
 ### B5. Amazon untouched
 

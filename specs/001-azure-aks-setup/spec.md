@@ -71,16 +71,16 @@ The same developer, done for the day, runs the existing cleanup command. Everyth
 
 ### User Story 3 - Existing setups are untouched (Priority: P3)
 
-Anyone using the repository on Amazon or on their local machine continues exactly as before: same configuration entries still work, same start and cleanup commands still work. Because the person making this change may not have access to a real Amazon account, the check that nothing changed is done without a cloud account: first confirming the change alters no Amazon or local files (repository diff survey), then confirming the unchanged repository checks (`make lint`) still pass. That accepted substitute for a live Amazon run is recorded in AD-004.
+Anyone using the repository on Amazon or on their local machine continues exactly as before: the same settings still work, and the same start and cleanup commands still work. Because the person making this change may not have access to a real Amazon account, "nothing changed" is proven without a cloud account in two ways: the Amazon and local files remain unchanged from before the change, and the repository's own checks still pass. That accepted substitute for a live Amazon run is recorded in AD-004.
 
 **Why this priority**: protects current users; it constrains the change rather than adding value, so it ranks after the new capability.
 
-**Independent Test**: can be tested by comparing the repository's Amazon and local files with their state before the change, and by the unchanged repository checks (`make lint`) still passing; the live Amazon run is dropped (AD-004).
+**Independent Test**: the Amazon and local files can be compared with their state before the change, and the repository's own checks can be run; both must show no change. The live Amazon run is dropped (AD-004).
 
 **Acceptance Scenarios**:
 
-1. **Given** this change, **When** the repository's Amazon and local files are compared with their state before the change, **Then** they are identical.
-2. **Given** this change, **When** the repository checks run (`make lint`), **Then** they pass unchanged, giving no evidence of a change to Amazon or local behaviour (the live Amazon run is dropped; AD-004).
+1. **Given** this change, **When** the Amazon and local files are compared with their state before the change, **Then** they are identical.
+2. **Given** this change, **When** the repository's own checks run, **Then** they pass unchanged, giving no evidence of a change to Amazon or local behaviour (the live Amazon run is dropped; AD-004).
 
 ---
 
