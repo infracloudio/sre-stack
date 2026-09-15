@@ -169,12 +169,13 @@ else
 fi
 
 # --- 2. cluster + system pool (az aks show decides; §1, T057) -------------------
-# Only a NotFound answer means "absent". Any other failed read stops before
-# creating — a duplicate cluster must never be started on unreadable state.
+# Only a NotFound error *code* means "absent" (_az_err_is_not_found). Any
+# other failed read stops before creating — a duplicate cluster must never be
+# started on unreadable state.
 _azure_cluster_err=$(mktemp)
 if az aks show --resource-group "${_rg}" --name "${_cluster}" --output none 2>"${_azure_cluster_err}"; then
     _azure_cluster_state="exists"
-elif grep -qiE 'ResourceNotFound|AgentPoolNotFound|was not found|not found|NotFound|could not be found' "${_azure_cluster_err}" 2>/dev/null; then
+elif _az_err_is_not_found "${_azure_cluster_err}"; then
     _azure_cluster_state="absent"
 else
     echo "Cannot start: could not check whether cluster ${_cluster} exists (az aks show failed)." >&2
@@ -267,7 +268,7 @@ _pool_add() {  # $1 name $2 size $3 count $4 min $5 max $6 label $7 taint
         _mark "${_name}"
         return 0
     fi
-    if ! grep -qiE 'ResourceNotFound|AgentPoolNotFound|was not found|not found|NotFound|could not be found' "${_pool_err}" 2>/dev/null; then
+    if ! _az_err_is_not_found "${_pool_err}"; then
         echo "Cannot start: could not check whether node pool ${_name} exists (az aks nodepool show failed)." >&2
         echo "Check the sign-in, the cluster ${_cluster}, and the network, then try again. Nothing was created." >&2
         rm -f "${_pool_err}"

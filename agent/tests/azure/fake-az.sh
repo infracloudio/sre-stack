@@ -41,10 +41,14 @@
 #                                     was deleted")
 #   CLUSTER_READ_FAIL=1               az aks show existence read fails (not
 #                                     NotFound): setup/helper must stop, never
-#                                     treat as absent (T057)
+#                                     treat as absent (T057). The error text
+#                                     contains "not found" under an unrelated
+#                                     code, as real az failures can — only the
+#                                     ARM error code may decide "absent".
 #   POOL_READ_FAIL=1|<pool>           az aks nodepool show fails for all pools
 #                                     (1) or one pool (name): must stop, never
-#                                     treat as absent (T057)
+#                                     treat as absent (T057); same "not found"
+#                                     trap as CLUSTER_READ_FAIL
 #   DELETE_FAIL=1                     az group delete fails (partial delete)
 #   CLUSTER_FAIL=1 / ADD_FAIL=<pool>  create steps that fail
 #   CLUSTER_STATE_FAIL=1              az aks show provisioningState reads fail
@@ -353,11 +357,13 @@ PYEOF
         case "${2:-}" in
             show)
                 if [ "${CLUSTER_READ_FAIL:-0}" = "1" ]; then
-                    echo "fake-az: simulated cluster existence read failure" >&2
+                    echo "ERROR: (SubscriptionNotFound) The subscription 'fake' was not found (simulated cluster existence read failure)." >&2
+                    echo "Code: SubscriptionNotFound" >&2
                     exit 1
                 fi
                 if ! cluster_exists; then
-                    echo "(ResourceNotFound) The Resource 'Microsoft.ContainerService/managedClusters/fake' under resource group 'fake' was not found." >&2
+                    echo "ERROR: (ResourceNotFound) The Resource 'Microsoft.ContainerService/managedClusters/fake' under resource group 'fake' was not found." >&2
+                    echo "Code: ResourceNotFound" >&2
                     exit 1
                 fi
                 if [ "${CLUSTER_STATE_FAIL:-0}" = "1" ] \
@@ -389,13 +395,15 @@ PYEOF
                     show)
                         _pool=$(_fake_name_arg "$@")
                         if [ "${POOL_READ_FAIL:-0}" = "1" ] || [ "${POOL_READ_FAIL:-}" = "${_pool}" ]; then
-                            echo "fake-az: simulated nodepool existence read failure for ${_pool}" >&2
+                            echo "ERROR: (SubscriptionNotFound) The subscription 'fake' was not found (simulated nodepool existence read failure for ${_pool})." >&2
+                            echo "Code: SubscriptionNotFound" >&2
                             exit 1
                         fi
                         if pool_exists "${_pool}"; then
                             printf '{ "name": "%s" }\n' "${_pool}"
                         else
-                            echo "(AgentPoolNotFound) Agent pool ${_pool} was not found." >&2
+                            echo "ERROR: (AgentPoolNotFound) Agent pool ${_pool} was not found." >&2
+                            echo "Code: AgentPoolNotFound" >&2
                             exit 1
                         fi
                         ;;

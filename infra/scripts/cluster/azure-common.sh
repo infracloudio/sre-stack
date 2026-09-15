@@ -151,6 +151,20 @@ _azure_skus_out() {
         --url "https://management.azure.com/subscriptions/${_azure_sub_id}/providers/Microsoft.Compute/skus?api-version=2021-07-01&%24filter=location%20eq%20%27${AZURE_LOCATION}%27" 2>/dev/null
 }
 
+# Did an az read fail because the thing is absent? az has no per-category
+# exit code (every failure is 1) and no JSON error mode — `--output` shapes
+# stdout only; errors always reach stderr as text. The ARM error *code* is
+# structured, though: az prints it as the `(<Code>)` prefix of the first
+# error line and again as a `Code: <Code>` line. Match only those, only
+# the codes that mean "absent", anchored and case-sensitive — a message
+# that merely contains "not found" (SubscriptionNotFound, an expired token
+# "not found in cache") is an unrelated failure and must never read as
+# absent, or a duplicate gets created (T057).
+_az_err_is_not_found() {  # $1 stderr capture of an az show/exists call
+    grep -qE '^(ERROR: )?\((ResourceNotFound|ResourceGroupNotFound|AgentPoolNotFound)\)|^Code: (ResourceNotFound|ResourceGroupNotFound|AgentPoolNotFound)$' \
+        "$1" 2>/dev/null
+}
+
 _az_will_parallel_checks() {
     _azure_sub_id=$(az account show --query id --output tsv 2>/dev/null)
     _azure_jobsdir=$(mktemp -d)
@@ -277,7 +291,7 @@ if [ "${_azure_aks_rc}" = "0" ]; then
         return 1
     fi
     [ -n "${_azure_pools_json}" ] || _azure_pools_json="[]"
-elif [ -n "${_azure_aks_rc}" ] && ! grep -qiE 'ResourceNotFound|AgentPoolNotFound|was not found|not found|NotFound|could not be found' "${_azure_jobsdir}/aks.err" 2>/dev/null; then
+elif [ -n "${_azure_aks_rc}" ] && ! _az_err_is_not_found "${_azure_jobsdir}/aks.err"; then
     echo "Cannot start: the state of cluster ${AZURE_CLUSTER_NAME} could not be read (az aks show failed)." >&2
     echo "Check the sign-in, the resource group ${AZURE_RESOURCE_GROUP}, and the network, then try again. Nothing was created." >&2
     return 1
