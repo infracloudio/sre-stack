@@ -13,6 +13,9 @@ AWS EKS or local k3d. Application code comes from upstream images.
 - `app/`, `monitoring/`, `scenarios/` contain workloads, tooling, and faults.
 - `agent/` contains source-of-truth policies, hooks, conformance tests, and loom.
 - `specs/<nnn>-<slug>/` contains each story's `spec.md`, `plan.md`, `tasks.md`.
+- `docs/architectural-decisions.md` is the shared ADR record (decision + why +
+  what was given up); append new decisions there, one entry, newest last, and
+  reference it by ID (AD-00n) from specs/plan/tasks instead of retelling.
 - `.specify/` (scripts, templates, manifests) and the Spec Kit commands in
   `.claude/skills/speckit-*`, `.agents/skills/speckit-*` (Codex),
   `.devin/skills/speckit-*`, and `.opencode/commands/speckit.*` are generated
@@ -56,9 +59,10 @@ Commands are spelled `/speckit-<verb>`; OpenCode spells them `/speckit.<verb>`.
    change outside the story's `specs/` folder before this label.
 4. Builder runs `/speckit-implement`; plan departures and reasons go into
    `plan.md` in the same commit. Attach verification output (`evidence:attached`).
-5. Agent review ranks findings; an independent human approves; squash-merge
-   with the story's `specs/` folder.
-6. Run `/speckit-converge` on `main`; fix same-day gaps or file new stories.
+5. Builder runs `/speckit-converge` on the branch; if it appends tasks, run
+   `/speckit-implement` and converge again until "Converged".
+6. Agent review ranks findings; an independent human approves; squash-merge
+   with the story's `specs/` folder. Gaps found after merge become new stories.
 
 Changes require an accepted story and `gate:plan-approved`; informational
 questions do not. Do not invent scope or weaken tests, hooks, lint, or CI.

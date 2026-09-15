@@ -112,9 +112,9 @@ secrets are fetched from Azure Key Vault at setup time.
 | Mon 16:00 | Viknesh, eager, pushes `infra/scripts/keyvault/fetch.sh` | | `gate:spec-approved` | **red** (gate job) | code outside `specs/`, no plan label |
 | Mon 16:30 | Rijo reads plan + analyze output, one comment answered, applies the label | | `gate:spec-approved`, `gate:plan-approved` | **green** | gate job re-ran on the label event; no new push needed |
 | Tue all day | Viknesh runs `/speckit-implement`; agent refuses one edit to `agent/hooks/check-secrets.sh` it wanted to "tweak"; Viknesh raises it as a separate process PR instead | | same | green | protected path, refused before the edit |
-| Tue 15:00 | Viknesh pastes the verification run into the PR, applies the label, marks ready | | + `evidence:attached` | green | Builder's evidence |
+| Tue 15:00 | Viknesh runs `/speckit-converge` on the branch; Converged, no tasks appended; one out-of-scope gap becomes issue #132 | `intent` on #132 | | green | the next story is found |
+| Tue 15:30 | Viknesh pastes the verification run into the PR, applies the label, marks ready | | + `evidence:attached` | green | Builder's evidence |
 | Tue 16:00 | Abishek (Owner, wrote neither plan nor code) reviews and approves; squash-merge | | | | one human approval + green CI is what `main` requires |
-| Wed 09:30 | Viknesh runs `/speckit-converge` on `main`; one gap becomes issue #132 | `intent` on #132 | | | the next story is found |
 
 The process PR Viknesh opened on Tuesday, #133, changes only
 `agent/hooks/check-secrets.sh`. It goes red on both jobs until Rijo, who

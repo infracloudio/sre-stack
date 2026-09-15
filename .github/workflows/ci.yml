@@ -35,6 +35,19 @@ jobs:
           # someone other than the author approved — the plan gate label.
           PROTECTED_OVERRIDE: ${{ (github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'gate:plan-approved')) && '1' || '' }}
 
+  offline-tests:
+    name: azure offline tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Run the no-cloud Azure tests
+        run: bash agent/tests/azure/run-offline-tests.sh
+
   # TODO(agent-review): add the agent review job described in
   # docs/sdlc/framework.md section 6 once the harness and credentials are
   # decided (section 10, item 1). It posts ranked findings; it is not a gate.

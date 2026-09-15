@@ -1,0 +1,26 @@
+# Universal
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+.vscode/
+.idea/
+
+# Logs and local run artifacts (never commit test output)
+*.log
+*.log*
+
+# Offline test sandboxes (agent/tests/azure/run-offline-tests.sh)
+agent/tests/azure/.tmp-offline-*/
+
+# Python inline helpers (no committed bytecode)
+__pycache__/
+*.pyc
+
+# kubeconfig and local cluster state written by az/kubectl runs
+kubeconfig*
+*.kubeconfig
+.kube/
+
+# NOTE: .env is deliberately tracked with demo-only values (AGENTS.md).
+# Do not add it here.

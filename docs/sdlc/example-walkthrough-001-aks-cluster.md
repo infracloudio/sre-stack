@@ -21,8 +21,8 @@ them `/speckit.<verb>`.
 | Mon 14:00 | Spec approved (async, on the PR) |
 | Mon 16:30 | Plan + tasks written, analyze run, plan approved |
 | Tue all day | Build, verify on Azure, evidence into the PR |
-| Tue 17:45 | Agent review, fixes, human review, **merge** |
-| Wed 09:30 | Daily sync: demo, converge results, story 002 accepted |
+| Tue 17:15 | Converge on the branch, agent review, fixes, human review, **merge** |
+| Wed 09:30 | Daily sync: demo, story 002 accepted |
 
 ---
 
@@ -397,11 +397,13 @@ merges with the code — the story's permanent record lives in git.
   PVC binding, the empty resource list after cleanup. Rijo confirms the
   success criteria and closes #101 with links to the PR. Aman: baseline
   accepted, this is now what story 002 builds on.
-- **Converge.** Viknesh ran `/speckit-converge` on `main` after merge; it
-  found two things: the o11y/loadgen pools are created but never
-  exercised (story 003/010 will), and Istio 1.17.2's support window
-  doesn't include Kubernetes 1.33 — filed as new issue #103
-  "istio upgrade", parked until story 002 proves whether it matters.
+- **Converge.** Viknesh ran `/speckit-converge` on the branch before asking
+  for review; it reported Converged, no tasks appended. Two things it
+  surfaced were already outside story 001's scope, so they became new work
+  instead of tasks: the o11y/loadgen pools are created but never exercised
+  (stories 003/010 will), and Istio 1.17.2's support window doesn't include
+  Kubernetes 1.33 — filed as issue #103 "istio upgrade", parked until
+  story 002 proves whether it matters.
 - **Next story.** Issue #104 "Apps on AKS" accepted; hats rotate: Owner
   Abishek, Architect Rijo, Builder Viknesh.
 - **Metrics row** appended to #101:
