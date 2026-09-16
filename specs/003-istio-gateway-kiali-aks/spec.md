@@ -1,7 +1,7 @@
 # Deploy Istio Ingress Gateway and Kiali to AKS
 
 **Story:** #104  
-**Depends on:** #97 (AKS cluster + node pools)
+**Depends on:** #97 (AKS cluster + node pools), #101 (Prometheus observability on AKS)
 
 ---
 
@@ -15,13 +15,13 @@
 - Experience matches EKS
 
 **Scenario 2: SRE accesses Kiali mesh topology on AKS**
-- SRE opens the Kiali dashboard on AKS
-- Dashboard loads and displays mesh topology
+- After #101 (Prometheus) lands, SRE opens Kiali dashboard on AKS
+- Dashboard loads and displays mesh topology and service health
 - Same user experience as EKS/local; no Azure-specific UI differences
 
 **Scenario 3: Application observability stack expands to AKS**
 - Once app workloads deploy to AKS (#102), traffic flows through the shared gateway
-- Kiali visualizes the mesh; Grafana ingests metrics from the observability stack (#101)
+- Kiali visualizes the mesh; Prometheus ingests metrics from the observability stack (#101)
 - No manual gateway reconfiguration needed; platform-owned entry point already in place
 
 ---
@@ -41,9 +41,9 @@
 - Same routing patterns as EKS; no Azure-specific workarounds
 
 **FR-003: Kiali observability dashboard on AKS**
-- Deploy Kiali configured to read telemetry from AKS mesh
-- Kiali discovers its data sources from the mesh; no manual external configuration needed
-- Dashboard is accessible via the platform-owned gateway
+- Deploy Kiali configured to read metrics from Prometheus (provided by #101)
+- Kiali is installed and operational when this story completes
+- Dashboard is accessible via the platform-owned gateway at `/kiali` path with anonymous authentication
 
 **FR-004: Node-pool placement for mesh components**
 - Istio control plane and ingress gateway run on system node pool
@@ -56,31 +56,40 @@
 - No setup path duplication or new Azure-specific targets
 
 **FR-006: Service endpoints output includes AKS**
-- AKS cluster endpoints report via same mechanism as EKS and local
-- Operator sees one reachable URL per cluster in same format
+- With Azure selected, the endpoints command prints the AKS gateway address in the same format EKS and local use
+
+**FR-007: Setup is idempotent**
+- Running setup a second time with Azure selected installs nothing new
+- Mesh, gateway, and Kiali are detected as already present
+- Setup finishes without error on repeated runs
+
+**FR-008: Cleanup removes all mesh infrastructure**
+- Mesh, gateway LoadBalancer, and public IP do not outlive the existing cleanup command
+- AKS cleanup deletes the cluster; the LoadBalancer and public IP live in the node resource group and are removed with it
 
 ---
 
 ## Success Criteria
 
 **SC-001: Istio mesh is operational on AKS**
-- [ ] Control plane is active and stable
+- [ ] All mesh control-plane and gateway pods are Ready with zero restarts after setup completes
 - [ ] Data plane can inject sidecars into workloads
-- [ ] No mesh component errors or warnings in logs
 
 **SC-002: Ingress gateway is deployed and responding**
 - [ ] Gateway service has assigned external IP (LoadBalancer provisioned)
 - [ ] Gateway can route traffic to destination services
 - [ ] Routing succeeds without errors or connectivity issues
 
-**SC-003: Kiali is operational and mesh-aware**
-- [ ] Kiali service is running and stable
-- [ ] Dashboard loads without errors
-- [ ] Mesh topology is visible (empty until #102 adds workloads)
+**SC-003a: Kiali pod is running and dashboard loads**
+- [ ] Kiali pod is Running and Ready in observability node pool
+- [ ] Dashboard loads at `/kiali` path without errors
 
-**SC-004: `/kiali` route is accessible**
+**SC-003b: Kiali mesh topology is visible**
+- [ ] (Verified after #101 lands) Mesh topology and service health display in Kiali dashboard
+
+**SC-004: `/kiali` route is accessible with anonymous authentication**
 - [ ] Operator can reach Kiali via platform-owned gateway `/kiali` path
-- [ ] No authentication or connectivity barriers
+- [ ] Kiali uses anonymous authentication strategy (no login required)
 
 **SC-005: Node-pool placement is correct**
 - [ ] Mesh control plane and gateway pods are scheduled to system pool
@@ -90,12 +99,14 @@
 **SC-006: EKS and local setups remain unaffected**
 - [ ] EKS setup with existing version pins works as before
 - [ ] Local setup with existing version pins works as before
-- [ ] Service endpoints report for all three clusters in same format
 
-**SC-007: Dependency with #101 is non-blocking**
-- [ ] This story delivers mesh, gateway, and `/kiali` route independently
-- [ ] Gateway is platform-owned and functional without any application
-- [ ] #101 story can attach `/grafana` route without requiring changes to this story
+**SC-007: Setup is idempotent**
+- [ ] Running setup twice on same AKS cluster succeeds both times
+- [ ] Second run detects existing mesh, gateway, and Kiali; installs nothing new
+
+**SC-008: Cleanup removes gateway and IP**
+- [ ] After running cleanup command, LoadBalancer and public IP are removed
+- [ ] No orphaned mesh infrastructure remains in Azure resource groups
 
 ---
 
@@ -107,11 +118,11 @@
 
 3. **Node pools exist:** AKS cluster from #97 provides system pool and observability pool with appropriate taints for placement.
 
-4. **Kiali auto-discovers telemetry:** Kiali discovers metrics sources from the mesh automatically; no manual Prometheus or tracing configuration needed in this story.
+4. **Kiali requires Prometheus:** Kiali reads Istio metrics from Prometheus. Prometheus is installed by #101. This story installs and configures Kiali to point at the Prometheus address #101 will provide; mesh topology and health metrics are verified only after #101 lands.
 
 5. **Setup path uses existing mechanism:** Existing Makefile dispatches on cloud selection; no build system changes needed.
 
-6. **#101 attaches its own route:** Grafana observability story (#101) defines and verifies its `/grafana` route; this story delivers the platform-owned gateway that enables it.
+6. **Cleanup handles all resources:** AKS cleanup command deletes the cluster, removing the LoadBalancer and public IP as well.
 
 ---
 
@@ -126,10 +137,10 @@
 
 ## Dependency Direction
 
-**With #101 (Grafana observability on AKS):**
-- This story (#104) delivers: mesh, gateway, `/kiali` route, platform-owned entry point
-- #101 delivers: Grafana and verification of `/grafana` route through the gateway
-- **#101 depends on #104, not vice versa.** #104 completes independently. #101 then attaches its own route and verifies end-to-end.
+**With #101 (Grafana and Prometheus observability on AKS):**
+- This story (#104) delivers: mesh, gateway, `/kiali` route, Kiali pod (pointing at Prometheus), platform-owned entry point
+- #101 delivers: Prometheus, Grafana, and verification of `/grafana` route and Kiali topology visibility
+- **#101 depends on #104.** #104 completes independently with Kiali pod running but topology/health unverified. #101 provides Prometheus; Kiali's topology display is verified then.
 
 **With #97 (AKS cluster + node pools):**
 - Blocking dependency. Requires cluster and node pools to exist.
