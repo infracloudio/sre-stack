@@ -58,14 +58,10 @@
 **FR-006: Service endpoints output includes AKS**
 - With Azure selected, the endpoints command prints the AKS gateway address in the same format EKS and local use
 
-**FR-007: Setup is idempotent**
-- Running setup a second time with Azure selected installs nothing new
-- Mesh, gateway, and Kiali are detected as already present
+**FR-007: Setup is idempotent and cleanup is complete**
+- Running setup a second time with Azure selected installs nothing new; mesh, gateway, and Kiali are detected as already present
 - Setup finishes without error on repeated runs
-
-**FR-008: Cleanup removes all mesh infrastructure**
-- Mesh, gateway LoadBalancer, and public IP do not outlive the existing cleanup command
-- AKS cleanup deletes the cluster; the LoadBalancer and public IP live in the node resource group and are removed with it
+- Mesh, gateway LoadBalancer, and public IP do not outlive the existing cleanup command; AKS cleanup deletes cluster and removes all resources
 
 ---
 
@@ -100,11 +96,8 @@
 - [ ] EKS setup with existing version pins works as before
 - [ ] Local setup with existing version pins works as before
 
-**SC-007: Setup is idempotent**
-- [ ] Running setup twice on same AKS cluster succeeds both times
-- [ ] Second run detects existing mesh, gateway, and Kiali; installs nothing new
-
-**SC-008: Cleanup removes gateway and IP**
+**SC-007: Setup is idempotent and cleanup removes all resources**
+- [ ] Running setup twice on same AKS cluster succeeds both times; second run detects existing mesh, gateway, and Kiali; installs nothing new
 - [ ] After running cleanup command, LoadBalancer and public IP are removed
 - [ ] No orphaned mesh infrastructure remains in Azure resource groups
 
@@ -112,7 +105,7 @@
 
 ## Assumptions
 
-1. **Version pins are Azure-specific:** Mesh and Kiali versions chosen for AKS K8s 1.34 are separate from and do not affect existing EKS/local pins.
+1. **Version pins are Azure-specific:** Mesh and Kiali versions chosen for AKS K8s 1.34 are Istio 1.20.0 and Kiali 1.80.0; these are separate from and do not affect existing EKS/local pins (Istio 1.17.2, Kiali 1.63).
 
 2. **Gateway is platform infrastructure:** The shared entry point is owned by the platform team, lives in a platform namespace, and is independent of application deployments.
 
@@ -123,6 +116,8 @@
 5. **Setup path uses existing mechanism:** Existing Makefile dispatches on cloud selection; no build system changes needed.
 
 6. **Cleanup handles all resources:** AKS cleanup command deletes the cluster, removing the LoadBalancer and public IP as well.
+
+7. **Helm upgrade --install is idempotent:** The standard Helm pattern handles both "install if absent" and "upgrade if present" in a single command without additional logic.
 
 ---
 
