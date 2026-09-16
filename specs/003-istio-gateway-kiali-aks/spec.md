@@ -1,7 +1,7 @@
 # Deploy Istio Ingress Gateway and Kiali to AKS
 
 **Story:** #104  
-**Depends on:** #97 (AKS cluster + node pools), #101 (Prometheus observability on AKS)
+**Depends on:** #97 (AKS cluster + node pools). Related: #101 (verifies Kiali topology)
 
 ---
 
@@ -140,7 +140,7 @@
 **With #101 (Grafana and Prometheus observability on AKS):**
 - This story (#104) delivers: mesh, gateway, `/kiali` route, Kiali pod (pointing at Prometheus), platform-owned entry point
 - #101 delivers: Prometheus, Grafana, and verification of `/grafana` route and Kiali topology visibility
-- **#101 depends on #104.** #104 completes independently with Kiali pod running but topology/health unverified. #101 provides Prometheus; Kiali's topology display is verified then.
+- **#104 completes independently.** #101 verifies SC-003b (Kiali topology display) once Prometheus is available.
 
 **With #97 (AKS cluster + node pools):**
 - Blocking dependency. Requires cluster and node pools to exist.
