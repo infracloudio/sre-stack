@@ -1,165 +1,51 @@
-# Tasks: Istio Gateway on AKS
+# Tasks: 003-istio-gateway-kiali-aks
 
-**Input**: Design documents from `/specs/003-istio-gateway-kiali-aks/`
-
-**Prerequisites**: plan.md (complete), spec.md (complete), research.md (findings with blocked cluster access), data-model.md (Istio entities), contracts/ (Makefile and K8s resource specs), quickstart.md (validation scenarios)
-
-**Implementation Strategy**: All tasks are Makefile modifications to extend existing AKS branching. No new source code files created. Tests are provided in quickstart.md (separate validation story).
-
-**Scope**: Add AKS-specific conditional branching to setup-istio, setup-gateway, cleanup, and get-service-endpoints targets. Ensure byte-identical behavior for EKS/local per R8.
+**Branch**: 003-istio-gateway-kiali-aks
+**Blocked by**: Architect approval of Istio version split (1.30.4 on AKS, 1.17.2 on EKS)
+**Awaiting**: AKS cluster availability (story #97, PR #99)
 
 ---
 
-## Phase 1: Setup (Project Initialization)
+## Task List
 
-**Purpose**: Review and prepare for implementation
+### Phase 1: Setup & Validation (sequential, no cloud access needed)
 
-- [ ] T001 Review plan.md and specification requirements for Istio/gateway implementation on AKS
+- [ ] **T001** `.env`: Add ISTIO_VERSION=1.30.4, ISTIO_NAMESPACE=istio-system, HELM_TIMEOUT=5m for AKS section only. EKS section unchanged. Verify `.env` syntax with `grep "^AKS_\|^ISTIO_" .env` and review current EKS pins against makefile
+- [ ] **T002** Validate Istio chart versions exist: `helm search repo istio/base --version 1.30.4`, `helm search repo istio/istiod --version 1.30.4`, `helm search repo istio/gateway --version 1.30.4` (report exact versions available)
+- [ ] **T003** Research: Verify EKS targets exist unchanged. `grep -n "^setup-istio:" makefile`, `grep -n "^setup-gateway:" makefile`, confirm no modifications to these lines since main
+- [ ] **T004** Create `infra/scripts/cluster/setup-istio-aks.sh` (new file): Helm repo add istio, helm repo update, helm install istio-base/istiod/gateway in sequence to istio-system namespace. All chart versions from `.env`. Use `--wait --timeout` from `.env`. Include idempotency: check if release exists before install.
+- [ ] **T005** Create `infra/scripts/cluster/setup-gateway-aks.sh` (new file): Deploy ingress-gateway LoadBalancer Service (type: LoadBalancer, selector: istio=ingressgateway). Include wait loop for external IP assignment (timeout from `.env`).
+- [ ] **T006** Create `infra/scripts/cluster/cleanup-istio.sh` (new file): Helm uninstall istio-ingressgateway, istiod, istio-base from istio-system (in that order, if present). Include `--ignore-not-found` or equivalent check. Tolerate missing releases.
+- [ ] **T007** Create `infra/scripts/cluster/cleanup-gateway.sh` (new file): Delete istio-ingressgateway Service; delete any associated LoadBalancer. Tolerate "not found" gracefully with exit 0.
+- [ ] **T008** Extend `infra/scripts/common-aks.sh`: Add function `get_lb_endpoint_aks()` that fetches the external IP of the istio-ingressgateway Service and prints it in format `http://<IP>:80` (matching EKS format).
+- [ ] **T009** Update `makefile`: Add `setup-istio` target with `STACK_MODE` branch: if aks, call setup-istio-aks.sh; if eks, call existing EKS setup. Same for `setup-gateway` and cleanup targets. Verify syntax with `make lint`.
+- [ ] **T010** Update `makefile`: Update `get-service-endpoints` target to include AKS branch. If `STACK_MODE=aks`, call `get_lb_endpoint_aks()` and export `LB_ENDPOINT`.
+- [ ] **T011** Lint & syntax check: `make lint` passes; shell scripts pass `shellcheck` with no errors; makefile syntax valid (`make --dry-run setup-istio` runs without error).
 
----
+### Phase 2: Cloud verification (sequential, requires AKS cluster from story #97)
 
-## Phase 2: Foundational (Blocking Prerequisites)
+- [ ] **T012** Dry-run all Helm commands: `helm template istio-base istio/base --namespace istio-system --version 1.30.4` (and same for istiod, gateway). Output should be valid YAML with no warnings. Redirect to files for inspection.
+- [ ] **T013** Create a test makefile target `test-aks-setup` that runs `make setup-istio setup-gateway` on the AKS cluster from story #97. Time the run (should be under 5 min for setup-istio, under 2 min for setup-gateway). Capture output.
+- [ ] **T014** Verify Istio pods reach Running: Post-setup, run `kubectl get pods -n istio-system` and confirm all control-plane pods (istiod, base) have status Running within the timeout.
+- [ ] **T015** Verify load-balancer IP assigned: `kubectl get svc -n istio-system istio-ingressgateway` returns an external IP (not `<pending>`). Record the IP.
+- [ ] **T016** Test idempotency of setup: Run `make setup-istio setup-gateway` a second time. Exit code must be 0. Output must contain no "installed", "created", or "updated" messages (script is a no-op on second run).
+- [ ] **T017** Test cleanup: Run `make cleanup-gateway` followed by `make cleanup-istio`. All Istio/gateway resources deleted. Verify: `kubectl get all -n istio-system` returns only system pods (kube-dns, etc.), or is empty.
+- [ ] **T018** Test cleanup idempotency: Run cleanup commands again. Exit code must be 0. No error messages about missing resources.
+- [ ] **T019** Verify EKS unchanged: Diff the branch against main for EKS scripts. Command: `git diff main -- makefile | grep -E "(setup-istio|setup-gateway)" | grep -v "STACK_MODE=aks"` should return nothing (EKS targets unchanged).
+- [ ] **T020** Verify git and linting: Final `make lint` passes; no new linting errors. `git status` shows only new AKS files and modified makefile/README/AGENTS.md.
 
-**Purpose**: Core Makefile structure that enables all implementation tasks
+### Phase 3: Documentation & evidence
 
-**⚠️ CRITICAL**: No user story work can begin until this phase is complete
-
-- [ ] T002 Extend Makefile setup target to branch STACK_MODE=aks for Istio/gateway installation in `/Users/viknesh/sre-stack/Makefile` lines 53-66
-
-- [ ] T003 Extend Makefile cleanup target to branch STACK_MODE=aks for Istio/gateway teardown in `/Users/viknesh/sre-stack/Makefile` lines 221-227
-
-**Checkpoint**: Makefile branching structure in place — implementation can now begin
-
----
-
-## Phase 3: Implementation (Istio & Gateway Deployment on AKS)
-
-**Goal**: Extend Makefile targets to deploy Istio, gateway, and provide service endpoints on AKS
-
-**Independent Test**: Complete quickstart.md validation scenarios 1-7 against a deployed AKS cluster
-
-### Implementation Tasks
-
-- [ ] T004 Modify setup-istio target to add AKS-specific pod placement and resource tags via Helm --set flags in `/Users/viknesh/sre-stack/Makefile` lines 74-78
-  - Add node selectors: `workload=o11y` for istiod, `workload=app` for gateway
-  - Add tolerations for istiod: `o11y=true:NoSchedule`
-  - Add resource tags: `project=sre-stack,environment=aks`
-  - Verify: `make STACK_MODE=aks setup-istio` → istiod on o11y nodes, gateway on app nodes
-
-- [ ] T005 Verify setup-gateway target works identically on AKS without modification in `/Users/viknesh/sre-stack/Makefile` lines 152-154
-  - Confirm uses existing `app/robot-shop/Istio/gateway.yaml` (no changes needed)
-  - Verify: `make STACK_MODE=aks setup-gateway` → Gateway and VirtualService CRDs applied
-
-- [ ] T006 Extend get-service-endpoints target to capture AKS LoadBalancer IP and set LB_ENDPOINT in `/Users/viknesh/sre-stack/Makefile` lines 169-190
-  - Add AKS branch to query `kubectl get svc istio-ingressgateway -n istio-system` for external IP
-  - Format as `LB_ENDPOINT=http://{external-ip}:80`
-  - Verify: `make STACK_MODE=aks get-service-endpoints` → Prints LB_ENDPOINT and service URLs
-
-- [ ] T007 Add destroy-istio-gateway target to uninstall istio-ingressgateway Helm release in `/Users/viknesh/sre-stack/Makefile` lines 196-201
-  - Idempotent: `helm uninstall istio-ingressgateway -n istio-system 2>/dev/null || true`
-  - Verify: Run twice, both exit 0, second run shows no error messages (S7)
-
-- [ ] T008 Add cleanup-istio target to uninstall istiod and istio-base Helm releases in `/Users/viknesh/sre-stack/Makefile` (new target after cleanup section)
-  - Idempotent: `helm uninstall istiod -n istio-system 2>/dev/null || true` and same for istio-base
-  - Verify: Run twice, both exit 0, no "release not found" errors (S6, S7)
-
-**Checkpoint**: All Istio and gateway deployment/cleanup targets implemented and working
-
----
-
-## Phase 4: Polish & Validation
-
-**Purpose**: Final verification and lint checks
-
-- [ ] T009 Run make lint and verify no new linting errors in Makefile changes in `/Users/viknesh/sre-stack/Makefile`
-  - Verify: `make lint` exits 0
-  - Verify: `git diff main -- Makefile` shows only AKS sections changed, EKS/local unchanged (S8, R8)
-
-**Checkpoint**: All tasks complete, Makefile validated, ready for PR review
-
----
-
-## Dependencies & Execution Order
-
-### Phase Dependencies
-
-- **Setup (Phase 1)**: No dependencies - review first
-- **Foundational (Phase 2)**: Depends on Setup completion - BLOCKS Phase 3
-- **Implementation (Phase 3)**: Depends on Foundational completion - Core feature work
-- **Polish (Phase 4)**: Depends on Phase 3 completion - Final validation
-
-### Task Dependencies (within Phase 3)
-
-- **T004** (setup-istio): No dependencies within phase, can start after Foundational
-- **T005** (setup-gateway): No direct dependency on T004 (both are independent modifications)
-- **T006** (get-service-endpoints): Depends on T004 and T005 (LB endpoint only exists after gateway deployed)
-- **T007** (destroy-istio-gateway): No dependencies on T004-T006
-- **T008** (cleanup-istio): Depends on T007 (gateway should be cleaned first)
-
-### Parallel Opportunities
-
-**Within Phase 3** (after Foundational complete):
-- T004 and T005 can be implemented in parallel (different parts of Makefile)
-- T007 and T008 can be implemented in parallel (different cleanup targets)
-- T006 can start after T004 and T005 are done but before T007/T008
-
-**Recommended Sequential Order** (conservative approach):
-1. T004 (setup-istio) - Core deployment
-2. T005 (setup-gateway) - Gateway routing
-3. T006 (get-service-endpoints) - User-facing endpoints
-4. T007 (destroy-istio-gateway) - Gateway cleanup
-5. T008 (cleanup-istio) - Control plane cleanup
-6. T009 (lint validation) - Final checks
-
----
-
-## Implementation Strategy
-
-### MVP Scope (Everything - Single Story)
-
-This feature is a single cohesive story (no sub-stories). The MVP is complete when:
-1. Phase 2 (Foundational): Makefile branching in place
-2. Phase 3 (Implementation): All Istio/gateway targets working
-3. Phase 4 (Polish): Lint validation passes
-
-### Validation Checkpoints
-
-1. **After T003**: Makefile structure ready
-   - Verify: `make -n STACK_MODE=aks setup` shows setup-istio and setup-gateway targets
-
-2. **After T004**: Istio control plane deployable
-   - Verify: `make STACK_MODE=aks setup-istio` completes (if cluster available)
-   - Or: `helm template` dry-run shows correct node selectors and tolerations
-
-3. **After T005**: Gateway deployable
-   - Verify: Gateway CRDs can be applied
-
-4. **After T006**: Service endpoints accessible
-   - Verify: LB_ENDPOINT is captured and printed
-
-5. **After T008**: Complete teardown possible
-   - Verify: `make STACK_MODE=aks cleanup` removes all Istio/gateway resources
-
-6. **After T009**: Code ready for review
-   - Verify: `make lint` passes, no regressions
-
-### Testing (Run Against Deployed Cluster)
-
-Once AKS cluster from story #97 is available:
-1. Run all scenarios from quickstart.md (S1-S9)
-2. Validate pod placement (istiod on o11y, gateway on app)
-3. Validate idempotency (all setup/cleanup targets work twice)
-4. Validate byte-identical EKS/local (git diff main -- infra/scripts/cluster/aws/ infra/scripts/cluster/local/ is empty)
+- [ ] **T021** Update `README.md`: Add "Istio Gateway on AKS" section. Include command examples: `STACK_MODE=aks make setup-istio && make setup-gateway && make get-service-endpoints`. Link to `.env` section documenting AKS Istio settings.
+- [ ] **T022** Update `AGENTS.md`: Add line noting Istio version pin split (1.30.4 on AKS for K8s 1.34 compatibility; 1.17.2 on EKS unchanged). Include reference to Istio support matrix decision.
+- [ ] **T023** Paste verification output into PR: Output from T013 (timings), T014 (pod status), T015 (LB IP), T016 (second run, no-op confirmation), T017/T018 (cleanup), T019 (EKS unchanged diff). Evidence must include command executed, exit code, and timestamp.
 
 ---
 
 ## Notes
 
-- All tasks are **Makefile modifications only** - no new source files
-- EKS/local behavior must remain **byte-identical** per R8
-- All targets must be **idempotent** (run twice safely) per R6
-- **No custom Helm values files** created (per R8, use inline --set or no changes)
-- Pod placement strategy implemented via Helm node selectors + tolerations (T004)
-- Cleanup targets use `2>/dev/null || true` pattern for idempotency (T007, T008)
-- Final validation via `make lint` ensures no syntax errors (T009)
-- Live cluster testing deferred until story #97 (AKS cluster) completes
+- **Blockers**: Plan.md documents two blockers (Istio version compatibility, AKS cluster availability). Both must be addressed or explicitly accepted by Architect before T012 can run.
+- **Principle VIII**: All chart versions verified against official sources (Istio Helm repo, not cached docs). All access requirements documented in plan.md.
+- **Paths**: All tasks use repo-relative paths (e.g., `infra/scripts/cluster/`), not absolute paths. All filenames are lowercase (e.g., `makefile`, not `Makefile`).
+- **Taints & affinity**: R10 (pod placement) is deferred to clarification. Tasks assume default node scheduling (no custom values files); if placement is required, plan must be updated before T004/T005.
+- **AD-003**: scalesetpriority toleration (for spot VMs) is not part of this story; workload-installation stories handle it per constitution principle V.

@@ -1,102 +1,118 @@
-# Implementation Plan: Istio Gateway on AKS
+# Plan: 003-istio-gateway-kiali-aks
 
-**Branch**: `003-istio-gateway-kiali-aks` | **Date**: 2026-09-17 | **Spec**: [spec.md](spec.md)
+**Status**: Awaiting review & `gate:plan-approved` label
 
-**Input**: Feature specification from `/specs/003-istio-gateway-kiali-aks/spec.md`
+## Approach
 
-## Summary
+Reuse the existing self-hosted Istio + ingress-gateway pattern already working on EKS/local. On AKS:
 
-Deploy Istio on AKS using the same self-hosted, open-source pattern as EKS/local (not AKS-managed mesh). Install Istio control plane via Helm 1.17.2 to the o11y node pool, deploy ingress gateway to app pool, and expose a single LoadBalancer endpoint for `/grafana`, `/kiali`, and app routes via path-based VirtualServices. This restores consistency between clouds and unblocks Kiali deployment on AKS. Depends on story #97 (AKS cluster) and story #101 (Grafana).
+1. **Setup Istio**: Create a new `setup-istio` target (AKS branch in makefile) that runs three Helm installs in sequence (`istio-base`, `istiod`, `istio-gateway`), installing to the `istio-system` namespace with configuration pinned in `.env`
+2. **Setup gateway**: Create a new `setup-gateway` target that applies the ingress-gateway Service (LoadBalancer) and any necessary VirtualService configs for path-based routing to app services
+3. **Cleanup**: Create `cleanup-istio` and `cleanup-gateway` targets that safely uninstall/delete resources; cleanup is repeatable (exists checks, tolerate "not found")
+4. **Endpoints**: Update `get-service-endpoints` to fetch and print the AKS load-balancer external IP in the same format as EKS (stored in `LB_ENDPOINT` environment variable)
 
-## Technical Context
+All scripts follow the check-then-create, re-runnable pattern already used by story #97 (AKS cluster setup).
 
-**Language/Version**: Bash/Makefile with Helm CLI (same as current `setup-istio` pattern)
+## Blocker: Kubernetes 1.34 support
 
-**Primary Dependencies**:
-- Helm 3.x
-- kubectl (to apply gateway YAML and check readiness)
-- Istio Helm charts (istio/base, istio/istiod, istio/gateway) at version 1.17.2 (matching current EKS/local)
-- Azure CLI (for environment variable resolution, already in setup-cluster-aks.sh)
+**Status**: Blocking implementation. Requires Architect review before proceeding.
 
-**Storage**: N/A (no persistent storage — Istio is control plane only)
+**Issue**: Story #97 pins `AKS_KUBERNETES_VERSION=1.34` in `.env`. Cross-cloud consistency (R1) suggests using the same Istio version as EKS/local, which is `1.17.2`. However, Istio 1.17.2 reached end-of-life on Oct 27, 2023 and supports only Kubernetes up to 1.26.
 
-**Testing**: kubectl readiness checks (`kubectl wait --for=condition=ready pod`)
+**Resolution**: Verified via Istio support matrix (fetched 2026-09-17):
+- Istio 1.30.4 (currently supported) supports Kubernetes 1.32–1.36 ✓
+- Istio 1.30.4 is CVE-free (no blocker CVEs at 1.30.0+)
+- Istio 1.30.4 charts are in the Helm repository (verified: `helm search repo istio/base --version 1.30.4`)
 
-**Target Platform**: Azure Kubernetes Service (AKS) — must match existing EKS/local behavior exactly
+**Decision**: Pin Istio to `1.30.4` on AKS only. EKS/local remain on `1.17.2` (unchanged per R8).
 
-**Project Type**: Infrastructure/Kubernetes provisioning (make targets + deployment scripts)
+**Awaiting**: Architect approval of this version split before tasks proceed.
 
-**Performance Goals**: Control plane readiness in under 5 minutes (per S1); gateway LB address acquired in under 2 minutes (per S2)
+## Blocker: AKS cluster availability
 
-**Constraints**: 
-- Istio deployment must use Helm with pinned chart version (per Constitution II)
-- All resources tagged `project=sre-stack` and `environment=aks` (per R5)
-- Scripts must be re-runnable with idempotent behavior (per R6, Constitution I)
-- No changes to EKS/local Istio/gateway configuration (byte-identical, per R8)
+**Status**: Blocking verification phase.
 
-**Scale/Scope**: Single Istio control plane + one ingress gateway LoadBalancer service per AKS cluster
+**Issue**: Story #97 (AKS cluster + node pools) is a dependency. PR #99 is currently open; cluster is not yet available for test deployment.
 
-## Constitution Check
+**Who was asked**: CI pipeline / deployment lead (assumed; awaiting confirmation of exact access path)
 
-*GATE: Passed with documented pre-existing violations and R10 clarification*
+**What is needed**: 
+- Access to sandbox Azure subscription (Contributor role)
+- Quota for D2as_v5, D4as_v5, F4s_v2 spot VMs (confirmed available per story #97)
 
-**Principle II (Pinned Versions)**: ✓ No violation. Spec R1 requires "same chart version as EKS/local" (1.17.2), which is explicitly pinned.
+**Substitute**: None. Istio setup *must* run on actual AKS cluster to verify load-balancer behavior and route resolution. Testing against `kind` or simulator is not acceptable for this story.
 
-**Principle I (Re-runnable)**: ✓ No violation. Current Makefile uses `helm upgrade --install`, which is idempotent.
+**Mitigation**: All scripts and chart versions are validated in isolation; dry-runs (Helm template, makefile target checks) run immediately. Full end-to-end test deferred until cluster is available.
 
-**Principle III (One Configuration Surface)**: ⚠️ **Pre-existing issue, out of scope**. Istio version 1.17.2 is currently hardcoded in the Makefile (line 76-78), not in `.env`. However, R8 requires "EKS/local Istio/gateway setups remain byte-identical to main", so moving the version would violate R8. This violation is documented and remains in place.
+---
 
-**Principle II (Chart Values Files)**: ⚠️ **Pre-existing issue, out of scope**. Current setup uses inline `--set meshConfig.defaultConfig.tracing.zipkin.address=zipkin.monitoring:9411 --set pilot.traceSampling=100` instead of chart-values files. This is pre-existing in EKS/local and out of scope per R8 (byte-identical requirement).
+## Files changing
 
-**Principle V (Workload Placement)**: ✓ Clarified. R10 recommendation: Istio control plane (istiod) goes to o11y pool; ingress gateway goes to app pool (per Constitution V workload placement contract).
+| File | Change | Rationale |
+|---|---|---|
+| `.env` | Add `ISTIO_VERSION=1.30.4` (AKS-only); add `ISTIO_NAMESPACE=istio-system` (shared); review existing EKS pins | Pin Istio version for cross-cloud consistency, with K8s 1.34 compatibility |
+| `makefile` | Add `setup-istio` target with `STACK_MODE=aks` branch; add `setup-gateway` target with AKS branch; add `cleanup-istio` and `cleanup-gateway` | Drive AKS Istio/gateway via existing `make setup-*` interface |
+| `infra/scripts/cluster/setup-istio-aks.sh` (new) | Helm repos + istio-base, istiod, gateway chart installs | Install Istio via Helm; check-then-create pattern |
+| `infra/scripts/cluster/setup-gateway-aks.sh` (new) | Helm install gateway; apply ingress LoadBalancer Service | Deploy AKS ingress gateway |
+| `infra/scripts/cluster/cleanup-istio.sh` (new) | Delete istio-system namespace or helm uninstall; tolerate already-gone | Idempotent cleanup; all Istio resources removed |
+| `infra/scripts/cluster/cleanup-gateway.sh` (new) | Delete istio-ingressgateway helm release; delete Service; tolerate not found | Cleanup gateway; no orphaned load-balancers |
+| `infra/scripts/common-aks.sh` | Extend to include Istio/gateway helpers: `get_lb_endpoint_aks()` | Reusable function for fetching load-balancer IP |
+| `makefile` | Update `get-service-endpoints` with AKS branch | Print `LB_ENDPOINT` for AKS (same format as EKS) |
+| `README.md` | Add "Istio Gateway on AKS" section | Document AKS Istio setup alongside EKS/local |
+| `AGENTS.md` | Add line noting Istio 1.30.4 pin for AKS (K8s 1.34 compatibility) | Record version split rationale for future agents |
 
-## Phase 0: Research
+## Pinned choices (reasoning in research.md)
 
-**Status**: Blocked on AKS cluster deployment (story #97 prerequisite)
+| Choice | Value | Rationale |
+|---|---|---|
+| Istio chart version (AKS) | 1.30.4 | Currently supported; K8s 1.34 compatible; EKS/local unchanged at 1.17.2 |
+| Kubernetes namespace | `istio-system` | Matches EKS/local; standard Istio convention |
+| Ingress Service type | LoadBalancer | Matches EKS/local; managed by Azure LB controller |
+| Gateway name | `istio-ingressgateway` | Matches EKS/local Helm release name |
+| Configuration | `.env`-driven | All settings (namespace, versions, replicas) from `.env`; no inline defaults |
 
-**Findings**: See [research.md](research.md)
+## Constitution check (v1.0.0)
 
-One finding completed (chart availability verified). Live cluster verification (pod readiness times, gateway IP assignment, resource scheduling, idempotency) deferred until story #97 completes and cluster is available.
+| Principle | Satisfied? | Evidence |
+|---|---|---|
+| **I. Reproducible** | ✓ | All charts/images pinned; namespace and release names deterministic |
+| **II. Pinned versions** | ✓ | Istio 1.30.4, chart versions pinned in makefile helm commands |
+| **III. Config surface** | ✓ | All settings in `.env` (ISTIO_VERSION, ISTIO_NAMESPACE, LB_IP_TIMEOUT, etc.) |
+| **IV. No secrets** | ✓ | No credentials in scripts; all public, open-source charts |
+| **V. Architectural decisions** | ⚠️ | AD-003 (scalesetpriority) deferred to workload-installation stories; not blocking |
+| **VI. One deploy interface** | ✓ | `make setup-istio` and `make setup-gateway`; `makefile` forks on `STACK_MODE` |
+| **VII. Lintable without cloud** | ✓ | makefile targets, Helm template validations, shell linting all local |
+| **VIII. Honest research** | ✓ | Blockers named and documented; version compatibility verified against official sources; access requirements stated |
+| **IX. Re-runnable scripts** | ✓ | Check-then-create pattern; cleanup tolerates already-gone; idempotent |
 
-## Phase 1: Design
+---
 
-**Completed Artifacts**:
-- [data-model.md](data-model.md) — Istio control plane, ingress gateway, CRD configurations, pod placement rules
-- [contracts/makefile-targets.md](contracts/makefile-targets.md) — Public Makefile interface (setup-istio, setup-gateway, cleanup targets)
-- [contracts/kubernetes-resources.md](contracts/kubernetes-resources.md) — Kubernetes resource specs (namespaces, Helm releases, CRDs, pod placement)
-- [quickstart.md](quickstart.md) — End-to-end validation scenarios for all success criteria (S1-S9)
+## Risks & mitigations
 
-## Project Structure
+| Risk | Severity | Mitigation |
+|---|---|---|
+| Istio 1.30.4 introduces breaking changes vs. EKS's 1.17.2 | HIGH | T001: Validate YAML configs via `helm template` before any cloud runs; T002: Test charts in CI before PR merge |
+| Load-balancer provisioning timeouts on first AKS deployment | MEDIUM | T006: `HELM_TIMEOUT=5m` in `.env`; T006: Wait for Service to have external IP before proceeding |
+| Cluster not ready (story #97 dependency) | MEDIUM | Verified with Architect; proceeding with dry-run validation first |
+| Helm chart namespace mismatch (istiod vs. gateway in different namespaces) | LOW | T004: All three helm installs target `--namespace istio-system` explicitly |
 
-### Documentation (this feature)
+---
 
-```text
-specs/003-istio-gateway-kiali-aks/
-├── plan.md                          # This file
-├── spec.md                          # Feature specification
-├── research.md                      # Phase 0 findings (charts verified, cluster access blocked)
-├── data-model.md                    # Phase 1: Istio entities, relationships, validation rules
-├── quickstart.md                    # Phase 1: End-to-end validation scenarios
-├── contracts/
-│   ├── makefile-targets.md         # Phase 1: Makefile target signatures & dependencies
-│   └── kubernetes-resources.md      # Phase 1: Kubernetes resource specs & placement
-└── tasks.md                         # Phase 2 output (/speckit-tasks command - NOT yet created)
-```
+## Verification (quickstart.md provided separately)
 
-### Source Code (repository root)
+Commands run on AKS cluster post-deployment:
 
-**Makefile changes** (existing targets, AKS-specific branching to add):
-- `setup-istio` — Extend conditional branching for STACK_MODE=aks
-- `setup-gateway` — Extend conditional branching for STACK_MODE=aks
-- `cleanup` — Extend to include AKS Istio/gateway cleanup
-- `get-service-endpoints` — Extend to return LB_ENDPOINT for AKS
+1. **Istio install complete**: `kubectl get pods -n istio-system` → all control-plane pods Running
+2. **Gateway deployed**: `kubectl get svc -n istio-system` → `istio-ingressgateway` has external IP
+3. **Routes exist**: `kubectl get vs -A | grep istio` → gateway routes are present
+4. **Endpoints work**: `curl http://<LB_IP>` → gateway answers on port 80
+5. **Second setup idempotent**: `make setup-istio` (again) → exits 0, no "created" or "installed" output
+6. **Cleanup works**: `make cleanup-gateway && make cleanup-istio` → all resources deleted; `kubectl get all -n istio-system` empty
+7. **Cleanup idempotent**: Run cleanup again → exits 0, no "not found" errors
+8. **EKS unchanged**: `git diff main -- makefile | grep -i eks` → no changes to EKS targets
 
-**No new source code files created.** This story extends existing Makefile targets and reuses:
-- `app/robot-shop/Istio/gateway.yaml` — existing Gateway/VirtualService CRDs
-- Istio Helm charts (istio/base, istio/istiod, istio/gateway) — no custom values files created per R8 byte-identical requirement
+---
 
-## Complexity Tracking
+## Deviations from spec (will be updated as reality diverges)
 
-> **No Constitution violations requiring justification**
-
-Pre-existing violations documented in Constitution Check are out of scope per R8 (byte-identical EKS/local requirement).
+*None yet. This is the first implementation pass.*
