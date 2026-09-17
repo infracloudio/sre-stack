@@ -64,6 +64,14 @@ Commands are spelled `/speckit-<verb>`; OpenCode spells them `/speckit.<verb>`.
 6. Agent review ranks findings; an independent human approves; squash-merge
    with the story's `specs/` folder. Gaps found after merge become new stories.
 
+`spec.md`, `plan.md` and `tasks.md` are written one section at a time
+(constitution principle IX): the agent proposes a section, stops, and waits;
+the developer asks, redirects, or approves; only then the next section. Never
+generate a whole file in one pass. Before asserting a version pin, a make
+target, or a path, run the one-line check (`helm search repo … --versions`,
+`grep -n "^<target>" makefile`, `ls`) and paste what it printed — principle
+VIII, "the docs say" is not evidence.
+
 Changes require an accepted story and `gate:plan-approved`; informational
 questions do not. Do not invent scope or weaken tests, hooks, lint, or CI.
 

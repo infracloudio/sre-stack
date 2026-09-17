@@ -1,13 +1,36 @@
 <!--
 Sync Impact Report
-- Version change: 1.3.0 → 1.3.1 (PATCH: wording compressed, no rule changed)
-- Principles added: X. Converge to the Agreed Scope, Then Stop
-- Sections changed: all prose put in short-form wording; headings, MUST
-  rules, paths, tags, numbers, and version metadata verified unchanged
-- Templates reviewed: plan-template.md (no edit needed; convergence
-  boundary binds converge step and task list, not plan authoring);
-  tasks-template.md (no edit needed; existing checklists stay)
-- Deferred: none
+- Version change: 1.3.1 → 1.4.0 (MINOR: principles VIII and IX tightened)
+- Principles added: none
+- Principles changed: VIII made explicit that Phase 0 research runs against
+  a real cluster or subscription, that simulated or remembered output is a
+  false claim rather than a weak one, and that missing access is a blocker
+  the author must raise and wait on — not a licence to substitute. The
+  substitute path (dry run, helm template, sandbox) now applies only after
+  access was asked for and refused, must record who was asked and what it
+  cannot prove, is approved by the Architect at the plan gate, and is named
+  in the PR. Cheap read-only checks — chart version, chart name, make
+  target, path, label, taint — never qualify for substitution.
+- Principles changed: IX renamed "Plan In Steps, With the User in the Room"
+  → "Author In Steps, Developer in the Loop". Scope widened from plan.md and
+  tasks.md to spec.md as well. Rule restated as agent-proposes /
+  developer-accepts, one section at a time, agent stopping between sections,
+  with the developer barred from approving a section unread or a claim
+  unchecked. Earlier wording read as reviewer sign-off; intent is the
+  authoring loop between agent and developer.
+- Sections changed: none beyond VIII and IX
+- Templates reviewed: plan-template.md, spec-template.md, tasks-template.md
+  (no edit needed; all three are structure only and carry no authoring
+  cadence — plan-template.md line 7 defers execution workflow to the command
+  definition)
+- Propagated to: .claude/, .agents/, .devin/ skills and .opencode/ commands
+  for speckit-specify, speckit-plan, speckit-tasks (Incremental Authoring
+  and Phase 0 Research sections, committed with PROTECTED_OVERRIDE=1);
+  docs/sdlc/framework.md step 5; AGENTS.md SDLC contract
+- Deferred: none. Known gap — `specify integration upgrade --force`
+  overwrites the four harness copies, and check-speckit-version.sh compares
+  version metadata, not content, so a future upgrade drops the skill block
+  silently. Constitution, framework.md and AGENTS.md survive it.
 -->
 
 # sre-stack Constitution
@@ -95,46 +118,77 @@ Jargon hand it only to people who already have it.
 ### VIII. Try It Before You Plan It
 
 Story whose plan touch running infrastructure MUST get hands-on research
-before `plan.md` and `tasks.md` written. During Phase 0 (research.md),
-author walk key steps with real commands, together with person who will
-review plan:
+against real cluster or real subscription before `plan.md` and `tasks.md`
+written. Live run is the default and the requirement, not the ideal case.
+During Phase 0 (research.md), author walk key steps with real commands,
+together with person who will review plan:
 
 - Before each command, author say in one or two sentences what it do and
   what could go wrong, then wait for go-ahead when command cost money,
   destroy something, or need environment user must provide.
-- Command runs. Actual output — every error, quirk, surprise — reported
-  back and discussed before next step. Issues found this way shape plan;
-  not discovered later by builder.
+- Command runs against real target — the cluster, the subscription, the
+  live chart repository. Actual output — every error, quirk, surprise —
+  reported back and discussed before next step. Issues found this way
+  shape plan; not discovered later by builder.
 - `research.md` record what was actually run and what happened, failures
-  included, next to facts it cite. "The docs say" never substitute for "we
-  ran it and here is what happened".
-- If no live run possible (cost, risk, missing environment), research.md
-  say why and what replace it — dry run, `helm template`, sandbox — and
-  plan approve that substitute.
+  included, next to facts it cite. Paste terminal output verbatim. "The
+  docs say" never substitute for "we ran it and here is what happened".
+  Invented, expected, or illustrative output MUST NOT appear — an output
+  block labelled simulated, or written from memory, is a false claim, and
+  worse than leaving question open.
+- **No access is a blocker, not a licence to substitute.** Author who
+  cannot reach cluster or subscription MUST stop and ask for it — name who
+  they asked, what they need (subscription, role, credentials, quota), and
+  wait. Story wait; agent does not proceed and fill gap from memory.
+- Only when access asked for and genuinely cannot be granted in story's
+  timebox does substitute apply: `--dry-run`, `helm template`, `helm
+  search`, sandbox, read-only query. research.md record who was asked, what
+  answer came back, which substitute used, and what it cannot prove.
+  Architect approve substitute at plan gate; substitution not approved in
+  advance and not decided by author alone. Limitation named in pull
+  request, not buried in research.md.
+- Cheap read-only checks never qualify for substitute. Chart version,
+  chart name, make target, file path, label, taint are settled by one
+  command against real source, and MUST be settled that way.
 
 *Rationale:* plan written only from documents inherit their silences.
 Cluster story only got workable plan because manual run-up surfaced issues
 no document mentioned. Errors found while walking steps with user are
-cheap; same errors found by builder mid-task are plan departures.
+cheap; same errors found by builder mid-task are plan departures. Asking
+for access feel slow and cost hours; planning on guessed output cost days
+and burn reviewer trust. Blocked story is honest state — record it and ask.
 
-### IX. Plan In Steps, With the User in the Room
+### IX. Author In Steps, Developer in the Loop
 
-`plan.md` and `tasks.md` MUST be written in step-by-step conversation with
-person who will review plan — never delivered finished in one go. After
-each step, author:
+`spec.md`, `plan.md` and `tasks.md` MUST be written one section at a time,
+agent proposing and developer accepting — never generated whole and
+committed unread. Developer instruct agent up front: produce one section,
+stop, wait. Do not start next section until told.
 
-- show what was just decided or written, plain language, with reason;
-- pause for questions, corrections, disagreement before next step;
-- carry agreed wording forward, so finished plan read as summary of shared
-  walkthrough, not verdict handed down.
+Loop for each section:
 
-Test: reviewer read finished plan and recognise every part, because they
-saw each step as it was made. If live conversation not possible, same rule
-apply in writing — plan posted and agreed in reviewable chunks before
-final.
+- agent propose section — what it decided or wrote, plain language, with
+  reason, and what it checked to know it true;
+- developer read it, then do one of three things: ask question, give
+  different instruction, or approve;
+- only on approve does agent move to next section. Agreed wording carry
+  forward; approved section not reopened without reason.
 
-*Rationale:* approval mean understanding. Plan reviewer met only at end get
-rubber-stamped or rejected in bulk; plan built in steps get its real doubts
+Agent propose, developer accept. Developer own what goes in file — cannot
+approve section they have not read, and cannot approve claim they have not
+checked. One-line check (`helm search`, `grep` target in makefile, `ls`
+directory) beat reading it twice.
+
+Test: developer recognise every part of finished file, because they
+approved each part as it was made. Same rule apply to research, per
+principle VIII: findings arrive one at a time, real output attached, before
+plan built on them.
+
+*Rationale:* whole file generated in one pass get skimmed once and
+committed. Wrong version number is obvious on own line and invisible in
+three hundred lines read at end. Agent write fast; developer accepting
+section by section is what keep it honest. Reviewer met only at end get
+rubber-stamped or rejected in bulk; file built in steps get its real doubts
 raised while still cheap to fix.
 
 ### X. Converge to the Agreed Scope, Then Stop
@@ -213,4 +267,4 @@ principle, MINOR for adding one or materially expanding guidance, PATCH for
 wording. When mistake happen twice it become rule here, checklist line, or
 hook.
 
-**Version**: 1.3.1 | **Ratified**: 2026-09-04 | **Last Amended**: 2026-09-11
+**Version**: 1.4.0 | **Ratified**: 2026-09-04 | **Last Amended**: 2026-09-17

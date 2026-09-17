@@ -237,6 +237,49 @@ other work isn't disturbed) and runs three commands:
    lists gaps ("the spec requires tagging, no task does it"). Fix the
    gaps in the files before writing any code.
 
+**Run the first two a section at a time — this is not optional.** Constitution
+principle IX: the agent proposes one section, stops, and waits; you ask a
+question, give it a different instruction, or approve; only then does it
+start the next one. Tell it so up front — *"produce one section at a time,
+stop after each, don't start the next until I say"* — because left alone it
+will hand you a finished document. Same for `/speckit-tasks`: one task
+proposed, one task approved, not a wall of ten.
+
+The agent proposes; you accept. That means you can't approve a section you
+haven't read, or a claim you haven't checked. The checks are one-liners —
+`helm search repo <chart> --versions` before you accept a version pin,
+`grep -n "^<target>" makefile` before you accept "modify the existing
+target", `ls` before you accept a file path. A wrong version number is
+obvious on its own line and invisible in a 300-line file skimmed at the
+end, which is the whole reason for working this way.
+
+`/speckit-analyze` is the backstop, not the review. It catches a file that
+contradicts itself; it won't catch a plan that is internally consistent and
+entirely wrong.
+
+**Phase 0 research runs against a live cluster or subscription.** Constitution
+principle VIII. The commands go against the real thing — the cluster, the
+subscription, the live chart repo — and `research.md` carries what the
+terminal actually printed, errors included. Never write an output block from
+memory or from the docs, and never label one "simulated": an invented output
+block is a false claim, and it makes a wrong answer look checked.
+
+If you can't reach a cluster or subscription, **that is a blocker — stop and
+ask for access.** Say what you need (subscription, role, credentials, quota)
+and who you're asking, and wait. Don't fill the gap from memory. A blocked
+story is an honest state; a confidently wrong plan isn't.
+
+A substitute — `--dry-run`, `helm template`, `helm search`, a sandbox — is
+allowed only *after* you asked and couldn't get access in the story's
+timebox. Write down who you asked, what came back, which substitute you used
+and what it can't prove; the Architect approves it at the plan gate, and the
+limitation goes in the PR. It isn't the author's call alone.
+
+None of that applies to the cheap checks. A chart version, a chart name, a
+make target, a path, a label or a taint is one command against the real
+source — `helm search repo <chart> --versions`, `grep -n "^<target>"
+makefile`, `ls` — and there's no acceptable reason to guess at them.
+
 Then get the **plan approved**: the Architect reads `plan.md` and the
 analyze report on the PR — async, or in five minutes at the sync — and
 applies the label `gate:plan-approved`. Third approval. **No implementation
