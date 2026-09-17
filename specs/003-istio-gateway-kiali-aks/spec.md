@@ -121,6 +121,16 @@
 
 ---
 
+## Edge Cases
+
+1. **LoadBalancer IP provisioning delay:** Azure takes 1–2 minutes to assign public IP. Mitigation: `make get-service-endpoints` polls with 5s retries up to 2 minutes. If timeout, IP will appear shortly after; retry command.
+
+2. **Node pool taint mismatch:** If #97 defines different taint key/value, pods will evict. Mitigation: Verify `az aks nodepool list` shows correct agentpool labels; adjust Helm tolerations if needed.
+
+3. **Prometheus service name:** Kiali Helm values hardcode prometheus-stack-kube-prom-prometheus (from #101 default chart). If #101 uses different service name, Kiali won't find metrics. Mitigation: SC-003b verification deferred to after #101 lands; Kiali pod itself (SC-003a) runs independently.
+
+---
+
 ## Out of Scope
 
 - Robot Shop or HotROD deployment and routing (#102)

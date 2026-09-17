@@ -10,6 +10,8 @@
 
 Deploy self-hosted Istio 1.31.0 and Kiali v1.85 to AKS, replicating the pattern already working on EKS/local. Platform-owned ingress gateway routes `/kiali` path. Node pool placement via Helm values respects #97's taints.
 
+**Implementation approach:** Reuse existing `setup-istio`, `setup-gateway`, `setup-kiali` targets with `STACK_MODE=aks` dispatch. No new `-aks` suffixed targets. Follows FR-005.
+
 ---
 
 ## Technical Context
@@ -24,13 +26,13 @@ Deploy self-hosted Istio 1.31.0 and Kiali v1.85 to AKS, replicating the pattern 
 - monitoring: Prometheus (from #101); Kiali points here via service DNS
 
 **Node pools** (from #97):
-- system: Istio istiod, ingress-gateway pods
-- o11y (observability): Kiali pod, tolerates workload=o11y taint
+- system (agentpool=system): Istio istiod, ingress-gateway pods
+- o11y (agentpool=o11y): Kiali pod, tolerates workload=o11y taint
 
 **Makefile dispatch:**
 - Existing Makefile uses `STACK_MODE` env var (lines 59-63)
-- `STACK_MODE=aks` invokes Azure-specific setup
-- Reuse `setup-istio`, `setup-gateway`, `setup-kiali` targets with Azure values
+- `STACK_MODE=aks` selects Azure values files
+- Reuse `setup-istio`, `setup-gateway`, `setup-kiali` targets (NO new targets)
 
 ---
 
@@ -48,7 +50,7 @@ global:
 
 pilot:
   nodeSelector:
-    agentpool: system  # AKS system node pool
+    agentpool: system
   tolerations: []
 
 istiod:
@@ -92,37 +94,48 @@ spec:
       effect: NoSchedule
 ```
 
-### 2. Update Makefile dispatch logic
+### 2. Update Makefile dispatch logic (REUSE existing targets)
 
-**File: makefile** (add to existing target dispatcher around line 59-63)
+**File: makefile** (modify existing targets around line 59-63)
 
+**Add variable dispatch:**
 ```bash
 ifeq ($(STACK_MODE),aks)
   ISTIO_VALUES_FILE := infra/chart-values/aks/istio-values.yaml
   GATEWAY_VALUES_FILE := infra/chart-values/aks/gateway-values.yaml
   KIALI_VALUES_FILE := infra/chart-values/aks/kiali-values.yaml
-  KIALI_CHART_VERSION := v1.85
+else ifeq ($(STACK_MODE),eks)
+  ISTIO_VALUES_FILE := infra/chart-values/eks/istio-values.yaml
+  # ... existing EKS logic
+else ifeq ($(STACK_MODE),local)
+  ISTIO_VALUES_FILE := infra/chart-values/local/istio-values.yaml
+  # ... existing local logic
 endif
 ```
 
-**Add targets:**
-
+**Modify existing setup-istio target:**
 ```bash
-setup-istio-aks:
+setup-istio:
 	helm upgrade --install istio-base istio/base \
 	  --namespace istio-system --create-namespace \
 	  -f $(ISTIO_VALUES_FILE)
 	helm upgrade --install istiod istio/istiod \
 	  --namespace istio-system \
 	  -f $(ISTIO_VALUES_FILE)
+```
 
-setup-gateway-aks: setup-istio-aks
+**Modify existing setup-gateway target:**
+```bash
+setup-gateway: setup-istio
 	helm upgrade --install ingress-gateway istio/gateway \
 	  --namespace istio-system \
 	  -f $(GATEWAY_VALUES_FILE)
-	kubectl apply -f infra/aks/platform-gateway.yaml -n istio-system
+	kubectl apply -f infra/$(STACK_MODE)/platform-gateway.yaml -n istio-system
+```
 
-setup-kiali-aks:
+**Modify existing setup-kiali target:**
+```bash
+setup-kiali:
 	helm repo add kiali https://kiali.org/helm-charts
 	helm repo update
 	helm upgrade --install kiali kiali/kiali \
@@ -170,27 +183,9 @@ spec:
         host: kiali.istio-system.svc.cluster.local
         port:
           number: 20001
----
-apiVersion: networking.istio.io/v1beta1
-kind: VirtualService
-metadata:
-  name: grafana-vs
-  namespace: istio-system
-spec:
-  hosts:
-  - "*"
-  gateways:
-  - platform-ingress-gateway
-  http:
-  - match:
-    - uri:
-        prefix: /grafana
-    route:
-    - destination:
-        host: grafana.monitoring.svc.cluster.local
-        port:
-          number: 3000
 ```
+
+**Note:** `/grafana` VirtualService belongs in #101 (observability story), not here. Gateway exists to be reused; #101 adds its own routes.
 
 ### 4. Update get-service-endpoints target
 
@@ -199,11 +194,20 @@ spec:
 ```bash
 get-service-endpoints:
 ifeq ($(STACK_MODE),aks)
-	@AKS_LB=$$(kubectl get svc -n istio-system ingress-gateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null); \
+	@echo "AKS cluster endpoints:"; \
+	AKS_LB=$$(kubectl get svc -n istio-system ingress-gateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null); \
+	if [ -z "$$AKS_LB" ]; then \
+	  echo "  LoadBalancer IP pending (Azure takes 1-2 min)..."; \
+	  for i in {1..24}; do \
+	    sleep 5; \
+	    AKS_LB=$$(kubectl get svc -n istio-system ingress-gateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null); \
+	    [ -n "$$AKS_LB" ] && break; \
+	  done; \
+	fi; \
 	if [ -n "$$AKS_LB" ]; then \
-	  echo "AKS LoadBalancer: $$AKS_LB"; \
 	  echo "  Kiali: http://$$AKS_LB/kiali"; \
-	  echo "  Grafana: http://$$AKS_LB/grafana"; \
+	else \
+	  echo "  ERROR: LoadBalancer IP not assigned after 2 minutes"; \
 	fi
 endif
 ```
@@ -225,6 +229,15 @@ kubectl get svc -n istio-system ingress-gateway
 # Should show: LoadBalancer, EXTERNAL-IP assigned, 80:PORT/TCP
 ```
 
+**SC-005 check (node pool placement):**
+```bash
+kubectl get pods -n istio-system -l app=istiod -o jsonpath='{.items[*].spec.nodeSelector}' | grep agentpool
+# Should show: agentpool=system
+
+kubectl get pods -n istio-system -l app=kiali -o jsonpath='{.items[*].spec.nodeSelector}' | grep agentpool
+# Should show: agentpool=o11y
+```
+
 **SC-003a/SC-004 check:**
 ```bash
 kubectl get pods -n istio-system -l app=kiali
@@ -238,6 +251,13 @@ STACK_MODE=aks make setup-istio  # First run
 STACK_MODE=aks make setup-istio  # Second run - should succeed, no reinstalls
 ```
 
+**SC-007 check (cleanup):**
+```bash
+make cleanup
+# Verify AKS cluster deleted and node resource group gone
+az group list | grep -i "MC_.*_aks" || echo "PASS - no orphaned resources"
+```
+
 ---
 
 ## Constitution Checks
@@ -246,24 +266,25 @@ STACK_MODE=aks make setup-istio  # Second run - should succeed, no reinstalls
 ✓ No secrets in git (Helm values are config only)  
 ✓ Version pins are explicit (1.31.0, v1.85 in values files)  
 ✓ Node placement is explicit (nodeSelector in Helm values)  
-✓ Cleanup removes all resources (Azure resource group deletion)
+✓ Cleanup removes all resources (Azure resource group deletion)  
+✓ No new `-aks` targets (reuse existing targets with STACK_MODE dispatch)
 
 ---
 
 ## Known Risks
 
-1. **Kiali Prometheus integration:** Requires #101 to provide prometheus-stack-kube-prom-prometheus service in monitoring namespace. Kiali pod runs OK but topology won't display until #101 lands. Mitigation: SC-003b is "verified after #101 lands"; SC-003a passes independently.
+1. **Kiali Prometheus integration:** Requires #101 to provide prometheus-stack-kube-prom-prometheus service in monitoring namespace. Hardcoded URL in Helm values. Mitigation: SC-003b is "verified after #101 lands"; SC-003a passes independently.
 
-2. **LoadBalancer IP provisioning delay:** Azure LoadBalancer can take 1-2 minutes to assign public IP. Mitigation: `get-service-endpoints` polls with jq; script waits up to 5 minutes.
+2. **LoadBalancer IP provisioning delay:** Azure LoadBalancer can take 1-2 minutes to assign public IP. Mitigation: `get-service-endpoints` polls with 5-second retries, up to 2 minutes.
 
-3. **Node pool taint mismatches:** If #97 uses different taint key/value, pods will evict. Mitigation: Verify `az aks nodepool list` before setup; adjust Helm tolerations if needed.
+3. **Node pool taint mismatches:** If #97 uses different taint key/value, pods will evict. Mitigation: Verify `az aks nodepool list` and agentpool labels before setup; adjust Helm tolerations if needed.
 
 ---
 
 ## Effort Estimate
 
 - Create Helm values files: 30 min
-- Update Makefile: 20 min
+- Update Makefile (dispatch logic only, no new targets): 20 min
 - Create Gateway manifest: 15 min
 - Test on dev AKS: 45 min
 - Verify SC-001 through SC-007: 30 min
