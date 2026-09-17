@@ -1,226 +1,184 @@
 # Tasks: Deploy Istio Ingress Gateway and Kiali to AKS
 
-**Feature**: Deploy Istio Ingress Gateway and Kiali to AKS  
-**Story**: #104  
-**Spec**: `specs/003-istio-gateway-kiali-aks/spec.md`  
-**Plan**: `specs/003-istio-gateway-kiali-aks/plan.md`  
-**Branch**: `feat/istio-gateway-kiali-aks`
+**Story:** #104  
+**Plan:** `specs/003-istio-gateway-kiali-aks/plan.md`  
+**Total Tasks:** 12 | **Effort:** ~2.5 hours
 
 ---
 
-## Phase 1: Setup & Validation
+## Phase 1: Setup AKS Helm Values (30 min)
 
-**Goal**: Prepare project structure and pre-flight checks.
+### Task 1.1: Create AKS chart-values directory and istio-values.yaml
+**Effort:** 10 min  
+**Acceptance:**
+- [ ] Directory exists: `infra/chart-values/aks/`
+- [ ] File exists: `infra/chart-values/aks/istio-values.yaml`
+- [ ] Contains: global.hub, global.tag (1.31.0), pilot.nodeSelector, tolerations
+- [ ] `helm template` renders without errors
 
-**Independent Test Criteria**:
-- [ ] Pre-check script validates AKS cluster is reachable
-- [ ] Pre-check script detects required node pools (system, observability)
-- [ ] Directory structure matches plan
+### Task 1.2: Create gateway-values.yaml
+**Effort:** 10 min  
+**Acceptance:**
+- [ ] File exists: `infra/chart-values/aks/gateway-values.yaml`
+- [ ] Contains: service.type=LoadBalancer, nodeSelector, tolerations
+- [ ] Matches pattern from monitoring/chart-values/
 
-**Implementation Tasks**:
-
-- [ ] T001 Create infra/aks directory structure per plan.md
-- [ ] T002 Create app/gateway directory structure for Istio gateway manifests
-- [ ] T003 [P] Create infra/aks/pre-checks.sh to validate AKS cluster and node pools exist
-- [ ] T004 [P] Update .env.example with ISTIO_VERSION and KIALI_VERSION for AKS
-
----
-
-## Phase 2: Helm Chart Values (Foundational)
-
-**Goal**: Define Azure-specific Istio and Kiali Helm values; keep EKS/local unchanged.
-
-**Independent Test Criteria**:
-- [ ] infra/aks/chart-values/istio-values.yaml is valid YAML and includes node pool selectors
-- [ ] infra/aks/chart-values/kiali-values.yaml is valid YAML and configures Prometheus endpoint
-- [ ] `helm template` commands validate without errors for both charts
-
-**Implementation Tasks**:
-
-- [ ] T005 [P] Create infra/aks/chart-values/istio-values.yaml with system node pool affinity and gateway LoadBalancer service type
-- [ ] T006 [P] Create infra/aks/chart-values/kiali-values.yaml with observability node pool affinity, anonymous auth, and Prometheus endpoint placeholder
-- [ ] T007 Verify Istio Helm chart values by running `helm template istio istio/base` command (manual validation in research.md)
-- [ ] T008 Verify Kiali Helm chart values by running `helm template kiali kiali/kiali` command (manual validation in research.md)
+### Task 1.3: Create kiali-values.yaml
+**Effort:** 10 min  
+**Acceptance:**
+- [ ] File exists: `infra/chart-values/aks/kiali-values.yaml`
+- [ ] Contains: spec.version=v1.85, auth.strategy=anonymous
+- [ ] Contains: prometheus URL pointing to `prometheus-stack-kube-prom-prometheus.monitoring:9090`
+- [ ] Contains: nodeSelector for o11y pool, tolerations for workload=o11y
 
 ---
 
-## Phase 3: Infrastructure Scripts
+## Phase 2: Update Makefile Dispatch (20 min)
 
-**Goal**: Implement setup, cleanup, and helm repository management scripts.
+### Task 2.1: Add STACK_MODE=aks variable dispatch
+**Effort:** 10 min  
+**Acceptance:**
+- [ ] Makefile lines 59–63: Add `ifeq ($(STACK_MODE),aks)` block
+- [ ] Sets: ISTIO_VALUES_FILE, GATEWAY_VALUES_FILE, KIALI_VALUES_FILE, KIALI_CHART_VERSION
+- [ ] Paths point to `infra/chart-values/aks/` files
+- [ ] `make lint` passes
 
-**Independent Test Criteria**:
-- [ ] setup.sh installs Istio and Kiali Helm releases when not present
-- [ ] setup.sh skips installation if releases already exist (idempotent)
-- [ ] cleanup.sh uninstalls both Helm releases and removes gateway public IP
-- [ ] Second `make setup` with azure selected succeeds without errors
-
-**Implementation Tasks**:
-
-- [ ] T009 Create infra/aks/setup.sh: add Helm repos (istio, kiali), install Istio release to istio-system namespace
-- [ ] T010 [P] Update infra/aks/setup.sh: install Kiali release to kiali namespace with Prometheus endpoint from #101
-- [ ] T011 Update infra/aks/setup.sh: verify idempotency (helm list check before install)
-- [ ] T012 Create infra/aks/cleanup.sh: uninstall Istio and Kiali Helm releases
-- [ ] T013 Update infra/aks/cleanup.sh: remove Azure LoadBalancer public IP from node resource group
-
----
-
-## Phase 4: Istio Gateway and Routing Manifests
-
-**Goal**: Deploy platform-owned Istio gateway and route `/kiali` to Kiali service.
-
-**Independent Test Criteria**:
-- [ ] Gateway resource is created in istio-system namespace
-- [ ] VirtualService routes `/kiali` path to Kiali service
-- [ ] `kubectl apply --dry-run=client` succeeds for all manifests
-- [ ] Gateway LoadBalancer service has external IP assigned
-
-**Implementation Tasks**:
-
-- [ ] T014 [P] Create app/gateway/istio-gateway.yaml: define platform-owned Istio Gateway on default HTTP port
-- [ ] T015 [P] Create app/kiali-route.yaml: define VirtualService to route `/kiali` path to kiali/kiali service
-- [ ] T016 Add gateway and kiali-route manifests to setup.sh deployment phase (kubectl apply after Helm releases)
-- [ ] T017 [P] Update app/gateway/istio-gateway.yaml: configure hostnames and domain for AKS (if needed per Azure networking)
+### Task 2.2: Add setup-istio-aks, setup-gateway-aks, setup-kiali-aks targets
+**Effort:** 10 min  
+**Acceptance:**
+- [ ] setup-istio-aks: helm upgrade --install istio-base and istiod with AKS values
+- [ ] setup-gateway-aks: helm upgrade --install ingress-gateway, then kubectl apply platform-gateway.yaml
+- [ ] setup-kiali-aks: helm repo add kiali, helm upgrade --install kiali with AKS values
+- [ ] All targets use $(KIALI_VALUES_FILE) variable, not hardcoded paths
+- [ ] `make lint` passes
 
 ---
 
-## Phase 5: Makefile Integration
+## Phase 3: Create Platform-Owned Gateway Manifest (15 min)
 
-**Goal**: Integrate Azure Istio/Kiali setup into existing cloud provider dispatcher.
-
-**Independent Test Criteria**:
-- [ ] `make setup` with CLOUD_PROVIDER=azure invokes AKS setup scripts
-- [ ] `make clean` with CLOUD_PROVIDER=azure invokes AKS cleanup scripts
-- [ ] EKS and local setup paths remain unchanged
-
-**Implementation Tasks**:
-
-- [ ] T018 Update Makefile to dispatch `make setup` with CLOUD_PROVIDER=azure to infra/aks/setup.sh
-- [ ] T019 Update Makefile to dispatch `make clean` with CLOUD_PROVIDER=azure to infra/aks/cleanup.sh
-- [ ] T020 [P] Verify EKS setup path still works (regression test in manual testing)
-- [ ] T021 [P] Verify local setup path still works (regression test in manual testing)
+### Task 3.1: Create infra/aks/ directory and platform-gateway.yaml
+**Effort:** 15 min  
+**Acceptance:**
+- [ ] Directory exists: `infra/aks/`
+- [ ] File exists: `infra/aks/platform-gateway.yaml`
+- [ ] Contains: Gateway resource (name: platform-ingress-gateway, namespace: istio-system)
+- [ ] Contains: VirtualService for /kiali (routing to kiali.istio-system:20001)
+- [ ] Contains: VirtualService for /grafana (routing to grafana.monitoring:3000)
+- [ ] `kubectl apply --dry-run=client -f` succeeds
+- [ ] YAML passes yamllint
 
 ---
 
-## Phase 6: Service Endpoints Output
+## Phase 4: Update get-service-endpoints (10 min)
 
-**Goal**: Include AKS gateway address in endpoints command output.
-
-**Independent Test Criteria**:
-- [ ] `make endpoints` with CLOUD_PROVIDER=azure prints AKS gateway LoadBalancer IP
-- [ ] Output format matches EKS and local format
-- [ ] Handles case where gateway IP is pending (not yet assigned)
-
-**Implementation Tasks**:
-
-- [ ] T022 Update endpoints/output.sh to query AKS gateway service IP: `kubectl get svc -n istio-ingress` for istio-ingress service
-- [ ] T023 Add AKS gateway endpoint to endpoints output formatting (match EKS/local structure)
-- [ ] T024 Handle pending IP case: display "Pending" until Azure assigns LoadBalancer IP
+### Task 4.1: Extend get-service-endpoints target for AKS
+**Effort:** 10 min  
+**Acceptance:**
+- [ ] Makefile get-service-endpoints target: Add AKS branch with `ifeq ($(STACK_MODE),aks)`
+- [ ] Queries: `kubectl get svc -n istio-system ingress-gateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}'`
+- [ ] Outputs: LoadBalancer IP, /kiali path, /grafana path (same format as EKS)
+- [ ] Handles case where LB IP not yet assigned (empty check)
+- [ ] `make get-service-endpoints STACK_MODE=aks` prints correctly
 
 ---
 
-## Phase 7: Validation & Testing
+## Phase 5: Test on Dev AKS Cluster (45 min)
 
-**Goal**: Verify all requirements are met and system is operational.
+### Task 5.1: Run setup-istio-aks and verify SC-001
+**Effort:** 15 min  
+**Acceptance:**
+- [ ] `STACK_MODE=aks make setup-istio` exits 0
+- [ ] `kubectl get pods -n istio-system | grep istiod` shows Running pod
+- [ ] `kubectl get pods -n istio-system | grep ingress-gateway` shows Running pod
+- [ ] Both pods: Ready 1/1, Restarts 0
+- [ ] `kubectl get ns istio-system -L istio-injection` shows enabled
 
-**Independent Test Criteria**:
-- [ ] All mesh control-plane and gateway pods are Ready with zero restarts
-- [ ] Kiali pod is Running in observability node pool
-- [ ] Gateway LoadBalancer has external IP assigned
-- [ ] `/kiali` route is accessible at gateway IP (anonymous auth)
-- [ ] Setup is idempotent (second run succeeds without error)
-- [ ] Cleanup removes all resources
+### Task 5.2: Run setup-gateway-aks and verify SC-002
+**Effort:** 15 min  
+**Acceptance:**
+- [ ] `STACK_MODE=aks make setup-gateway` exits 0
+- [ ] `kubectl get svc -n istio-system ingress-gateway` shows type=LoadBalancer
+- [ ] EXTERNAL-IP field is assigned (not pending) within 2 minutes
+- [ ] Port 80:PORT/TCP is listed
+- [ ] `kubectl get gateway -n istio-system` shows platform-ingress-gateway
 
-**Implementation Tasks**:
-
-- [ ] T025 Create quickstart.md validation scenarios: verify pod readiness, external IP assignment, Kiali dashboard accessibility
-- [ ] T026 Document manual test: `kubectl get pods -n istio-system` and verify Ready status
-- [ ] T027 Document manual test: `kubectl get svc -n istio-ingress` and verify external IP assignment
-- [ ] T028 Document manual test: `kubectl get pods -n kiali` and verify pod on observability node pool
-- [ ] T029 Create test scenario: run `make setup` twice on clean AKS and verify second run is no-op (idempotency)
-- [ ] T030 Create test scenario: run `make clean` and verify LoadBalancer and public IP are removed from Azure resource group
-- [ ] T031 [P] Document regression test for EKS setup: `make setup` with CLOUD_PROVIDER=eks still works
-- [ ] T032 [P] Document regression test for local setup: `make setup` with no CLOUD_PROVIDER still works
-
----
-
-## Phase 8: Documentation
-
-**Goal**: Document design decisions and operational procedures.
-
-**Independent Test Criteria**:
-- [ ] research.md captures Istio/Kiali compatibility with AKS K8s 1.34
-- [ ] data-model.md documents node pool contracts and resource placement
-- [ ] All manual test procedures are documented
-
-**Implementation Tasks**:
-
-- [ ] T033 [P] Create research.md: document Istio version compatibility with K8s 1.34
-- [ ] T034 [P] Add to research.md: Kiali Prometheus integration and configuration
-- [ ] T035 [P] Add to research.md: Azure LoadBalancer public IP lifecycle and cleanup behavior
-- [ ] T036 Create data-model.md: document Istio CRDs (Gateway, VirtualService), Kiali ConfigMap structure
-- [ ] T037 Add to data-model.md: node pool selectors and tolerations for mesh components and Kiali
-- [ ] T038 Document in quickstart.md: troubleshooting steps (pod logs, describe, helm status)
+### Task 5.3: Run setup-kiali-aks and verify SC-003a/SC-004
+**Effort:** 10 min  
+**Acceptance:**
+- [ ] `STACK_MODE=aks make setup-kiali` exits 0
+- [ ] `kubectl get pods -n istio-system | grep kiali` shows Running pod on o11y node pool
+- [ ] Pod: Ready 1/1, Restarts 0
+- [ ] `kubectl get pod -n istio-system -l app=kiali -o wide | grep o11y` shows correct node pool
+- [ ] LB_IP=$(make get-service-endpoints STACK_MODE=aks | grep AKS | awk '{print $NF}')
+- [ ] `curl http://$LB_IP/kiali/` returns 200 (dashboard loads)
 
 ---
 
-## Dependencies & Execution Order
+## Phase 6: Verify Idempotency and Cross-Cloud (30 min)
 
-**Blocking Dependencies**:
-- Phase 1 (Setup & Validation) must complete before all other phases
-- Phase 2 (Helm Values) must complete before Phase 3 (Infrastructure Scripts)
-- Phase 3 (Infrastructure Scripts) must complete before Phase 4 (Manifests)
+### Task 6.1: Test SC-007 — idempotency (first + second run)
+**Effort:** 15 min  
+**Acceptance:**
+- [ ] `STACK_MODE=aks make setup-istio` (first run) exits 0
+- [ ] `STACK_MODE=aks make setup-istio` (second run) exits 0, no reinstall
+- [ ] `STACK_MODE=aks make setup-gateway` (second run) exits 0, no error
+- [ ] `STACK_MODE=aks make setup-kiali` (second run) exits 0, upgrade check only
 
-**Parallel Opportunities**:
-- Phase 2 tasks T005, T006 (Helm values files) can run in parallel
-- Phase 3 tasks T009, T010, T012 (setup.sh components, cleanup.sh) can run in parallel after Phase 2
-- Phase 4 tasks T014, T015, T017 (manifests) can run in parallel
-- Phase 5 tasks T020, T021 (regression tests) can run in parallel
-- Phase 6 tasks T022, T023, T024 (endpoints integration) can run sequentially (dependencies on T023)
-- Phase 7 tasks T031, T032 (regression tests) can run in parallel
-- Phase 8 tasks T033–T038 (documentation) can run in parallel
+### Task 6.2: Verify EKS/local unaffected (SC-006)
+**Effort:** 10 min  
+**Acceptance:**
+- [ ] `STACK_MODE=eks make setup-istio` exits 0 (no change to EKS values)
+- [ ] `STACK_MODE=local make setup-istio` exits 0 (no change to local values)
+- [ ] `make get-service-endpoints STACK_MODE=eks` prints EKS LB correctly
+- [ ] `make get-service-endpoints STACK_MODE=local` prints local ingress correctly
 
-**Story Completion**:
-- #104 (Istio, gateway, Kiali on AKS) is complete when Phase 7 validation tests pass
-- Success verified by: SC-001 through SC-008 acceptance criteria from spec.md
-- Phase 8 documentation is post-completion; does not block story closure
-
----
-
-## Implementation Strategy
-
-**MVP Scope (Minimum Viable Product)**:
-1. Phase 1: Setup (directory structure + pre-checks)
-2. Phase 2: Helm values (Istio + Kiali configs)
-3. Phase 3: Infrastructure scripts (setup.sh, cleanup.sh)
-4. Phase 4: Gateway and routing manifests
-5. Phase 5: Makefile integration
-
-**Incremental Delivery**:
-- After MVP: Phase 6 (service endpoints output)
-- After MVP + Phase 6: Phase 7 (validation tests)
-- After MVP + Phase 7: Phase 8 (documentation polish)
-
-**Verification Gates**:
-- After Phase 3: Run `make setup` on AKS cluster; verify Istio pods are Ready
-- After Phase 4: Verify gateway has LoadBalancer IP; test `kubectl apply` of manifests
-- After Phase 5: Verify Makefile dispatcher works; run all three cloud paths (azure, eks, local)
-- After Phase 6: Verify `make endpoints` includes AKS gateway IP
-- After Phase 7: All acceptance criteria SC-001 through SC-008 verified on test AKS cluster
+### Task 6.3: Verify cleanup removes LoadBalancer and IP
+**Effort:** 5 min  
+**Acceptance:**
+- [ ] Before cleanup: `kubectl get svc -n istio-system ingress-gateway` shows EXTERNAL-IP
+- [ ] Run `make cleanup`
+- [ ] After cleanup: AKS cluster no longer exists
+- [ ] Verify in Azure portal: node resource group removed (no orphaned public IP)
 
 ---
 
-## Task Summary
+## Phase 7: Final Verification and Documentation (10 min)
 
-- **Total Tasks**: 38
-- **Phase 1 (Setup)**: 4 tasks
-- **Phase 2 (Helm Values)**: 4 tasks
-- **Phase 3 (Infrastructure)**: 5 tasks
-- **Phase 4 (Manifests)**: 4 tasks
-- **Phase 5 (Makefile)**: 4 tasks
-- **Phase 6 (Endpoints)**: 3 tasks
-- **Phase 7 (Validation)**: 8 tasks
-- **Phase 8 (Documentation)**: 6 tasks
+### Task 7.1: Run full verification checklist
+**Effort:** 5 min  
+**Acceptance:**
+- [ ] SC-001: Istio mesh operational
+- [ ] SC-002: Gateway responding with external IP
+- [ ] SC-003a: Kiali pod running, dashboard loads at /kiali
+- [ ] SC-004: Anonymous auth works (no login prompt)
+- [ ] SC-005: Pods scheduled to correct node pools (no evictions)
+- [ ] SC-006: EKS/local unchanged
+- [ ] SC-007: Idempotent, cleanup removes resources
 
-**Parallelizable Tasks**: 27 (marked with [P])  
-**MVP Delivery**: 20 tasks (Phases 1–5)  
-**Full Delivery**: 38 tasks (all phases)
+### Task 7.2: Document findings in story PR
+**Effort:** 5 min  
+**Acceptance:**
+- [ ] PR comment: Verification script output (pod listing, curl output, node pool verification)
+- [ ] PR comment: Screenshot of Kiali dashboard at /kiali path
+- [ ] PR comment: Confirmation that Grafana /grafana route is configured (but waiting on #101 to verify)
+- [ ] All tasks checked off
+
+---
+
+## Parallelizable Tasks
+
+- Task 1.1, 1.2, 1.3 can run in parallel (independent files)
+- Task 2.1 and 2.2 can run in parallel (separate Makefile targets)
+
+## Dependencies
+
+- Task 2.2 depends on: Task 2.1 (Makefile variables)
+- Task 3.1 depends on: Nothing (standalone manifest)
+- Task 4.1 depends on: Task 2.2 (Makefile targets exist)
+- Task 5.x depends on: Tasks 1–4 (all files created)
+- Task 6.x depends on: Task 5.x (setup verified)
+- Task 7.x depends on: Task 6.x (all tests pass)
+
+## MVP Scope
+
+Tasks 1–5 deliver core Istio/Kiali/gateway on AKS. Tasks 6–7 are validation + documentation.

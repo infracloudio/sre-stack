@@ -8,7 +8,7 @@
 ## User Scenarios
 
 **Scenario 1: Platform operator configures observability mesh on AKS**
-- Operator runs `make setup` with Azure selected
+- Operator runs `make setup` with `STACK_MODE=aks`
 - Istio mesh deploys to the cluster with control plane and data plane healthy
 - Ingress gateway LoadBalancer gets a public IP
 - Operator verifies `/kiali` route is accessible at that IP
@@ -30,14 +30,14 @@
 
 **FR-001: Self-hosted Istio mesh on AKS**
 - Deploy self-hosted, open-source Istio via Helm on AKS cluster
-- Mesh and Kiali releases are pinned in Azure-specific settings files
+- Mesh and Kiali releases are version-pinned in Azure-specific settings files
 - Version pins are chosen at build time to be current and compatible with cluster's Kubernetes version
 - Existing Amazon/local version pins do not change
 
 **FR-002: Shared ingress gateway, platform-owned**
-- Deploy ingress gateway (LoadBalancer) to AKS
+- Deploy ingress gateway (LoadBalancer) to AKS in istio-system namespace
 - Gateway resource is platform-owned and exists independently of any application
-- Gateway enables path-based routing
+- Gateway enables path-based routing for `/kiali` path
 - Same routing patterns as EKS; no Azure-specific workarounds
 
 **FR-003: Kiali observability dashboard on AKS**
@@ -51,17 +51,17 @@
 - Components schedule correctly despite node pool constraints from #97
 
 **FR-005: Setup path integrates Azure selection**
-- Existing setup path, with Azure selected, installs the mesh and gateway
+- Existing setup path, with `STACK_MODE=aks`, installs the mesh and gateway
 - Behaviour is consistent with existing EKS and local setup behavior
 - No setup path duplication or new Azure-specific targets
 
 **FR-006: Service endpoints output includes AKS**
-- With Azure selected, the endpoints command prints the AKS gateway address in the same format EKS and local use
+- With `STACK_MODE=aks` selected, `make get-service-endpoints` prints the AKS gateway address in the same format EKS and local use
 
 **FR-007: Setup is idempotent and cleanup is complete**
-- Running setup a second time with Azure selected installs nothing new; mesh, gateway, and Kiali are detected as already present
+- Running setup a second time with `STACK_MODE=aks` installs nothing new; mesh, gateway, and Kiali are detected as already present
 - Setup finishes without error on repeated runs
-- Mesh, gateway LoadBalancer, and public IP do not outlive the existing cleanup command; AKS cleanup deletes cluster and removes all resources
+- Mesh, gateway LoadBalancer, and public IP do not outlive the existing cleanup command; `make cleanup` deletes cluster and removes all resources
 
 ---
 
@@ -98,24 +98,24 @@
 
 **SC-007: Setup is idempotent and cleanup removes all resources**
 - [ ] Running setup twice on same AKS cluster succeeds both times; second run detects existing mesh, gateway, and Kiali; installs nothing new
-- [ ] After running cleanup command, LoadBalancer and public IP are removed
+- [ ] After running `make cleanup`, LoadBalancer and public IP are removed
 - [ ] No orphaned mesh infrastructure remains in Azure resource groups
 
 ---
 
 ## Assumptions
 
-1. **Version pins are Azure-specific:** Mesh and Kiali versions chosen for AKS K8s 1.34 are Istio 1.20.0 and Kiali 1.80.0; these are separate from and do not affect existing EKS/local pins (Istio 1.17.2, Kiali 1.63).
+1. **Version pins are Azure-specific:** Istio and Kiali versions chosen for AKS K8s 1.34 are separate from and do not affect existing EKS/local pins. Version numbers belong in the plan, not the spec.
 
-2. **Gateway is platform infrastructure:** The shared entry point is owned by the platform team, lives in a platform namespace, and is independent of application deployments.
+2. **Gateway is platform infrastructure:** The shared entry point is owned by the platform team, lives in istio-system namespace, and is independent of application deployments.
 
 3. **Node pools exist:** AKS cluster from #97 provides system pool and observability pool with appropriate taints for placement.
 
-4. **Kiali requires Prometheus:** Kiali reads Istio metrics from Prometheus. Prometheus is installed by #101. This story installs and configures Kiali to point at the Prometheus address #101 will provide; mesh topology and health metrics are verified only after #101 lands.
+4. **Kiali requires Prometheus:** Kiali reads Istio metrics from Prometheus via service DNS configuration. Prometheus is installed by #101. This story installs and configures Kiali to point at the Prometheus service #101 will provide; mesh topology and health metrics are verified only after #101 lands.
 
-5. **Setup path uses existing mechanism:** Existing Makefile dispatches on cloud selection; no build system changes needed.
+5. **Setup path uses existing mechanism:** Existing Makefile dispatches on `STACK_MODE` env var; no build system changes needed.
 
-6. **Cleanup handles all resources:** AKS cleanup command deletes the cluster, removing the LoadBalancer and public IP as well.
+6. **Cleanup handles all resources:** `make cleanup` deletes the AKS cluster, removing the LoadBalancer and public IP as well.
 
 7. **Helm upgrade --install is idempotent:** The standard Helm pattern handles both "install if absent" and "upgrade if present" in a single command without additional logic.
 
@@ -133,7 +133,7 @@
 ## Dependency Direction
 
 **With #101 (Grafana and Prometheus observability on AKS):**
-- This story (#104) delivers: mesh, gateway, `/kiali` route, Kiali pod (pointing at Prometheus), platform-owned entry point
+- This story (#104) delivers: mesh, gateway, `/kiali` route, Kiali pod, platform-owned entry point
 - #101 delivers: Prometheus, Grafana, and verification of `/grafana` route and Kiali topology visibility
 - **#104 completes independently.** #101 verifies SC-003b (Kiali topology display) once Prometheus is available.
 
