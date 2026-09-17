@@ -33,7 +33,7 @@ Running the AKS setup installs Istio on the AKS cluster the same way `setup-isti
 - R7  Cleanup is complete and repeatable: `cleanup-gateway` and `cleanup-istio` remove all created Istio/gateway resources; running cleanup twice exits 0 without error
 - R8  EKS and local k3d Istio/gateway setups remain byte-identical to `main`; `make setup-aws` and `make setup-local` are unchanged
 - R9  STACK_MODE=aks in the makefile correctly branches to AKS-specific Istio/gateway targets
-- R10 [NEEDS CLARIFICATION: Should Istio be installed in the system node pool only, or tolerate scheduling on workload pools with affinity/taints?]
+- R10 Istio control plane (istiod) schedules on o11y node pool with o11y=true:NoSchedule taint toleration; ingress gateway schedules on app node pool (per workload placement contract)
 
 ## How we'll know it works (success criteria)
 
