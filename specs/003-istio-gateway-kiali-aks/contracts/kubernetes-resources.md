@@ -8,21 +8,20 @@
 
 | Release | Chart | Version | Namespace | Selector Labels | Purpose |
 |---------|-------|---------|-----------|-----------------|---------|
-| istio-base | istio/base | 1.17.2 | istio-system | N/A (cluster-scoped CRDs) | Cluster resource definitions |
-| istiod | istio/istiod | 1.17.2 | istio-system | workload=o11y | Control plane pods |
-| istio-ingressgateway | istio/gateway | 1.17.2 | istio-system | workload=app | Gateway pods (receives external traffic) |
+| istio-base | istio/base | 1.30.4 | istio-system | N/A (cluster-scoped CRDs) | Cluster resource definitions |
+| istiod | istio/istiod | 1.30.4 | istio-system | none (system pool default) | Control plane pods |
+| istio-ingressgateway | istio/gateway | 1.30.4 | istio-system | none (system pool default) | Gateway pods (receives external traffic) |
 
-## Pod Placement Contract (Constitution V)
+Version note: pinned to 1.30.4 rather than EKS/local's 1.17.2, because 1.17.2 does not support Kubernetes 1.34 (AKS's pinned version per story #97). See research.md §1 — 1.31.x may also be a valid choice pending Helm chart verification, unconfirmed as of this writing.
+
+## Pod Placement Contract (per R10 / Constitution V)
 
 **istiod pods**:
-- Must tolerate taint: `o11y=true:NoSchedule`
-- Must select node label: `workload=o11y`
-- Rationale: Observability workloads scheduled on dedicated o11y node pool
+- Scheduled on the AKS system node pool (default scheduling; no toleration needed)
+- Rationale: `specs/001-azure-aks-setup/data-model.md:99` shows the system pool carries no taint, unlike the four workload pools (app/persistent/o11y/loadgen). No custom Helm values required.
 
 **istio-ingressgateway pods**:
-- Must tolerate no taints (or app workload taint if defined)
-- Must select node label: `workload=app`
-- Rationale: Ingress gateway is application-facing, shares app node pool
+- Same placement as istiod: AKS system node pool, no toleration needed
 
 ## CRDs & Validation
 
@@ -72,7 +71,6 @@ spec:
 **LoadBalancer Service** (`istio-ingressgateway`):
 - Type: LoadBalancer
 - Namespace: istio-system
-- Labels: project=sre-stack, environment=aks
 - Ports: 80:HTTP (443:HTTPS future)
 - External IP: Assigned by Azure; becomes LB_ENDPOINT
 
@@ -86,7 +84,6 @@ kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadB
 After `cleanup-gateway` and `cleanup-istio`:
 - istio-system namespace still exists (may contain system-managed pods)
 - No Helm releases named istio-base, istiod, istio-ingressgateway
-- No Gateway or VirtualService CRDs in robot-shop namespace
-- No project=sre-stack pods in istio-system
+- No Gateway or VirtualService CRDs created by this story remain (this story creates none — see spec.md R3)
 
-Query: `kubectl get all -n istio-system -l project=sre-stack` → empty result
+Query: `kubectl get all -n istio-system` → only pre-existing system-managed pods remain, if any

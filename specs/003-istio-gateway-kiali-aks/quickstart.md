@@ -6,14 +6,13 @@ This guide validates that Istio and the ingress gateway are deployed correctly o
 
 ## Prerequisites
 
-- AKS cluster is deployed and running (story #97 completed)
-- Node pools exist with workload labels and taints:
-  - `workload=o11y` + `o11y=true:NoSchedule` taint on o11y pool
-  - `workload=app` (no taint) on app pool
+- AKS cluster is deployed and running (story #97 completed — as of 2026-09-17 this is not yet true; PR #99 is open and awaiting rework, see research.md §5)
+- System node pool exists with no taint (per R10 / `specs/001-azure-aks-setup/data-model.md:99`); Istio and the gateway schedule there by default
 - kubectl is configured and authenticated to the AKS cluster
 - Helm 3.x is installed
-- Grafana is deployed in the monitoring namespace (story #101 prerequisite for later routing, not required for this feature's core validation)
-- `.env` has STACK_MODE=aks, MONITORING_NS=monitoring, APP_NS=robot-shop
+- `.env` has STACK_MODE=aks
+
+Note: Grafana and Kiali are not prerequisites for this story's validation — this story does not route to either (see spec.md R3, Out of Scope).
 
 ## Validation Scenario 1: Deploy Istio Control Plane
 
@@ -59,10 +58,10 @@ This guide validates that Istio and the ingress gateway are deployed correctly o
    # Expected: < 300 seconds (5 minutes, per S1)
    ```
 
-6. **Verify resource labels** (R5: project=sre-stack, environment=aks)
+6. **Verify cleanup coverage** (R5: every resource `setup-istio`/`setup-gateway` creates is removable by `cleanup-istio`/`cleanup-gateway`)
    ```bash
-   kubectl get all -n istio-system -l project=sre-stack,environment=aks
-   # Expected: All istiod and gateway resources are tagged
+   kubectl get all -n istio-system
+   # Note the resources present here; cleanup (Scenario 4) must remove all of them, system pods aside
    ```
 
 ---
@@ -132,10 +131,8 @@ This guide validates that Istio and the ingress gateway are deployed correctly o
    make get-service-endpoints
    # Expected output:
    # LB_ENDPOINT=http://52.XXX.XXX.XXX
-   # Visit Robot shop http://52.XXX.XXX.XXX
-   # Visit Grafana dashboard http://52.XXX.XXX.XXX/grafana
-   # Visit Istio kiali http://52.XXX.XXX.XXX/kiali
    ```
+   This story validates only that the gateway answers (Scenario 2); routes to Robot Shop, Grafana, and Kiali are added by later stories that own those workloads (spec.md Out of Scope).
 
 2. **Test basic connectivity to gateway**
    ```bash
@@ -228,8 +225,8 @@ This guide validates that Istio and the ingress gateway are deployed correctly o
 
 4. **Verify control plane is gone**
    ```bash
-   kubectl get pods -n istio-system -l project=sre-stack
-   # Expected: No pods (namespace may have system pods, but no sre-stack resources)
+   kubectl get pods -n istio-system
+   # Expected: No istiod/istio-base pods remain (namespace may retain system-managed pods)
    ```
 
 5. **Re-run cleanup-gateway and cleanup-istio** (test idempotency)

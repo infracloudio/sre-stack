@@ -17,21 +17,21 @@
 - [ ] **T005** Create `infra/scripts/cluster/setup-gateway-aks.sh` (new file): Deploy ingress-gateway LoadBalancer Service (type: LoadBalancer, selector: istio=ingressgateway). Include wait loop for external IP assignment (timeout from `.env`).
 - [ ] **T006** Create `infra/scripts/cluster/cleanup-istio.sh` (new file): Helm uninstall istio-ingressgateway, istiod, istio-base from istio-system (in that order, if present). Include `--ignore-not-found` or equivalent check. Tolerate missing releases.
 - [ ] **T007** Create `infra/scripts/cluster/cleanup-gateway.sh` (new file): Delete istio-ingressgateway Service; delete any associated LoadBalancer. Tolerate "not found" gracefully with exit 0.
-- [ ] **T008** Extend `infra/scripts/common-aks.sh`: Add function `get_lb_endpoint_aks()` that fetches the external IP of the istio-ingressgateway Service and prints it in format `http://<IP>:80` (matching EKS format).
+- [ ] **T008** Extend `infra/scripts/cluster/azure-common.sh` (verified path: `ls infra/scripts/cluster/`; this file exists today, `common-aks.sh` does not): Add function `get_lb_endpoint_aks()` that fetches the external IP of the istio-ingressgateway Service and prints it in format `http://<IP>:80` (matching EKS format).
 - [ ] **T009** Update `makefile`: Add `setup-istio` target with `STACK_MODE` branch: if aks, call setup-istio-aks.sh; if eks, call existing EKS setup. Same for `setup-gateway` and cleanup targets. Verify syntax with `make lint`.
 - [ ] **T010** Update `makefile`: Update `get-service-endpoints` target to include AKS branch. If `STACK_MODE=aks`, call `get_lb_endpoint_aks()` and export `LB_ENDPOINT`.
 - [ ] **T011** Lint & syntax check: `make lint` passes; shell scripts pass `shellcheck` with no errors; makefile syntax valid (`make --dry-run setup-istio` runs without error).
+- [ ] **T012** Dry-run all Helm commands (moved from Phase 2: `helm template` needs no cluster, so this runs today and is the one check that would catch a 1.17.2→1.30.4 breaking change before any cloud access exists): `helm template istio-base istio/base --namespace istio-system --version 1.30.4` (and same for istiod, gateway). Output must be captured verbatim to a file, not summarized or retyped. Compare against `helm template ... --version 1.17.2` output for the same charts to surface any rendering differences.
 
-### Phase 2: Cloud verification (sequential, requires AKS cluster from story #97)
+### Phase 2: Cloud verification (sequential, requires AKS cluster from story #97; genuinely blocked until PR #99 merges and access is granted — see plan.md Blocker section)
 
-- [ ] **T012** Dry-run all Helm commands: `helm template istio-base istio/base --namespace istio-system --version 1.30.4` (and same for istiod, gateway). Output should be valid YAML with no warnings. Redirect to files for inspection.
-- [ ] **T013** Create a test makefile target `test-aks-setup` that runs `make setup-istio setup-gateway` on the AKS cluster from story #97. Time the run (should be under 5 min for setup-istio, under 2 min for setup-gateway). Capture output.
+- [ ] **T013** Run `make setup-istio setup-gateway` (STACK_MODE=aks) on the AKS cluster from story #97 once available. Time the run (S1: under 5 min for setup-istio, S2: under 2 min for setup-gateway). Capture output verbatim into quickstart.md — no new permanent makefile target for this; it is a one-time verification run, not a shipped feature.
 - [ ] **T014** Verify Istio pods reach Running: Post-setup, run `kubectl get pods -n istio-system` and confirm all control-plane pods (istiod, base) have status Running within the timeout.
 - [ ] **T015** Verify load-balancer IP assigned: `kubectl get svc -n istio-system istio-ingressgateway` returns an external IP (not `<pending>`). Record the IP.
 - [ ] **T016** Test idempotency of setup: Run `make setup-istio setup-gateway` a second time. Exit code must be 0. Output must contain no "installed", "created", or "updated" messages (script is a no-op on second run).
 - [ ] **T017** Test cleanup: Run `make cleanup-gateway` followed by `make cleanup-istio`. All Istio/gateway resources deleted. Verify: `kubectl get all -n istio-system` returns only system pods (kube-dns, etc.), or is empty.
 - [ ] **T018** Test cleanup idempotency: Run cleanup commands again. Exit code must be 0. No error messages about missing resources.
-- [ ] **T019** Verify EKS unchanged: Diff the branch against main for EKS scripts. Command: `git diff main -- makefile | grep -E "(setup-istio|setup-gateway)" | grep -v "STACK_MODE=aks"` should return nothing (EKS targets unchanged).
+- [ ] **T019** Verify EKS/local unchanged: the check must assert the EKS/local helm lines are byte-unchanged, not merely that no line matching "setup-istio" changed — extending the target with an AKS branch necessarily touches lines containing that string, so a naive grep for it fails by construction. Correct check: `git diff main -- makefile` and confirm the pre-existing EKS helm lines (`--version 1.17.2`, the two `--set` flags on istiod, `--wait --timeout 2m0s`) appear unmodified in the diff — only new AKS-branch lines should appear as additions.
 - [ ] **T020** Verify git and linting: Final `make lint` passes; no new linting errors. `git status` shows only new AKS files and modified makefile/README/AGENTS.md.
 
 ### Phase 3: Documentation & evidence
@@ -44,7 +44,7 @@
 
 ## Notes
 
-- **Blockers**: Plan.md documents two blockers (Istio version compatibility, AKS cluster availability). Both must be addressed or explicitly accepted by Architect before T012 can run.
+- **Blockers**: Plan.md documents two blockers (Istio version compatibility, AKS cluster availability). The version split needs Architect approval before Phase 1 tasks are considered final; the cluster-availability blocker only gates Phase 2 (T013 onward) — T001-T012 can proceed now.
 - **Principle VIII**: All chart versions verified against official sources (Istio Helm repo, not cached docs). All access requirements documented in plan.md.
 - **Paths**: All tasks use repo-relative paths (e.g., `infra/scripts/cluster/`), not absolute paths. All filenames are lowercase (e.g., `makefile`, not `Makefile`).
 - **Taints & affinity**: R10 (pod placement) is deferred to clarification. Tasks assume default node scheduling (no custom values files); if placement is required, plan must be updated before T004/T005.

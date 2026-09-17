@@ -9,10 +9,9 @@
 | **Helm Release Name** | istio-base | Helm release for cluster-scoped resources |
 | **Helm Release Name** | istiod | Helm release for control plane |
 | **Namespace** | istio-system | Matches EKS/local |
-| **Chart Version** | 1.17.2 | Pinned, matches EKS/local |
+| **Chart Version** | 1.30.4 | Pinned per-platform: AKS uses 1.30.4 (Istio 1.17.2 does not support Kubernetes 1.34, which story #97 pins for AKS — see research.md §1). EKS/local remain on 1.17.2, unchanged. |
 | **Install Method** | helm upgrade --install | Idempotent (Principle I) |
-| **Pod Placement** | workload=o11y label + o11y=true:NoSchedule taint toleration | Per Constitution V & R10 recommendation |
-| **Resource Tags** | project=sre-stack, environment=aks | Per R5 |
+| **Pod Placement** | AKS system node pool (no taint) | Per R10, resolved via `specs/001-azure-aks-setup/data-model.md:99` — the system pool carries no taint, so no tolerations or custom values are needed |
 | **Tracing Address** | zipkin.monitoring:9411 | From current setup-istio |
 | **Pilot Trace Sampling** | 100% | From current setup-istio |
 
@@ -31,10 +30,9 @@
 |-------|-------|-------|
 | **Helm Release Name** | istio-ingressgateway | Helm release for gateway |
 | **Namespace** | istio-system | Same as control plane |
-| **Chart Version** | 1.17.2 | Pinned, matches EKS/local |
+| **Chart Version** | 1.30.4 | Same per-platform pin as istio-base/istiod above |
 | **Service Type** | LoadBalancer | Acquires external IP from Azure LB |
-| **Pod Placement** | workload=app label, no taint | Per Constitution V & R10 recommendation |
-| **Resource Tags** | project=sre-stack, environment=aks | Per R5 |
+| **Pod Placement** | AKS system node pool (no taint) | Per R10, same reasoning as control plane above |
 | **External IP** | Assigned by Azure | Format: 52.xxx.xxx.xxx (captured in LB_ENDPOINT env var) |
 | **Ports** | 80:HTTP, 443:HTTPS | HTTP only for current spec |
 
@@ -56,8 +54,8 @@
 | **Gateway Name** | robotshop-gateway | From gateway.yaml |
 | **Gateway Selector** | istio: ingressgateway | Binds to ingress-gateway pods |
 | **Port** | 80 (HTTP) | From gateway.yaml |
-| **Routing Rule** | Host: *, Path: / → web service | Current pattern (robot-shop only) |
-| **Future Routes** | /grafana → grafana service (story #101), /kiali → kiali service | Spec scope includes routing but Kiali deployment is separate story |
+| **Routing Rule** | Host: *, Path: / → web service | Current pattern (robot-shop only); this story creates no new VirtualServices (see spec.md R3) |
+| **Future Routes** | /grafana (owned by story #101, via `monitoring/istio-observability-addons/` and `setup-istio-o11y-addons`), /kiali (owned by the observability story) | Out of scope for this story — listed here only so the reader knows where those routes come from |
 
 **Relationships**:
 - VirtualService references Gateway by name and gateways list
@@ -67,12 +65,9 @@
 
 ---
 
-### 4. Resource Tagging & Governance
+### 4. Resource Tagging & Governance — removed
 
-**Applied to all resources (pods, services, deployments)**:
-- `project=sre-stack`: Identifies this project's infrastructure
-- `environment=aks`: Cloud target identifier
-- These labels enable resource queries: `kubectl get all -l project=sre-stack,environment=aks`
+The `project=sre-stack` / `environment=aks` tagging convention in earlier drafts of this story has been dropped: `grep -rn "project=sre-stack" --include="*.yaml" --include="*.sh" --include="makefile" .` outside `specs/003-*` returns nothing, so there is no existing repo convention this was matching. See spec.md R5 for the current (tagging-free) requirement, based instead on cleanup command coverage.
 
 ---
 
@@ -82,4 +77,4 @@
 - **Resource Cleanup (R7)**: After cleanup-gateway and cleanup-istio, `kubectl get all -n istio-system` must not include user-created resources; system pods may remain.
 - **External IP Assignment (R4, S2)**: LoadBalancer Service must acquire external IP within 2 minutes of creation.
 - **Pod Readiness (S1)**: All istiod and ingress-gateway pods must reach Running state within 5 minutes.
-- **Cross-cloud Consistency (R1, R2, R8)**: Helm values and Makefile targets for AKS must match EKS/local byte-for-byte (except cloud-specific labels).
+- **Cross-cloud Consistency (R1, R2, R8)**: makefile target names and the check-then-create pattern match EKS/local; the Istio chart version is pinned per-platform (see R1) rather than byte-identical, because 1.17.2 cannot run on AKS's Kubernetes 1.34.
