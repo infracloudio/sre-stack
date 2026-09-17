@@ -66,6 +66,56 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Phase 1: Generate data-model.md, contracts/, quickstart.md
    - Re-evaluate Constitution Check post-design
 
+## Phase 0 Research — REQUIRED (sre-stack)
+
+**`research.md` is written from a live run, not from memory or documentation.**
+
+`.specify/memory/constitution.md` principle VIII: research for any story touching running infrastructure runs against the real cluster, the real subscription, or the live chart repository. That is the requirement, not the ideal case.
+
+Rules, in order of how often they are broken:
+
+1. **Paste terminal output verbatim.** Never write an output block from memory, from documentation, or from what you expect the command to print. Never label a block "simulated", "expected", or "illustrative". An invented output block is a false claim — it is worse than leaving the question open, because it makes a wrong answer look checked.
+2. **Record failures.** Errors, quirks and surprises belong in `research.md` next to the facts they qualify. A research document with no failures in it usually means no commands were run.
+3. **If you cannot reach the cluster or subscription, stop and ask for access.** Say what you need — subscription, role, credentials, quota — and who you are asking. Then wait. Do not proceed and fill the gap from memory. A blocked story is an honest state; report it.
+4. **Substitutes need permission, not just a reason.** `--dry-run`, `helm template`, `helm search`, sandbox or read-only queries are allowed only after access was asked for and could not be granted in the story's timebox. Record who was asked, what came back, which substitute you used, and what it cannot prove. The Architect approves the substitute at the plan gate; it is not yours to decide alone, and the limitation goes in the pull request.
+5. **Cheap checks never qualify for a substitute.** A chart version, a chart name, a make target, a file path, a label or a taint is settled by one command against the real source, and must be:
+
+   - `helm search repo <chart> --versions` — before pinning any chart version
+   - `helm show chart <repo>/<chart> --version <v>` — before naming a chart that must exist
+   - `grep -n "^<target>" makefile` — before writing "modify the existing <target> target"
+   - `ls <dir>` — before referencing a path
+   - the story's own `data-model.md` and `docs/architectural-decisions.md` — before asserting a label, taint or placement rule
+
+   None of these need a cluster, cost anything, or take longer than a minute. There is no acceptable reason to guess at them.
+
+Propose research findings one at a time, same loop as the section below: propose, stop, wait for the developer to question or approve.
+
+---
+
+## Incremental Authoring — REQUIRED (sre-stack)
+
+**This overrides any instruction above to produce `plan.md` in a single pass.**
+
+`.specify/memory/constitution.md` principle IX requires that `plan.md` be written one section at a time, with the developer approving each section before the next is started.
+
+Sections, in order: Technical Context → Constitution Check → Phase 0 research findings (one finding at a time, real command output attached, per principle VIII) → Phase 1 design outputs → files to change → verification strategy.
+
+Before writing a version pin, a file path, or a build target into any section, verify it exists. `helm search repo <chart> --versions` for a chart version, `grep -n "^<target>" makefile` for a make target, `ls` for a directory. Paste what the command printed. If you did not run it, do not assert it.
+
+For each section, in order:
+
+1. **Propose it.** Write that section only. Say in one or two plain sentences what it decides and why, and name what you checked to know it is true — the command you ran, the file and line you read. An unverified claim is marked open, not written as fact.
+2. **Stop.** Do not begin the next section. Do not write the rest of the file "for context". End your turn.
+3. **Wait for the developer**, who will do one of three things: ask a question, give a different instruction, or approve. Only on approval do you move to the next section.
+
+Carry approved wording forward unchanged. Do not reopen an approved section without saying why.
+
+You are proposing; the developer is accepting. Never present a whole finished file as the output of this command.
+
+If the developer explicitly asks for the whole file in one pass, say once that this repo's constitution asks for section-by-section, then do as they ask.
+
+---
+
 ## Mandatory Post-Execution Hooks
 
 **You MUST complete this section before reporting completion to the user.**

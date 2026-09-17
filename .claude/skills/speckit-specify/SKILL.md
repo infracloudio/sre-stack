@@ -235,6 +235,30 @@ Given that feature description, do this:
 
    d. **Update Checklist**: After each validation iteration, update the checklist file with current pass/fail status
 
+## Incremental Authoring — REQUIRED (sre-stack)
+
+**This overrides any instruction above to produce `spec.md` in a single pass.**
+
+`.specify/memory/constitution.md` principle IX requires that `spec.md` be written one section at a time, with the developer approving each section before the next is started.
+
+Sections, in order: user scenarios → functional requirements → success criteria → assumptions → edge cases → out of scope.
+
+Principle VI applies as you go: the spec says what must be true, not how. Version numbers, chart names, namespaces, service names, and polling intervals belong in `plan.md`. If a requirement cannot be stated without naming a mechanism, that is a sign it belongs in the plan.
+
+For each section, in order:
+
+1. **Propose it.** Write that section only. Say in one or two plain sentences what it decides and why, and name what you checked to know it is true — the command you ran, the file and line you read. An unverified claim is marked open, not written as fact.
+2. **Stop.** Do not begin the next section. Do not write the rest of the file "for context". End your turn.
+3. **Wait for the developer**, who will do one of three things: ask a question, give a different instruction, or approve. Only on approval do you move to the next section.
+
+Carry approved wording forward unchanged. Do not reopen an approved section without saying why.
+
+You are proposing; the developer is accepting. Never present a whole finished file as the output of this command.
+
+If the developer explicitly asks for the whole file in one pass, say once that this repo's constitution asks for section-by-section, then do as they ask.
+
+---
+
 ## Mandatory Post-Execution Hooks
 
 **You MUST complete this section before reporting completion to the user.**

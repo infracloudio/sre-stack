@@ -88,6 +88,35 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Parallel execution examples per story
    - Implementation strategy section (MVP first, incremental delivery)
 
+## Incremental Authoring — REQUIRED (sre-stack)
+
+**This overrides any instruction above to produce `tasks.md` in a single pass.**
+
+`.specify/memory/constitution.md` principle IX requires that `tasks.md` be written one task at a time, with the developer approving each task before the next is started.
+
+Propose one task at a time — not a phase, not a wall of ten. For each: which file it touches, what exactly changes, and the command that proves it worked. Then stop.
+
+Two checks before you propose a task:
+
+- Could the developer picture themselves doing this task? If not, it is not a task yet.
+- If every task so far passed, would the story be done? Name what is still missing, including makefile targets or setup chains the story needs but no task touches.
+
+Nine tasks stacked on a broken second task all get rewritten. Catching it at task two costs nothing.
+
+For each section, in order:
+
+1. **Propose it.** Write that section only. Say in one or two plain sentences what it decides and why, and name what you checked to know it is true — the command you ran, the file and line you read. An unverified claim is marked open, not written as fact.
+2. **Stop.** Do not begin the next section. Do not write the rest of the file "for context". End your turn.
+3. **Wait for the developer**, who will do one of three things: ask a question, give a different instruction, or approve. Only on approval do you move to the next section.
+
+Carry approved wording forward unchanged. Do not reopen an approved section without saying why.
+
+You are proposing; the developer is accepting. Never present a whole finished file as the output of this command.
+
+If the developer explicitly asks for the whole file in one pass, say once that this repo's constitution asks for section-by-section, then do as they ask.
+
+---
+
 ## Mandatory Post-Execution Hooks
 
 **You MUST complete this section before reporting completion to the user.**
