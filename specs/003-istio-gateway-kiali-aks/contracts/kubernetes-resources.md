@@ -27,13 +27,12 @@ Version note: pinned to 1.30.4 rather than EKS/local's 1.17.2, because 1.17.2 do
 
 **CRD Versions**: `networking.istio.io/v1alpha3` — confirmed for the existing `app/robot-shop/Istio/gateway.yaml` (verified: `grep -n apiVersion app/robot-shop/Istio/gateway.yaml`, real file, unchanged by this story per R8). Not checked against 1.30.4 specifically: current Istio documentation examples use `networking.istio.io/v1` for new Gateway/VirtualService resources. `v1alpha3` is still served by 1.30.4 as of this writing, so the existing file works, but this story creates no new CRDs (R3) — the question of which API version to use for *new* resources is out of scope here and belongs to whichever story adds routing.
 
-**Gateway CRD** (app-deployed):
+**Gateway CRD** (app-deployed). **Correction (round-5 audit)**: the quoted blocks below previously included a `namespace: robot-shop  # APP_NS` line that does not exist in the real file — verified (`grep -n namespace app/robot-shop/Istio/gateway.yaml` returns no match). The real file has no `metadata.namespace` key at all; the namespace comes from `kubectl apply ... -n $(APP_NS)` at makefile:154, not from the manifest itself. Corrected to match the real file exactly:
 ```yaml
 apiVersion: networking.istio.io/v1alpha3
 kind: Gateway
 metadata:
   name: robotshop-gateway
-  namespace: robot-shop  # APP_NS
 spec:
   selector:
     istio: ingressgateway
@@ -46,13 +45,12 @@ spec:
     - "*"
 ```
 
-**VirtualService CRD** (app-deployed):
+**VirtualService CRD** (app-deployed), same correction — no `namespace` key in the real file (set via `-n $(APP_NS)` at apply time instead):
 ```yaml
 apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
   name: robotshop
-  namespace: robot-shop  # APP_NS
 spec:
   hosts:
   - "*"

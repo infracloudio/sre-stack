@@ -6,13 +6,13 @@
 **Correction, this round**: verified directly against the real makefile (`sed -n '74,90p' makefile`) that on EKS, `setup-istio` installs **all three** Helm charts — `istio-base`, `istiod`, and `istio/gateway` — and it's the third one that creates the `istio-ingressgateway` LoadBalancer Service. The gateway is not a separate concern from "setup-istio"; it's part of the same Helm sequence. Earlier drafts of this contract (and of plan.md/tasks.md) assumed `setup-gateway` created the LoadBalancer — that was never true on EKS and this AKS story now matches EKS correctly instead of inventing a different split.
 
 **Description**: Deploy Istio control plane (istio-base, istiod) AND the ingress gateway (istio/gateway chart) to AKS — three Helm installs in sequence, matching EKS exactly
-**Precondition**: AKS cluster must exist with node pools and workload labels/taints
+**Precondition**: AKS cluster must exist with node pools (per R10, no special label or taint tolerance needed — Istio schedules onto the untainted system pool by default)
 **Postcondition**: istiod and gateway Deployments Running in istio-system namespace; `istio-ingressgateway` Service has (or is acquiring) an external IP
 **Exit Code**: 0 on success, 1 on failure
 **Idempotency**: Running twice must exit 0 on second run with no resource creation
 **Timeout**: Completes in under 5 minutes (per S1, which now covers the gateway's LoadBalancer acquisition too — see spec.md S2)
 **Depends On**: STACK_MODE=aks, kubectl access to cluster
-**Used By**: top-level `setup` target (verified real target exists at makefile:51-63, currently EKS/local-only; this story adds the AKS branch). Not gated on story #101 — this story's setup-istio has no dependency on Grafana, since it creates no routes to it (see spec.md R3).
+**Used By**: **Correction (round-5 audit)**: previous wording said `setup-istio` is "currently EKS/local-only" — false. Verified directly (`sed -n '74,90p' makefile`): the real `setup-istio` target has **no `STACK_MODE` guard at all** today; it runs unconditionally on whatever `STACK_MODE` is set, including `aks` (the `.env` default). That means right now, `make setup-istio` under `STACK_MODE=aks` would attempt the 1.17.2 EKS/local Helm installs against an AKS cluster — the exact version mismatch this story exists to prevent. This story's real job is to *add* the first `STACK_MODE` branching this target has ever had. It is not currently wired into the top-level `setup` target on AKS either — verified (`sed -n '48,63p' makefile`): `STACK_MODE=aks`'s `setup:` only calls `setup-cluster`. Not gated on story #101 — this story's setup-istio has no dependency on Grafana, since it creates no routes to it (see spec.md R3).
 
 ### setup-gateway
 **Description**: On EKS, applies an app-specific Gateway/VirtualService (`app/robot-shop/Istio/gateway.yaml`, makefile:152-154) — no Helm work, no LoadBalancer creation (that's `setup-istio`'s job, see above). On AKS for this story, a **no-op**: Robot Shop is out of scope (story #102), so there's nothing app-specific to apply yet. Correction (independent audit): the composite `setup:` target under STACK_MODE=aks does not call `setup-gateway` at all today (verified: makefile:53-57 shows only `setup-cluster`) — an earlier draft's "so make setup doesn't break" rationale was false. This is a standalone target fix, invoked directly, matching how `setup-istio` is also extended standalone.
@@ -22,7 +22,7 @@
 **Idempotency**: Running twice must exit 0 with no resource creation (trivially true for a no-op)
 **Timeout**: Under a few seconds on AKS (no-op); not applicable to S1/S2 timing budgets, which are now both covered by `setup-istio` (see spec.md S1/S2 correction this round)
 **Depends On**: STACK_MODE=aks
-**Used By**: top-level `setup` target (depends on setup-istio); does not feed `get-service-endpoints` on AKS (that reads the Service `setup-istio` created directly)
+**Used By**: **Correction (round-5 audit)**: not currently wired into the top-level `setup` target on AKS at all — verified (`sed -n '53,57p' makefile`): `STACK_MODE=aks`'s `setup:` only calls `setup-cluster`, matching the correction already made above. `setup-gateway` is invoked directly/standalone (see line above). It does not feed `get-service-endpoints` on AKS (that reads the Service `setup-istio` created directly).
 **Output**: Nothing on AKS for this story; logs a placeholder message noting story #102 will give this target real work
 
 ### destroy-istio-gateway (existing, EKS/local)
@@ -43,19 +43,19 @@
 **Exit Code**: 0 on success or if not deployed, 1 on error
 **Idempotency**: Running twice must exit 0 without error messages (per R7)
 **Depends On**: STACK_MODE=aks, helm CLI access (cleanup-istio only; cleanup-gateway needs neither, being a no-op)
-**Used By**: `cleanup` target, AKS branch (new, added by this story)
+**Used By**: **Correction (round-5 audit)**: not the top-level `cleanup` target. Verified (`sed -n '221,227p' makefile`): `STACK_MODE=aks`'s `cleanup:` only calls `cleanup-cluster`, with its own comment stating Azure cleanup is "the cluster lifecycle only (FR-004): no gateway, RDS, or other Amazon-only teardown steps run before it." `cleanup-istio`/`cleanup-gateway` are standalone targets, invoked directly — matching the same not-wired-into-the-composite-chain pattern as `setup-istio`/`setup-gateway` above. This story does not propose changing the composite `cleanup:` target's AKS branch.
 
 ### get-service-endpoints
 **Description**: Print reachable load-balancer address and service URLs for the stack
-**Precondition**: setup-gateway must have completed; LoadBalancer Service has external IP
-**Postcondition**: Correction (independent audit): `LB_ENDPOINT` itself is a bare IP/hostname, not `http://...:80` (verified: makefile:43/45). Prints `LB_ENDPOINT=52.xxx.xxx.xxx` internally; the target's own `@echo` lines build full `http://` URLs from it separately.
+**Precondition**: **Correction (round-5 audit)**: previously said "setup-gateway must have completed" — contradicts the no-op decision stated above (setup-gateway does nothing this story needs). Real precondition: `setup-istio` must have completed (it creates the `istio-ingressgateway` Service) and that Service must have an external IP assigned.
+**Postcondition**: **Second correction (round-5 audit)**: the prior fix here was itself wrong — `get-service-endpoints` never prints `LB_ENDPOINT=...` in that form anywhere. Verified directly (`sed -n '169,190p' makefile`): `LB_ENDPOINT` is a make variable, computed once near the top of the makefile (`makefile:43/45`) as a bare IP/hostname with no scheme or port. The `get-service-endpoints` target never echoes the variable by name — it interpolates it into full `http://$(LB_ENDPOINT)` URLs inside `@echo` lines (e.g. `Visit Robot shop http://$(LB_ENDPOINT)`). There is no `NAME=value` output from this target at all.
 **Exit Code**: 0 on success
 **Idempotency**: Safe to run multiple times
 **Depends On**: STACK_MODE=aks, kubectl access
 **Environment Variables**:
   - **Reads**: STACK_MODE, APP_STACK, LB_ENDPOINT (computed from LoadBalancer Service external IP)
   - **Sets**: LB_ENDPOINT (for downstream use)
-**Used By**: Top-level setup flow. This story does not route to Grafana or Kiali (see spec.md R3) — `get-service-endpoints` prints the gateway address only; what's reachable through it depends on which later stories have run.
+**Used By**: Top-level setup flow. **Correction (round-5 audit)**: previous wording said this target "prints the gateway address only" — false. Verified directly (`sed -n '169,190p' makefile`): the target branches on `APP_STACK`, not `STACK_MODE`. With `.env`'s default `APP_STACK=robot-shop`, it unconditionally echoes three lines — Robot Shop, `/grafana`, and `/kiali` URLs — regardless of which stories have actually deployed those routes. This story does not make `/grafana` or `/kiali` functional on AKS (see spec.md R3), so on a fresh AKS cluster with only this story's changes, two of those three printed URLs will not resolve to anything real yet. This is existing EKS/local behavior too (untouched, per R8) and is flagged here as a known UX gap, not something this story's scope covers fixing.
 
 ---
 
@@ -74,7 +74,7 @@
 
 | Variable | Set By | Used By | Format | Example |
 |----------|--------|---------|--------|---------|
-| LB_ENDPOINT | get-service-endpoints (from kubectl get svc) | Manual curl, downstream Grafana/Kiali routing | http://{external-ip}:{port} | http://52.123.45.67:80 |
+| LB_ENDPOINT | **Correction (round-5 audit, two errors in this row)**: not `get-service-endpoints`. Verified (`sed -n '42,46p' makefile`): `LB_ENDPOINT` is assigned at file scope, evaluated on every `make` invocation regardless of target — makefile top-level assignment (makefile:43/45, from `kubectl get svc`) | `get-service-endpoints`'s `@echo` lines (which build `http://` URLs from it); manual curl | bare IP or hostname, no scheme, no port (second error in this row: previously `http://{ip}:{port}`, a third missed copy of the same format mistake) | `52.123.45.67` (AKS/local) or an ELB hostname (EKS) |
 
 ---
 

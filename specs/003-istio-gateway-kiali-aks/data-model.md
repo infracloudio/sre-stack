@@ -12,8 +12,8 @@
 | **Chart Version** | 1.30.4 | Pinned per-platform: AKS uses 1.30.4 (Istio 1.17.2 does not support Kubernetes 1.34, which story #97 pins for AKS — see research.md §1). EKS/local remain on 1.17.2, unchanged. |
 | **Install Method** | helm upgrade --install | Idempotent (Principle I) |
 | **Pod Placement** | AKS system node pool (no taint) | Per R10, resolved via `specs/001-azure-aks-setup/data-model.md:96` (corrected — line 99 is the tainted o11y row, not the system pool; caught by independent audit) — the system pool carries no taint, so no tolerations or custom values are needed |
-| **Tracing Address** | zipkin.monitoring:9411 | From current setup-istio |
-| **Pilot Trace Sampling** | 100% | From current setup-istio |
+| **Tracing Address** | zipkin.monitoring:9411 | This is EKS/local's existing value (makefile:77), unchanged there per R8. **Open question (round-5 audit), not resolved here**: whether AKS's new `setup-istio-aks.sh` also passes this flag is undecided — see plan.md's Constitution Check, Principle II row. |
+| **Pilot Trace Sampling** | 100% | Same open question as Tracing Address above — EKS/local's existing value, not yet decided for AKS |
 
 **Relationships**: 
 - istio-base provides CRD definitions for istiod

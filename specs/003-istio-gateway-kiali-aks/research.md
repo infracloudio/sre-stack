@@ -1,10 +1,10 @@
 # Research: 003-istio-gateway-kiali-aks
 
-**Date**: 2026-09-17
+**Date**: 2026-09-17 (initial); last revised 2026-09-18 (round-5 audit fixes, §5 re-checks)
 **Researcher**: Builder (Viknesh)
 **Status**: Version compatibility and chart availability both verified (§1, §2 — the latter via the Architect's real Helm output). Cluster access and end-to-end verification remain genuinely blocked — see §5.
 
-**Note on this revision**: The previous round of this file contained reconstructed command output presented as pasted terminal output (the `helm search` transcript in the old §2, and wrong line numbers in the old §3/§8). That was wrong and is called out directly in review comments on PR #107. This revision replaces every claim with either a real, verifiable citation (URL + fetch date) or an explicit statement that it could not be verified from this environment and needs a human to run the command and paste the result. Nothing below is retyped from memory.
+**Note on this revision**: The previous round of this file contained reconstructed command output presented as pasted terminal output (the `helm search` transcript in the old §2, and wrong line numbers in the old §3/§8). That was wrong and is called out directly in review comments on PR #107. This revision replaces every claim with either a real, verifiable citation (URL + fetch date) or an explicit statement that it could not be verified from this environment and needs a human to run the command and paste the result. **Correction (round-5 audit, precision)**: "nothing below is retyped from memory" overstated it — §6 is explicitly labeled general knowledge, not fact-checked against a source, and §2 is the Architect's own paste, attributed as his, not mine. Neither is presented as something I verified myself; both are labeled as what they are.
 
 ---
 
@@ -89,7 +89,7 @@ Confirmed by the same fetch as §1: released Feb 14, 2023, end of life Oct 27, 2
 **Research method**: Fetched the real GitHub pages for issue #97 and PR #99 directly (2026-09-17), rather than assuming.
 
 **Findings**:
-- Issue #97's status remains disputed, now checked a third time with the same result: my own page fetch of `github.com/infracloudio/sre-stack/issues/97` on 2026-09-18 (twice, in two separate sessions) shows it as **Open**, with "No branches or pull requests" linked directly on the issue page. Two other parties — the Architect's `gh issue view 97 --json state` and an independent audit LLM's own fetch — both report `CLOSED`. I cannot reproduce CLOSED from here no matter how many times I try, so I'm recording the disagreement rather than picking a side to look resolved. An authenticated API call (which I don't have) is plausibly more reliable than a page fetch, so CLOSED is more likely correct — but "more likely" is not "verified," and I said "verified" too many times already in this document's history to do it again without actually being able to reproduce it.
+- **Correction (round-5 audit)**: issue #97 is **CLOSED** (`stateReason: COMPLETED`). Re-fetched directly (`curl` against the real issue page, 2026-09-18) and this time parsed the underlying JSON payload rather than the rendered header: the object with `"number":97` carries `"state":"CLOSED","stateReason":"COMPLETED"`. This matches the Architect's `gh issue view 97 --json state` and the independent audit LLM's own fetch — both of which reported CLOSED all along. My prior fetches across three earlier sessions read the page differently and reported Open; I don't have a confirmed explanation for the discrepancy (possibly misreading a cached or partially-rendered page, since I was checking the header/sidebar text rather than the underlying state field). I'm not going to guess further — CLOSED is what this fetch shows, it matches two independent parties, and I was wrong three times in a row before this. Recording CLOSED as the resolved status, not a disagreement.
 - **Correction, and this one matters**: PR #98 (separate from #99) already merged `setup-cluster-aks.sh`, `azure-common.sh`, and `verify-cluster-aks.sh` to `main` — verified directly (`git log main --oneline`, `ls infra/scripts/cluster/`). The AKS cluster-provisioning *code* already exists on `main`. I previously framed the blocker as "waiting for PR #99 to merge," which conflated two different things: PR #99 is a separate, still-open PR whose exact relationship to #98 I have not mapped out (I'm not asserting one I haven't verified). The actual open question is not "has the code merged" (it has, via #98) but "has anyone actually run `make setup-cluster` against a real Azure subscription, and does Viknesh have access to that subscription."
 - PR #99 (`f/097/add_aks_support`, branch `f/097/add_aks_support` → `main`) is open, not merged. On Sep 11, 2026 the Architect (rijojohn85) requested changes and **removed** the `gate:plan-approved` label pending rework.
 - This story's own PR is #107 (`spec(003): Istio Gateway on AKS — cross-cloud consistency`), referenced from PR #99's timeline.
@@ -157,7 +157,7 @@ The previous round's version of this section gave itself six checkmarks, written
 | Istio/Kubernetes version compatibility (§1) | Verified — real fetch of istio.io, this time including catching my own earlier error about 1.31 |
 | Helm chart availability and exact chart output (§2) | Verified — real output, but run by the Architect (I still cannot reach the Helm registry myself), attributed accordingly rather than presented as my own check |
 | EKS makefile line numbers (§3, §7, §8) | Verified — real grep against a real clone of the branch |
-| AKS cluster / PR #99 status (§5) | Verified — real fetch of the GitHub issue and PR pages |
+| AKS cluster / PR #99 status (§5) | Verified — issue #97 is CLOSED/COMPLETED (re-fetched 2026-09-18, resolving the prior disagreement; see §5), PR #98/#99 status confirmed against git history |
 | "Who was asked" (§5) | Honest: nobody yet. Not resolved, stated plainly. |
 | Load-balancer timing (§6) | Not a verified citation — labeled as general knowledge, not fact-checked |
 
