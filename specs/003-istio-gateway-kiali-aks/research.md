@@ -1,6 +1,6 @@
 # Research: 003-istio-gateway-kiali-aks
 
-**Date**: 2026-09-17 (initial); last revised 2026-09-18 (round-5 audit fixes, §5 re-checks)
+**Date**: 2026-09-17 (initial). **Correction (round-7 audit)**: the "last revised" pointer here has gone stale every round since it was added — this document has since had round-6 edits too (§9 table, line 160). Dropping the specific-round pointer: see git history for the actual revision timeline rather than a date this field will always lag.
 **Researcher**: Builder (Viknesh)
 **Status**: Version compatibility and chart availability both verified (§1, §2 — the latter via the Architect's real Helm output). Cluster access and end-to-end verification remain genuinely blocked — see §5.
 

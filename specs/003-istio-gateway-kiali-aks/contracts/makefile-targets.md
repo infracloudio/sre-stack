@@ -53,7 +53,7 @@
 **Idempotency**: Safe to run multiple times
 **Depends On**: STACK_MODE=aks, kubectl access
 **Environment Variables**:
-  - **Reads**: STACK_MODE, APP_STACK, LB_ENDPOINT (computed from LoadBalancer Service external IP)
+  - **Reads**: APP_STACK (drives which URLs it echoes — **correction, round-7 audit**: previously listed `STACK_MODE` here too, but `get-service-endpoints` itself branches only on `APP_STACK`; `STACK_MODE` only affects the separate file-scope `LB_ENDPOINT` assignment above it in the makefile, not this target directly), LB_ENDPOINT (computed from LoadBalancer Service external IP)
   - **Sets**: nothing — **correction (round-6 audit)**: this used to say `get-service-endpoints` sets `LB_ENDPOINT`, contradicting the corrected Postcondition above in the same field block. `LB_ENDPOINT` is set at makefile:43/45 (file scope, evaluated before any target runs), not by this target.
 **Used By**: Top-level setup flow. **Correction (round-5 audit)**: previous wording said this target "prints the gateway address only" — false. Verified directly (`sed -n '169,190p' makefile`): the target branches on `APP_STACK`, not `STACK_MODE`. With `.env`'s default `APP_STACK=robot-shop`, it unconditionally echoes three lines — Robot Shop, `/grafana`, and `/kiali` URLs — regardless of which stories have actually deployed those routes. This story does not make `/grafana` or `/kiali` functional on AKS (see spec.md R3), so on a fresh AKS cluster with only this story's changes, two of those three printed URLs will not resolve to anything real yet. This is existing EKS/local behavior too (untouched, per R8) and is flagged here as a known UX gap, not something this story's scope covers fixing.
 
@@ -63,7 +63,7 @@
 
 | Variable | Scope | Used By | Example |
 |----------|-------|---------|---------|
-| STACK_MODE | global | setup, setup-istio, setup-gateway, cleanup | `aks` (others: `eks`, `local`) |
+| STACK_MODE | global | setup, cleanup (both branch on it today); **correction (round-7 audit)**: `setup-istio` and `setup-gateway` don't yet — see their own "Used By" corrections above (no `STACK_MODE` guard exists on them until this story adds one) | `aks` (others: `eks`, `local`) |
 | MONITORING_NS | global | Correction (independent audit): the istiod tracing address (`zipkin.monitoring:9411`, makefile:77) is a hardcoded string, not `$(MONITORING_NS)` — the variable isn't actually referenced there, it just happens to match the default namespace name. Listed here only because a MONITORING_NS/zipkin address mismatch would be a real bug if the namespace were ever renamed. | `monitoring` |
 | APP_NS | global | gateway.yaml application, VirtualService routes | `robot-shop` |
 | CLUSTER_NAME | global | cluster metadata (future resource tags) | `sre-stack` |

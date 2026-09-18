@@ -80,8 +80,8 @@ kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadB
 ## Cleanup Expectations
 
 After `cleanup-gateway` and `cleanup-istio`:
-- istio-system namespace still exists (may contain system-managed pods)
+- istio-system namespace still exists. **Correction (round-7 audit)**: previously said it "may contain system-managed pods" — wrong, no system-managed pods run in `istio-system`; it should be empty after cleanup.
 - No Helm releases named istio-base, istiod, istio-ingressgateway
 - No Gateway or VirtualService CRDs created by this story remain (this story creates none — see spec.md R3)
 
-Query: `kubectl get all -n istio-system` → only pre-existing system-managed pods remain, if any
+Query: `kubectl get all -n istio-system` → **correction (round-7 audit)**: previously said "only pre-existing system-managed pods remain, if any" — nothing should remain at all (matching spec.md S6, data-model.md, tasks.md T017)
