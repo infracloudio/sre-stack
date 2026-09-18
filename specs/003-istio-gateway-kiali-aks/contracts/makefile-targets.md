@@ -54,7 +54,7 @@
 **Depends On**: STACK_MODE=aks, kubectl access
 **Environment Variables**:
   - **Reads**: STACK_MODE, APP_STACK, LB_ENDPOINT (computed from LoadBalancer Service external IP)
-  - **Sets**: LB_ENDPOINT (for downstream use)
+  - **Sets**: nothing — **correction (round-6 audit)**: this used to say `get-service-endpoints` sets `LB_ENDPOINT`, contradicting the corrected Postcondition above in the same field block. `LB_ENDPOINT` is set at makefile:43/45 (file scope, evaluated before any target runs), not by this target.
 **Used By**: Top-level setup flow. **Correction (round-5 audit)**: previous wording said this target "prints the gateway address only" — false. Verified directly (`sed -n '169,190p' makefile`): the target branches on `APP_STACK`, not `STACK_MODE`. With `.env`'s default `APP_STACK=robot-shop`, it unconditionally echoes three lines — Robot Shop, `/grafana`, and `/kiali` URLs — regardless of which stories have actually deployed those routes. This story does not make `/grafana` or `/kiali` functional on AKS (see spec.md R3), so on a fresh AKS cluster with only this story's changes, two of those three printed URLs will not resolve to anything real yet. This is existing EKS/local behavior too (untouched, per R8) and is flagged here as a known UX gap, not something this story's scope covers fixing.
 
 ---

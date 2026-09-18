@@ -157,7 +157,7 @@ The previous round's version of this section gave itself six checkmarks, written
 | Istio/Kubernetes version compatibility (§1) | Verified — real fetch of istio.io, this time including catching my own earlier error about 1.31 |
 | Helm chart availability and exact chart output (§2) | Verified — real output, but run by the Architect (I still cannot reach the Helm registry myself), attributed accordingly rather than presented as my own check |
 | EKS makefile line numbers (§3, §7, §8) | Verified — real grep against a real clone of the branch |
-| AKS cluster / PR #99 status (§5) | Verified — issue #97 is CLOSED/COMPLETED (re-fetched 2026-09-18, resolving the prior disagreement; see §5), PR #98/#99 status confirmed against git history |
+| AKS cluster / PR #99 status (§5) | **Correction (round-6 audit)**: previous wording overstated the method — "confirmed against git history" applies only to PR #98 (its merge commit `777a084` is verifiably on `main`). PR #99's open/not-merged status and the Sep 11 label removal are not in git history; they came from a GitHub page fetch on 2026-09-18, same as §5 says. Split out: #98 merge — confirmed in git history; #99 status and issue #97's CLOSED/COMPLETED state — from a page fetch, 2026-09-18. |
 | "Who was asked" (§5) | Honest: nobody yet. Not resolved, stated plainly. |
 | Load-balancer timing (§6) | Not a verified citation — labeled as general knowledge, not fact-checked |
 
