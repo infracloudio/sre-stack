@@ -25,7 +25,7 @@ Version note: pinned to 1.30.4 rather than EKS/local's 1.17.2, because 1.17.2 do
 
 ## CRDs & Validation
 
-**CRD Versions**: All Istio resources use `networking.istio.io/v1alpha3`
+**CRD Versions**: `networking.istio.io/v1alpha3` — confirmed for the existing `app/robot-shop/Istio/gateway.yaml` (verified: `grep -n apiVersion app/robot-shop/Istio/gateway.yaml`, real file, unchanged by this story per R8). Not checked against 1.30.4 specifically: current Istio documentation examples use `networking.istio.io/v1` for new Gateway/VirtualService resources. `v1alpha3` is still served by 1.30.4 as of this writing, so the existing file works, but this story creates no new CRDs (R3) — the question of which API version to use for *new* resources is out of scope here and belongs to whichever story adds routing.
 
 **Gateway CRD** (app-deployed):
 ```yaml

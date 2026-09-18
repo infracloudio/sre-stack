@@ -1,7 +1,7 @@
 # Tasks: 003-istio-gateway-kiali-aks
 
 **Branch**: 003-istio-gateway-kiali-aks
-**Blocked by**: Architect approval of Istio version split (1.30.4 on AKS, 1.17.2 on EKS)
+**Version split (1.30.4 on AKS, 1.17.2 on EKS)**: Resolved — see research.md §1-§2.
 **Awaiting**: AKS cluster availability (story #97, PR #99)
 
 ---
@@ -13,19 +13,19 @@
 - [ ] **T001** `.env`: Add ISTIO_VERSION=1.30.4, ISTIO_NAMESPACE=istio-system, HELM_TIMEOUT=5m for AKS section only. EKS section unchanged. Verify `.env` syntax with `grep "^AKS_\|^ISTIO_" .env` and review current EKS pins against makefile
 - [ ] **T002** Validate Istio chart versions exist: `helm search repo istio/base --version 1.30.4`, `helm search repo istio/istiod --version 1.30.4`, `helm search repo istio/gateway --version 1.30.4` (report exact versions available)
 - [ ] **T003** Research: Verify EKS targets exist unchanged. `grep -n "^setup-istio:" makefile`, `grep -n "^setup-gateway:" makefile`, confirm no modifications to these lines since main
-- [ ] **T004** Create `infra/scripts/cluster/setup-istio-aks.sh` (new file): Helm repo add istio, helm repo update, helm install istio-base/istiod/gateway in sequence to istio-system namespace. All chart versions from `.env`. Use `--wait --timeout` from `.env`. Include idempotency: check if release exists before install.
-- [ ] **T005** Create `infra/scripts/cluster/setup-gateway-aks.sh` (new file): Deploy ingress-gateway LoadBalancer Service (type: LoadBalancer, selector: istio=ingressgateway). Include wait loop for external IP assignment (timeout from `.env`).
-- [ ] **T006** Create `infra/scripts/cluster/cleanup-istio.sh` (new file): Helm uninstall istio-ingressgateway, istiod, istio-base from istio-system (in that order, if present). Include `--ignore-not-found` or equivalent check. Tolerate missing releases.
-- [ ] **T007** Create `infra/scripts/cluster/cleanup-gateway.sh` (new file): Delete istio-ingressgateway Service; delete any associated LoadBalancer. Tolerate "not found" gracefully with exit 0.
+- [ ] **T004** Create `infra/scripts/cluster/setup-istio-aks.sh` (new file): Helm repo add istio, helm repo update, helm install istio-base, istiod, AND istio/gateway (all three — the gateway chart is what creates the `istio-ingressgateway` LoadBalancer Service, verified against the real EKS makefile:74-78 where all three installs live under `setup-istio`, not `setup-gateway`) in sequence to istio-system namespace. All chart versions from `.env`. Use `--wait --timeout` from `.env`. Include idempotency: check if release exists before install. **Owns the LoadBalancer entirely — T005 does not touch it.**
+- [ ] **T005** Create `infra/scripts/cluster/setup-gateway-aks.sh` (new file): No-op for this story. Robot Shop (the only thing EKS's real `setup-gateway` applies, per makefile:152-154) is out of scope (story #102), so there is no app-specific Gateway/VirtualService to apply yet. This script exists (rather than skipping the target) so `make setup` under STACK_MODE=aks doesn't break when it calls `setup-gateway` in its target chain. Exits 0, creates nothing, logs that it's a placeholder pending story #102.
+- [ ] **T006** Create `infra/scripts/cluster/cleanup-istio.sh` (new file): Helm uninstall istio-ingressgateway (the gateway chart release, since T004 installed it here), istiod, istio-base from istio-system (in that order, if present). Include `--ignore-not-found` or equivalent check. Tolerate missing releases. **Owns removing the LoadBalancer.**
+- [ ] **T007** Create `infra/scripts/cluster/cleanup-gateway.sh` (new file): No-op mirroring T005. Nothing to delete since T005 creates nothing. Exits 0.
 - [ ] **T008** Extend `infra/scripts/cluster/azure-common.sh` (verified path: `ls infra/scripts/cluster/`; this file exists today, `common-aks.sh` does not): Add function `get_lb_endpoint_aks()` that fetches the external IP of the istio-ingressgateway Service and prints it in format `http://<IP>:80` (matching EKS format).
-- [ ] **T009** Update `makefile`: Add `setup-istio` target with `STACK_MODE` branch: if aks, call setup-istio-aks.sh; if eks, call existing EKS setup. Same for `setup-gateway` and cleanup targets. Verify syntax with `make lint`.
+- [ ] **T009** Update `makefile`: Add `STACK_MODE=aks` branch to the existing `setup-istio` target (calls setup-istio-aks.sh) and `setup-gateway` target (calls the no-op setup-gateway-aks.sh). Same branching for `cleanup-istio`/`cleanup-gateway` (new targets). Verify syntax with `make lint`.
 - [ ] **T010** Update `makefile`: Update `get-service-endpoints` target to include AKS branch. If `STACK_MODE=aks`, call `get_lb_endpoint_aks()` and export `LB_ENDPOINT`.
 - [ ] **T011** Lint & syntax check: `make lint` passes; shell scripts pass `shellcheck` with no errors; makefile syntax valid (`make --dry-run setup-istio` runs without error).
 - [ ] **T012** Dry-run all Helm commands (moved from Phase 2: `helm template` needs no cluster, so this runs today and is the one check that would catch a 1.17.2→1.30.4 breaking change before any cloud access exists): `helm template istio-base istio/base --namespace istio-system --version 1.30.4` (and same for istiod, gateway). Output must be captured verbatim to a file, not summarized or retyped. Compare against `helm template ... --version 1.17.2` output for the same charts to surface any rendering differences.
 
 ### Phase 2: Cloud verification (sequential, requires AKS cluster from story #97; genuinely blocked until PR #99 merges and access is granted — see plan.md Blocker section)
 
-- [ ] **T013** Run `make setup-istio setup-gateway` (STACK_MODE=aks) on the AKS cluster from story #97 once available. Time the run (S1: under 5 min for setup-istio, S2: under 2 min for setup-gateway). Capture output verbatim into quickstart.md — no new permanent makefile target for this; it is a one-time verification run, not a shipped feature.
+- [ ] **T013** Run `make setup-istio setup-gateway` (STACK_MODE=aks) on the AKS cluster from story #97 once available. Time the run — S1/S2 are now both covered by `setup-istio` alone (under 5 min, including LoadBalancer IP acquisition), since `setup-gateway` is a no-op for this story (see R2 correction, this round). Capture output verbatim into the PR #107 evidence block (T023) — no new permanent makefile target for this, and no separate quickstart.md (deleted this round; it had drifted from R10/R3 and duplicated this task list).
 - [ ] **T014** Verify Istio pods reach Running: Post-setup, run `kubectl get pods -n istio-system` and confirm all control-plane pods (istiod, base) have status Running within the timeout.
 - [ ] **T015** Verify load-balancer IP assigned: `kubectl get svc -n istio-system istio-ingressgateway` returns an external IP (not `<pending>`). Record the IP.
 - [ ] **T016** Test idempotency of setup: Run `make setup-istio setup-gateway` a second time. Exit code must be 0. Output must contain no "installed", "created", or "updated" messages (script is a no-op on second run).
@@ -44,8 +44,8 @@
 
 ## Notes
 
-- **Blockers**: Plan.md documents two blockers (Istio version compatibility, AKS cluster availability). The version split needs Architect approval before Phase 1 tasks are considered final; the cluster-availability blocker only gates Phase 2 (T013 onward) — T001-T012 can proceed now.
-- **Principle VIII**: All chart versions verified against official sources (Istio Helm repo, not cached docs). All access requirements documented in plan.md.
+- **Blockers**: Only one remains — AKS cluster availability (research.md §5), which gates Phase 2 (T013 onward). T001-T012 can proceed now.
+- **Principle VIII**: chart versions — see research.md §1-§2, not restated here.
 - **Paths**: All tasks use repo-relative paths (e.g., `infra/scripts/cluster/`), not absolute paths. All filenames are lowercase (e.g., `makefile`, not `Makefile`).
-- **Taints & affinity**: R10 (pod placement) is deferred to clarification. Tasks assume default node scheduling (no custom values files); if placement is required, plan must be updated before T004/T005.
+- **Taints & affinity**: R10 is resolved (spec.md, research.md §10) — istiod and the gateway land on the AKS system node pool, which carries no taint. No tolerations or custom Helm values files are needed. AD-003 (spot-priority toleration) does not apply to this story. (Correction: an earlier draft of this note said R10 was still deferred, contradicting the headline fix of the previous round — fixed here.)
 - **AD-003**: scalesetpriority toleration (for spot VMs) is not part of this story; workload-installation stories handle it per constitution principle V.

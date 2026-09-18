@@ -26,6 +26,8 @@
 
 ### 2. Istio Ingress Gateway (LoadBalancer Service & Deployment)
 
+**Created by**: `setup-istio` (not `setup-gateway`). Verified against the real makefile this round: the `istio-ingressgateway` Helm release (which creates this Service) is installed by `setup-istio`'s third `helm upgrade --install` (makefile:78), not by `setup-gateway` (makefile:152, which only applies an app-specific route and does no Helm work). `get-service-endpoints` reads this Service directly (`kubectl get svc istio-ingressgateway`, makefile:43/45).
+
 | Field | Value | Notes |
 |-------|-------|-------|
 | **Helm Release Name** | istio-ingressgateway | Helm release for gateway |

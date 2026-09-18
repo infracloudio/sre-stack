@@ -6,27 +6,22 @@
 
 Reuse the existing self-hosted Istio + ingress-gateway pattern already working on EKS/local. On AKS:
 
-1. **Setup Istio**: Extend the existing `setup-istio` target (makefile:74, currently EKS/local-only) with a `STACK_MODE=aks` branch that runs three Helm installs in sequence (`istio-base`, `istiod`, `istio-gateway`), installing to the `istio-system` namespace with configuration pinned in `.env`. The existing EKS/local helm lines (makefile:76-78) are untouched.
-2. **Setup gateway**: Extend the existing `setup-gateway` target (makefile:152) with an AKS branch that applies the ingress-gateway Service (LoadBalancer). This story creates no VirtualServices (see R3 — routing is owned by later stories).
-3. **Cleanup**: Create `cleanup-istio` and `cleanup-gateway` targets (these do not exist today; verified via `grep -n "^cleanup-istio:\|^cleanup-gateway:" makefile` — no matches) that safely uninstall/delete resources; cleanup is repeatable (exists checks, tolerate "not found")
-4. **Endpoints**: Update `get-service-endpoints` to fetch and print the AKS load-balancer external IP in the same format as EKS (stored in `LB_ENDPOINT` environment variable)
+**Correction found this round, verified against the real makefile (`sed -n '74,90p'` and `sed -n '152,175p' makefile`)**: the plan previously assumed `setup-gateway` creates the ingress-gateway LoadBalancer. It does not, on EKS. `setup-istio`'s third Helm install (`istio/gateway` chart, makefile:78) creates the `istio-ingressgateway` Service that `get-service-endpoints` reads (confirmed: `grep -n LB_ENDPOINT makefile` shows it queries `svc istio-ingressgateway`). `setup-gateway` (makefile:152) does no Helm work at all — it only creates the `robot-shop` namespace and applies `app/robot-shop/Istio/gateway.yaml`, an app-specific route. The plan below reflects this corrected understanding:
+
+1. **Setup Istio**: Extend the existing `setup-istio` target (makefile:74, currently EKS/local-only) with a `STACK_MODE=aks` branch that runs all three Helm installs in sequence (`istio-base`, `istiod`, and `istio/gateway` — the last of which creates the LoadBalancer), installing to the `istio-system` namespace with configuration pinned in `.env`. The existing EKS/local helm lines (makefile:76-78) are untouched.
+2. **Setup gateway**: Extend the existing `setup-gateway` target (makefile:152) with an AKS branch. Since Robot Shop is out of scope for this story (#102), the AKS branch is a no-op — it exists so `make setup` (the composite target) doesn't break when it calls `setup-gateway` in sequence, but creates nothing. This story creates no VirtualServices (see R3 — routing is owned by later stories that also own the apps being routed to).
+3. **Cleanup**: Create `cleanup-istio` (uninstalls all three Helm releases — base, istiod, gateway — mirroring what `setup-istio` installs) and `cleanup-gateway` (no-op on AKS, mirroring `setup-gateway`'s no-op setup, for symmetry). Verified via `grep -n "^cleanup-istio:\|^cleanup-gateway:" makefile` — no matches, both are new.
+4. **Endpoints**: Update `get-service-endpoints` to fetch and print the AKS load-balancer external IP in the same format as EKS (stored in `LB_ENDPOINT` environment variable, read from the `istio-ingressgateway` Service that `setup-istio` created)
 
 All scripts follow the check-then-create, re-runnable pattern already used by story #97 (AKS cluster setup).
 
-## Blocker: Kubernetes 1.34 support
+## Resolved: Kubernetes 1.34 / Istio version split
 
-**Status**: Blocking implementation. Requires Architect review before proceeding.
+**Status**: Resolved. See research.md §1-§2 for full evidence (version matrix, and the Architect's real Helm output) — not restated here to avoid the exact copy-drift that caused a contradiction in the previous round (plan.md claimed "verified" while research.md said "blocked", in the same commit).
 
-**Issue**: Story #97 pins `AKS_KUBERNETES_VERSION=1.34` in `.env`. Cross-cloud consistency (R1) suggests using the same Istio version as EKS/local, which is `1.17.2`. However, Istio 1.17.2 reached end-of-life on Oct 27, 2023 and supports only Kubernetes up to 1.26.
+**Issue that needed resolving**: Story #97 pins `AKS_KUBERNETES_VERSION=1.34`. Istio 1.17.2 (EKS/local's version) does not support Kubernetes past 1.26.
 
-**Resolution**: Verified via Istio support matrix (fetched 2026-09-17):
-- Istio 1.30.4 (currently supported) supports Kubernetes 1.32–1.36 ✓
-- Istio 1.30.4 is CVE-free (no blocker CVEs at 1.30.0+)
-- Istio 1.30.4 charts are in the Helm repository (verified: `helm search repo istio/base --version 1.30.4`)
-
-**Decision**: Pin Istio to `1.30.4` on AKS only. EKS/local remain on `1.17.2` (unchanged per R8).
-
-**Awaiting**: Architect approval of this version split before tasks proceed.
+**Decision**: Pin Istio to `1.30.4` on AKS only. EKS/local remain on `1.17.2` (unchanged per R8). Confirmed as the newest currently-installable, CVE-clean, Kubernetes-1.34-compatible release — no 1.31.x chart is published yet.
 
 ## Blocker: AKS cluster availability
 
@@ -73,7 +68,7 @@ All scripts follow the check-then-create, re-runnable pattern already used by st
 
 ## Constitution check (v1.4.0)
 
-Checked directly against `.specify/memory/constitution.md` (verified: `grep -n "^### [IVX]*\." .specify/memory/constitution.md`, confirming version 1.4.0 and these ten principle names). Unlike the two previous rounds, this check is not self-certifying — it is written after the fixes above, against the actual file, and two rows below genuinely fail.
+Checked directly against `.specify/memory/constitution.md`. The principle names below come from `grep -n "^### [IVX]*\." .specify/memory/constitution.md`, which lists the ten headings but not the version — that grep does not print a version number, and claiming it did was itself flagged in review round 3. The version comes from a separate, correct command: `tail -1 .specify/memory/constitution.md` → `**Version**: 1.4.0 | **Ratified**: 2026-09-04 | **Last Amended**: 2026-09-17`. Unlike the two previous rounds, this check is not self-certifying — it is written after the fixes above, against the actual file, and four rows below genuinely fail.
 
 | Principle | Satisfied? | Evidence |
 |---|---|---|
@@ -82,13 +77,27 @@ Checked directly against `.specify/memory/constitution.md` (verified: `grep -n "
 | **III. One Configuration Surface** | ✓ | ISTIO_VERSION, ISTIO_NAMESPACE, HELM_TIMEOUT all read from `.env`; no hand-edited values elsewhere. |
 | **IV. No Secrets in Git** | ✓ | No credentials; all charts are public/open-source. |
 | **V. Workload Placement Contract** | Ambiguous — flagging, not asserting | This principle requires workloads to use the `app\|persistent\|o11y\|loadgen` labels/taints. R10 places istiod/gateway on the AKS **system** pool, which is outside that four-pool taxonomy (it's AKS's own infra pool, not one of the four). Reading: Istio is platform infrastructure, not one of the four named workload categories, so this principle's labels don't apply to it — but that's an interpretation, not a settled fact, and I'm not confident enough to mark it ✓ outright. Needs Architect confirmation. |
-| **VI. Specs Without Technical Detail** | ✗ Fails as written | `spec.md` currently contains commands and config throughout (`make setup-istio`, `STACK_MODE=aks`, `.env`, `curl <LB_ENDPOINT>`, `kubectl get all -n istio-system`). Principle VI says spec.md "MUST NOT hold technical material: no code, no config snippets... no commands." This spec violates that as literally written. This predates my involvement (the original spec, before any of my edits, already used `make setup-cluster` style commands) — flagging for the Architect to decide whether VI is meant to be read this literally for infra stories, or whether spec.md needs a rewrite into outcome language with the commands moved to plan.md/quickstart.md. |
+| **VI. Specs Without Technical Detail** | ✗ Fails as written | `spec.md` currently contains commands and config throughout (`make setup-istio`, `STACK_MODE=aks`, `.env`, `curl <LB_ENDPOINT>`, `kubectl get all -n istio-system`). Principle VI says spec.md "MUST NOT hold technical material: no code, no config snippets... no commands." This spec violates that as literally written. This predates my involvement (the original spec, before any of my edits, already used `make setup-cluster` style commands) — flagging for the Architect to decide whether VI is meant to be read this literally for infra stories, or whether spec.md needs a rewrite into outcome language with the commands moved to plan.md and tasks.md (quickstart.md was deleted this round — see B2/B3 in review round 3; it had drifted from R10/R3 and its own checks passed by construction). |
 | **VII. Plain Language Everywhere** | ✗ Fails as written | Terms like "LoadBalancer", "VirtualService", "taint", "toleration", "Helm chart" appear without a first-use plain-language explanation, as VII requires. Same status as VI — real gap, not fixed by this pass. |
 | **VIII. Try It Before You Plan It** | ✗ Fails currently | No one has actually been asked for AKS/subscription access yet (see Blocker section above). Per VIII, "no access is a blocker, not a licence to substitute" — the required next step is to ask and record who/what, not to proceed on dry-run alone. Phase 1 dry-run work (helm template, chart search) is a legitimate placeholder for the *cheap* checks, but the substitute for full cluster verification has not been asked for or approved by the Architect yet, as VIII requires. |
 | **IX. Author In Steps, Developer in the Loop** | ✗ Fails currently | This spec/plan/tasks/research were produced as complete documents across multiple passes, not proposed and approved one section at a time with explicit developer sign-off per section, as IX requires. |
 | **X. Converge to the Agreed Scope, Then Stop** | N/A | Not yet applicable — no implementation exists yet for convergence to check against. |
 
-**Two failures (VIII, IX) and one open question (V) are real, not decorative.** The previous two rounds' Constitution Checks scored everything ✓ against a document that either didn't match the real constitution or wasn't read critically. A check that never returns a failure isn't checking anything — these are recorded as failures because they are failures, and resolving them (asking for access; running future authoring in sections) is process work for the team, not something I can retroactively fix by rewriting this document again.
+**Four failures (VI, VII, VIII, IX) and one open question (V) are real, not decorative.** (Correction: an earlier draft of this sentence said "two failures" while the table above lists four — a copy that drifted from its own source two lines up, the same class of bug this whole review round is about. Fixed here.) The previous two rounds' Constitution Checks scored everything ✓ against a document that either didn't match the real constitution or wasn't read critically. A check that never returns a failure isn't checking anything.
+
+## Complexity table (Governance, constitution.md:259-262)
+
+Per Governance, each violation is either fixed before implementation or justified here and accepted by the Architect. Disposition for each:
+
+| Principle | Disposition | Owner / next step |
+|---|---|---|
+| **VI. Specs Without Technical Detail** | Not fixed this round. Fixing it means rewriting spec.md's prose to move commands (`make setup-istio`, `curl <LB_ENDPOINT>`, etc.) into plan.md/tasks.md and restate requirements in outcome language. That's a judgment call about wording, not a fact I can verify with a command — and rewriting it unilaterally in one pass would repeat the exact IX violation below. **Requires Viknesh to run this through `/speckit-clarify` or an equivalent section-by-section pass, not a bulk edit.** |
+| **VII. Plain Language Everywhere** | Same disposition as VI — first-use explanations for "LoadBalancer", "VirtualService", "taint", "toleration" are additive and lower-risk, but the principle asks for a document a newcomer can read alone, which is a genuine authoring pass, not a patch. **Requires Viknesh's pass, same as VI.** |
+| **VIII. Try It Before You Plan It** | Not fixed — the one item in this whole PR that a command cannot close. Requires Viknesh to actually send the access request to the Architect/deployment lead today and record the reply in research.md §5. **Action item for Viknesh, not for any tool.** |
+| **IX. Author In Steps, Developer in the Loop** | Cannot be fixed retroactively — these files were already written in full passes across multiple rounds. **Fixed going forward only**: the next authoring pass (re-running `/speckit-plan`/`/speckit-tasks` if either needs regenerating, or any future spec change) must use the incremental "one section, stop, wait" loop both SKILL.md files now require per PR #106. |
+| **V. Workload Placement Contract** | Not a failure — an open interpretation question (is Istio a "workload" under the four-pool taxonomy, or platform infrastructure outside it?). **Requesting Architect's read on this**, not proposing to fix anything. |
+
+**What I'm asking the Architect to accept**: VI/VII/VIII are real gaps this round did not close, for the reasons above (they need Viknesh's own judgment or Viknesh's own action, not something a command settles). I'm not asking for `gate:plan-approved` to be granted while pretending these are resolved — I'm asking whether the plan can proceed with VI/VII/VIII tracked as open commitments (with the concrete next step above for each), or whether the Architect wants VI/VII closed before that label is applied.
 
 ---
 
@@ -96,25 +105,24 @@ Checked directly against `.specify/memory/constitution.md` (verified: `grep -n "
 
 | Risk | Severity | Mitigation |
 |---|---|---|
-| Istio 1.30.4 introduces breaking changes vs. EKS's 1.17.2 | HIGH | T001: Validate YAML configs via `helm template` before any cloud runs; T002: Test charts in CI before PR merge |
+| Istio 1.30.4 introduces breaking changes vs. EKS's 1.17.2 | HIGH | T012 (moved to Phase 1, no cluster needed): `helm template` both versions and diff the rendered output before any cloud run. Correction: no CI job actually tests charts — the three real jobs on this PR are `lint and validate`, `azure offline tests`, and `gate:plan-approved check` (none render or test Helm charts) — so the mitigation is this local check, not a CI safety net that doesn't exist. |
 | Load-balancer provisioning timeouts on first AKS deployment | MEDIUM | T006: `HELM_TIMEOUT=5m` in `.env`; T006: Wait for Service to have external IP before proceeding |
 | Cluster not ready (story #97 dependency) | MEDIUM | Not yet asked (see Blocker above); Phase 1 dry-run validation (helm template, lint) proceeds without cluster access in the meantime |
 | Helm chart namespace mismatch (istiod vs. gateway in different namespaces) | LOW | T004: All three helm installs target `--namespace istio-system` explicitly |
 
 ---
 
-## Verification (quickstart.md provided separately)
+## Verification
 
-Commands run on AKS cluster post-deployment:
+quickstart.md was deleted this round (see B2/B3, review round 3) — it duplicated tasks.md T013-T020 and had drifted out of sync with R10 and R3 (expected istiod on the o11y pool; expected VirtualServices this story doesn't create). One home for verification steps now: tasks.md.
 
-1. **Istio install complete**: `kubectl get pods -n istio-system` → all control-plane pods Running
-2. **Gateway deployed**: `kubectl get svc -n istio-system` → `istio-ingressgateway` has external IP
-3. **Routes exist**: `kubectl get vs -A | grep istio` → gateway routes are present
-4. **Endpoints work**: `curl http://<LB_IP>` → gateway answers on port 80
-5. **Second setup idempotent**: `make setup-istio` (again) → exits 0, no "created" or "installed" output
-6. **Cleanup works**: `make cleanup-gateway && make cleanup-istio` → all resources deleted; `kubectl get all -n istio-system` empty
-7. **Cleanup idempotent**: Run cleanup again → exits 0, no "not found" errors
-8. **EKS unchanged**: `git diff main -- makefile | grep -i eks` → no changes to EKS targets
+1. **Istio install complete**: `kubectl get pods -n istio-system` → all control-plane pods Running (T014)
+2. **Gateway deployed**: `kubectl get svc -n istio-system` → `istio-ingressgateway` has external IP (T015)
+3. **Endpoints work**: `curl http://<LB_IP>` → gateway answers on port 80; a 404 is an acceptable pass since this story creates no routes (S3; there is no "routes exist" check — that would fail by construction, exactly the mistake T019 avoids for the EKS-unchanged check below)
+4. **Second setup idempotent**: `make setup-istio` (again) → exits 0, no "created" or "installed" output (T016)
+5. **Cleanup works**: `make cleanup-gateway && make cleanup-istio` → all resources deleted; `kubectl get all -n istio-system` empty (T017)
+6. **Cleanup idempotent**: Run cleanup again → exits 0, no "not found" errors (T018)
+7. **EKS unchanged**: see T019 — the check must confirm the actual EKS helm lines are byte-unchanged, not merely that no line matching "setup-istio" changed (that fails by construction once this story extends the target)
 
 ---
 

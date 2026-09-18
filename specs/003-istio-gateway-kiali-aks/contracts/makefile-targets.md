@@ -3,25 +3,27 @@
 ## Public Targets
 
 ### setup-istio
-**Description**: Deploy Istio control plane (istiod) and cluster resources (base) to AKS
+**Correction, this round**: verified directly against the real makefile (`sed -n '74,90p' makefile`) that on EKS, `setup-istio` installs **all three** Helm charts — `istio-base`, `istiod`, and `istio/gateway` — and it's the third one that creates the `istio-ingressgateway` LoadBalancer Service. The gateway is not a separate concern from "setup-istio"; it's part of the same Helm sequence. Earlier drafts of this contract (and of plan.md/tasks.md) assumed `setup-gateway` created the LoadBalancer — that was never true on EKS and this AKS story now matches EKS correctly instead of inventing a different split.
+
+**Description**: Deploy Istio control plane (istio-base, istiod) AND the ingress gateway (istio/gateway chart) to AKS — three Helm installs in sequence, matching EKS exactly
 **Precondition**: AKS cluster must exist with node pools and workload labels/taints
-**Postcondition**: istiod Deployment is Running in istio-system namespace; all pods ready
+**Postcondition**: istiod and gateway Deployments Running in istio-system namespace; `istio-ingressgateway` Service has (or is acquiring) an external IP
 **Exit Code**: 0 on success, 1 on failure
 **Idempotency**: Running twice must exit 0 on second run with no resource creation
-**Timeout**: Completes in under 5 minutes (per S1)
+**Timeout**: Completes in under 5 minutes (per S1, which now covers the gateway's LoadBalancer acquisition too — see spec.md S2)
 **Depends On**: STACK_MODE=aks, kubectl access to cluster
 **Used By**: top-level `setup` target (verified real target exists at makefile:51-63, currently EKS/local-only; this story adds the AKS branch). Not gated on story #101 — this story's setup-istio has no dependency on Grafana, since it creates no routes to it (see spec.md R3).
 
 ### setup-gateway
-**Description**: Deploy Istio ingress gateway and route rules (Gateway + VirtualService CRDs)
-**Precondition**: setup-istio must have completed successfully
-**Postcondition**: istio-ingressgateway Service acquires external LoadBalancer IP. This story applies no VirtualServices (see spec.md R3) — routes are added by later stories.
+**Description**: On EKS, applies an app-specific Gateway/VirtualService (`app/robot-shop/Istio/gateway.yaml`, makefile:152-154) — no Helm work, no LoadBalancer creation (that's `setup-istio`'s job, see above). On AKS for this story, a **no-op**: Robot Shop is out of scope (story #102), so there's nothing app-specific to apply yet. The target exists only so `make setup`'s target chain doesn't break when it calls `setup-gateway`.
+**Precondition**: setup-istio must have completed successfully (so the gateway pods setup-gateway would route through, if it did anything, already exist)
+**Postcondition**: On AKS (this story): none — no resources created. On EKS (unchanged): robot-shop namespace and its Gateway/VirtualService exist.
 **Exit Code**: 0 on success, 1 on failure
-**Idempotency**: Running twice must exit 0 with no resource creation
-**Timeout**: Completes in under 2 minutes (per S2); external IP assigned within this window
-**Depends On**: STACK_MODE=aks, istio control plane running
-**Used By**: top-level `setup` target (depends on setup-istio), `get-service-endpoints`
-**Output**: Prints kubectl apply output; external IP is captured by `get-service-endpoints`
+**Idempotency**: Running twice must exit 0 with no resource creation (trivially true for a no-op)
+**Timeout**: Under a few seconds on AKS (no-op); not applicable to S1/S2 timing budgets, which are now both covered by `setup-istio` (see spec.md S1/S2 correction this round)
+**Depends On**: STACK_MODE=aks
+**Used By**: top-level `setup` target (depends on setup-istio); does not feed `get-service-endpoints` on AKS (that reads the Service `setup-istio` created directly)
+**Output**: Nothing on AKS for this story; logs a placeholder message noting story #102 will give this target real work
 
 ### destroy-istio-gateway (existing, EKS/local)
 **Description**: Remove ingress gateway Deployment, Service, and route CRDs on EKS/local
@@ -34,13 +36,13 @@
 **Used By**: `cleanup` target (EKS/local path only, unchanged by this story)
 
 ### cleanup-istio, cleanup-gateway (new, AKS)
-**Description**: AKS equivalents of `destroy-istio-gateway` — remove the Istio control plane and gateway respectively on AKS
+**Description**: `cleanup-istio` mirrors what `setup-istio` actually installs — all three Helm releases (istio-ingressgateway, istiod, istio-base), since `setup-istio` is what owns the LoadBalancer on AKS for this story. `cleanup-gateway` mirrors `setup-gateway`'s no-op: there is nothing for it to remove.
 **Open question, not yet resolved**: whether these are AKS-only new targets (leaving `destroy-istio-gateway` as the EKS/local-only path, two different names for the same job on different clouds) or whether the naming should be unified across all three platforms as a larger, separate cleanup. This story takes the narrower path — new AKS-only targets, `destroy-istio-gateway` untouched — since R8 requires the EKS/local target to stay byte-identical. Flagging this as a naming inconsistency worth a follow-up story, not solving it here.
 **Precondition**: None (safe to run even if not deployed)
-**Postcondition**: `cleanup-gateway`: no istio-ingressgateway Helm release or LoadBalancer Service. `cleanup-istio`: istio-system namespace exists but contains no istiod/istio-base pods.
+**Postcondition**: `cleanup-istio`: no istio-ingressgateway/istiod/istio-base Helm releases; no LoadBalancer Service; istio-system namespace exists but contains no user-created pods. `cleanup-gateway`: no-op, nothing to remove.
 **Exit Code**: 0 on success or if not deployed, 1 on error
 **Idempotency**: Running twice must exit 0 without error messages (per R7)
-**Depends On**: STACK_MODE=aks, helm CLI access
+**Depends On**: STACK_MODE=aks, helm CLI access (cleanup-istio only; cleanup-gateway needs neither, being a no-op)
 **Used By**: `cleanup` target, AKS branch (new, added by this story)
 
 ### get-service-endpoints
