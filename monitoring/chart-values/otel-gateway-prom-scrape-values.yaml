@@ -1,0 +1,187 @@
+# OTel Collector — GATEWAY tier with Prometheus scraping (Step 07)
+#
+# NOTE: the vanilla open-telemetry/opentelemetry-collector Helm chart does NOT
+# support a top-level `targetAllocator` key in its values schema (confirmed —
+# rejected under both "deployment" and "statefulset" modes). Target Allocator
+# + ServiceMonitor/PodMonitor CRD auto-discovery is only available when the
+# collector is deployed via the OpenTelemetry *Operator*'s OpenTelemetryCollector
+# CRD — a separate, heavier deployment model.
+#
+# For this scope we replicate the same outcome with direct scrape_configs in
+# the prometheusreceiver, targeting the exact endpoints two real ServiceMonitors
+# already cover in this cluster (verified via `kubectl get servicemonitors -A`):
+#   prometheus-stack-grafana               → port http-web, path /metrics
+#   prometheus-stack-kube-prom-prometheus  → ports http-web + reloader-web, path /metrics
+# This is the documented incremental path: "start with a couple of
+# ServiceMonitors" — functionally equivalent to CRD discovery for a small,
+# known target set. (kube-state-metrics / node-exporter are NOT deployed in
+# this cluster — confirmed via `kubectl get svc -n monitoring` — so they were
+# dropped in favor of these two, which actually exist.)
+mode: deployment
+replicaCount: 1
+fullnameOverride: otel-gateway
+
+image:
+  repository: otel/opentelemetry-collector-contrib
+
+presets:
+  kubernetesAttributes:
+    enabled: true
+    extractAllPodLabels: true
+  kubernetesEvents:
+    enabled: true
+  clusterMetrics:
+    enabled: true
+
+# The presets above grant RBAC for pods/namespaces/nodes/etc, but NOT for
+# endpoints/services — required by the prometheusreceiver's
+# kubernetes_sd_configs (role: endpoints) to discover scrape targets.
+# Confirmed missing via: "endpoints is forbidden" in collector logs.
+clusterRole:
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources: ["endpoints", "services"]
+      verbs: ["get", "list", "watch"]
+
+service:
+  type: ClusterIP
+
+ports:
+  otlp:
+    enabled: true
+    containerPort: 4317
+    servicePort: 4317
+    protocol: TCP
+  otlp-http:
+    enabled: true
+    containerPort: 4318
+    servicePort: 4318
+    protocol: TCP
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 768Mi
+
+nodeSelector:
+  workload: o11y
+
+tolerations:
+  - key: o11y
+    value: "true"
+    effect: NoSchedule
+
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc: { endpoint: 0.0.0.0:4317 }
+        http: { endpoint: 0.0.0.0:4318 }
+    # Direct scrape configs replicating two real ServiceMonitors already in
+    # this cluster — the "couple of ServiceMonitors" incremental migration
+    # step, without CRD discovery (see header note on why no Target Allocator).
+    prometheus:
+      config:
+        scrape_configs:
+          # Mirrors ServiceMonitor: prometheus-stack-grafana
+          # Grafana serves metrics under /grafana/metrics (301 redirect from
+          # /metrics — confirmed via curl). Scrapers don't follow redirects,
+          # so the path must be set explicitly.
+          - job_name: 'grafana'
+            scrape_interval: 30s
+            metrics_path: /grafana/metrics
+            kubernetes_sd_configs:
+              - role: endpoints
+                namespaces:
+                  names: ['monitoring']
+            relabel_configs:
+              - source_labels: [__meta_kubernetes_service_name]
+                action: keep
+                regex: prometheus-stack-grafana
+              - source_labels: [__meta_kubernetes_endpoint_port_name]
+                action: keep
+                regex: http-web
+              - source_labels: [__meta_kubernetes_namespace]
+                target_label: namespace
+              - source_labels: [__meta_kubernetes_service_name]
+                target_label: service
+          # Mirrors ServiceMonitor: prometheus-stack-kube-prom-prometheus
+          - job_name: 'prometheus-self'
+            scrape_interval: 30s
+            kubernetes_sd_configs:
+              - role: endpoints
+                namespaces:
+                  names: ['monitoring']
+            relabel_configs:
+              - source_labels: [__meta_kubernetes_service_name]
+                action: keep
+                regex: prometheus-stack-kube-prom-prometheus
+              - source_labels: [__meta_kubernetes_endpoint_port_name]
+                action: keep
+                regex: http-web|reloader-web
+              - source_labels: [__meta_kubernetes_namespace]
+                target_label: namespace
+              - source_labels: [__meta_kubernetes_service_name]
+                target_label: service
+    # k8sobjects + k8s_cluster injected by presets
+
+  processors:
+    memory_limiter:
+      check_interval: 5s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+    batch:
+      send_batch_size: 1024
+      timeout: 5s
+    resource/app-label:
+      attributes:
+        - action: insert
+          key: app
+          from_attribute: k8s.pod.labels.service
+        - action: upsert
+          key: app
+          from_attribute: k8s.pod.labels.app
+    resource/loki-labels:
+      attributes:
+        - action: insert
+          key: loki.resource.labels
+          value: service.name,k8s.namespace.name,k8s.pod.name,k8s.container.name,app
+
+  exporters:
+    otlp/tempo:
+      endpoint: tempo.monitoring.svc:4317
+      tls: { insecure: true }
+    otlphttp/loki:
+      endpoint: http://loki.monitoring.svc:3100/otlp
+      tls: { insecure: true }
+    prometheusremotewrite/prom:
+      endpoint: http://prometheus-stack-kube-prom-prometheus.monitoring.svc:9090/api/v1/write
+      tls: { insecure: true }
+      resource_to_telemetry_conversion:
+        enabled: true
+    debug:
+      verbosity: basic
+
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, k8sattributes, batch]
+        exporters: [otlp/tempo]
+      # Both OTLP-pushed app metrics AND scraped metrics share one pipeline.
+      metrics:
+        receivers: [otlp, prometheus]
+        processors: [memory_limiter, k8sattributes, batch]
+        exporters: [prometheusremotewrite/prom]
+      metrics/cluster:
+        receivers: [k8s_cluster]
+        processors: [memory_limiter, k8sattributes, batch]
+        exporters: [prometheusremotewrite/prom]
+      logs:
+        receivers: [otlp, k8sobjects]
+        processors: [memory_limiter, k8sattributes, resource/app-label, resource/loki-labels, batch]
+        exporters: [otlphttp/loki, debug]

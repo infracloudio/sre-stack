@@ -1,0 +1,32 @@
+# YACE Helm values — keep YACE as-is, write directly to Prometheus.
+# Chart: nerdswords/yet-another-cloudwatch-exporter
+serviceMonitor:
+  enabled: true   # so kube-prometheus-stack picks it up automatically
+
+# Example: scrape EC2 + RDS metrics. Replace with your real namespaces.
+config: |-
+  apiVersion: v1alpha1
+  sts-region: us-east-1
+  discovery:
+    jobs:
+      - type: AWS/EC2
+        regions: [us-east-1]
+        metrics:
+          - name: CPUUtilization
+            statistics: [Average]
+            period: 300
+            length: 300
+      - type: AWS/RDS
+        regions: [us-east-1]
+        metrics:
+          - name: CPUUtilization
+            statistics: [Average]
+            period: 300
+            length: 300
+
+# AWS credentials — point at a Secret you create out of band:
+#   kubectl -n observability create secret generic yace-aws \
+#     --from-literal=AWS_ACCESS_KEY_ID=... \
+#     --from-literal=AWS_SECRET_ACCESS_KEY=...
+extraEnvSecrets:
+  - yace-aws

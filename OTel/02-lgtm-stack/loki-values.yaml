@@ -1,0 +1,56 @@
+# Loki, single-binary mode, OTLP ingestion enabled.
+# We deliberately install with Promtail enabled at first (baseline), and
+# disable it in step 04-logs-migration once the collector is shipping logs.
+
+# CRITICAL: chart 7.x defaults to SimpleScalable mode. Without this flag,
+# setting read/write/backend replicas to 0 leaves you with zero Loki pods.
+deploymentMode: SingleBinary
+
+loki:
+  auth_enabled: false
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: filesystem
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+  # OTLP push endpoint at /otlp/v1/logs is enabled by default in Loki 3.x;
+  # leave it on so the OTel gateway can ship via otlphttp.
+  limits_config:
+    allow_structured_metadata: true
+    volume_enabled: true
+
+singleBinary:
+  replicas: 1
+  # Loki writes WAL + chunks to /var/loki. With persistence disabled the
+  # container's root filesystem is read-only, so it must have *some* writable
+  # volume — give it a 2Gi PVC backed by kind's local-path provisioner.
+  persistence:
+    enabled: true
+    size: 2Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+# Disable everything we don't need in single-binary mode
+read:
+  replicas: 0
+write:
+  replicas: 0
+backend:
+  replicas: 0
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
+
+# Promtail is shipped via the loki-stack chart as a separate release;
+# we control it from there.

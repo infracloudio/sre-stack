@@ -1,0 +1,70 @@
+# Loki 3.x — SingleBinary mode for k3d sre-stack-local cluster
+# Adapted from OTel/02-lgtm-stack/loki-values.yaml (upstream uses observability ns)
+# Key differences vs upstream: resource limits reduced for MacBook Air,
+# tolerations added for o11y nodes.
+deploymentMode: SingleBinary
+
+loki:
+  auth_enabled: false
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: filesystem
+  # schemaConfig (camelCase) is the Helm chart key — maps to schema_config in Loki config.
+  # Required by chart validator; useTestSchema is NOT used.
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+  # OTLP push endpoint at /otlp/v1/logs enabled by default in Loki 3.x.
+  # allow_structured_metadata required for OTel resource attributes.
+  limits_config:
+    allow_structured_metadata: true
+    volume_enabled: true
+
+singleBinary:
+  replicas: 1
+  nodeSelector:
+    workload: o11y
+  tolerations:
+    - key: o11y
+      value: "true"
+      effect: NoSchedule
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+  # PVC via k3d local-path provisioner — gives Loki a writable /var/loki
+  persistence:
+    enabled: true
+    size: 2Gi
+
+# Disable distributed-mode components
+read:
+  replicas: 0
+write:
+  replicas: 0
+backend:
+  replicas: 0
+
+# Disable optional dependencies
+gateway:
+  enabled: false
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
+minio:
+  enabled: false
+test:
+  enabled: false
+lokiCanary:
+  enabled: false

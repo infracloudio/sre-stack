@@ -1,0 +1,65 @@
+# OTel Collector — AGENT tier (DaemonSet, one pod per node)
+#
+# Step 3 scope: OTLP-in, OTLP-out to the gateway, with k8sattributes enrichment.
+# Logs (filelog) and host/kubelet metrics receivers come in steps 04 and 05.
+mode: daemonset
+fullnameOverride: otel-agent
+
+image:
+  repository: otel/opentelemetry-collector-contrib
+
+# Pre-baked presets handle RBAC + the fiddly volume mounts for us
+presets:
+  kubernetesAttributes:
+    enabled: true
+    extractAllPodLabels: true
+    extractAllPodAnnotations: false
+
+resources:
+  limits:
+    cpu: 256m
+    memory: 512Mi
+
+# Mount host /var/log/pods later for filelog (step 04). Not needed yet.
+
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+  processors:
+    memory_limiter:
+      check_interval: 5s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+    batch:
+      send_batch_size: 1024
+      timeout: 5s
+    # k8sattributes is injected automatically by the preset above
+
+  exporters:
+    # Forward everything to the gateway. The Service name follows the
+    # opentelemetry-collector chart pattern: <release>-collector.
+    otlp/gateway:
+      endpoint: otel-gateway.observability.svc:4317
+      tls:
+        insecure: true
+
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, k8sattributes, batch]
+        exporters: [otlp/gateway]
+      metrics:
+        receivers: [otlp]
+        processors: [memory_limiter, k8sattributes, batch]
+        exporters: [otlp/gateway]
+      logs:
+        receivers: [otlp]
+        processors: [memory_limiter, k8sattributes, batch]
+        exporters: [otlp/gateway]
