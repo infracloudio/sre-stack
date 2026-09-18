@@ -15,7 +15,7 @@
 **Used By**: top-level `setup` target (verified real target exists at makefile:51-63, currently EKS/local-only; this story adds the AKS branch). Not gated on story #101 — this story's setup-istio has no dependency on Grafana, since it creates no routes to it (see spec.md R3).
 
 ### setup-gateway
-**Description**: On EKS, applies an app-specific Gateway/VirtualService (`app/robot-shop/Istio/gateway.yaml`, makefile:152-154) — no Helm work, no LoadBalancer creation (that's `setup-istio`'s job, see above). On AKS for this story, a **no-op**: Robot Shop is out of scope (story #102), so there's nothing app-specific to apply yet. The target exists only so `make setup`'s target chain doesn't break when it calls `setup-gateway`.
+**Description**: On EKS, applies an app-specific Gateway/VirtualService (`app/robot-shop/Istio/gateway.yaml`, makefile:152-154) — no Helm work, no LoadBalancer creation (that's `setup-istio`'s job, see above). On AKS for this story, a **no-op**: Robot Shop is out of scope (story #102), so there's nothing app-specific to apply yet. Correction (independent audit): the composite `setup:` target under STACK_MODE=aks does not call `setup-gateway` at all today (verified: makefile:53-57 shows only `setup-cluster`) — an earlier draft's "so make setup doesn't break" rationale was false. This is a standalone target fix, invoked directly, matching how `setup-istio` is also extended standalone.
 **Precondition**: setup-istio must have completed successfully (so the gateway pods setup-gateway would route through, if it did anything, already exist)
 **Postcondition**: On AKS (this story): none — no resources created. On EKS (unchanged): robot-shop namespace and its Gateway/VirtualService exist.
 **Exit Code**: 0 on success, 1 on failure
@@ -26,7 +26,7 @@
 **Output**: Nothing on AKS for this story; logs a placeholder message noting story #102 will give this target real work
 
 ### destroy-istio-gateway (existing, EKS/local)
-**Description**: Remove ingress gateway Deployment, Service, and route CRDs on EKS/local
+**Description**: Correction (independent audit): the real target (makefile:196-201) only runs `helm uninstall istio-ingressgateway -n istio-system`, guarded by a check for whether the release exists. It removes the Helm release (which takes the Deployment and Service with it, since Helm owns them), but it does not separately touch any Gateway/VirtualService route CRDs — those are managed by `setup-gateway`'s `kubectl apply`, not by this target, and this target doesn't reverse that apply.
 **Verified**: exists today at makefile:196; wired into the real top-level `cleanup` target at makefile:226 (`cleanup: destroy-istio-gateway destroy-db-rds-mysql cleanup-cluster`, EKS path)
 **Precondition**: None (safe to run even if gateway not deployed)
 **Postcondition**: istio-ingressgateway Helm release uninstalled; no LoadBalancer service in istio-system
@@ -48,7 +48,7 @@
 ### get-service-endpoints
 **Description**: Print reachable load-balancer address and service URLs for the stack
 **Precondition**: setup-gateway must have completed; LoadBalancer Service has external IP
-**Postcondition**: Prints `LB_ENDPOINT=http://52.xxx.xxx.xxx:80` and service URLs
+**Postcondition**: Correction (independent audit): `LB_ENDPOINT` itself is a bare IP/hostname, not `http://...:80` (verified: makefile:43/45). Prints `LB_ENDPOINT=52.xxx.xxx.xxx` internally; the target's own `@echo` lines build full `http://` URLs from it separately.
 **Exit Code**: 0 on success
 **Idempotency**: Safe to run multiple times
 **Depends On**: STACK_MODE=aks, kubectl access
@@ -64,7 +64,7 @@
 | Variable | Scope | Used By | Example |
 |----------|-------|---------|---------|
 | STACK_MODE | global | setup, setup-istio, setup-gateway, cleanup | `aks` (others: `eks`, `local`) |
-| MONITORING_NS | global | istiod Helm values (tracing zipkin address) | `monitoring` |
+| MONITORING_NS | global | Correction (independent audit): the istiod tracing address (`zipkin.monitoring:9411`, makefile:77) is a hardcoded string, not `$(MONITORING_NS)` — the variable isn't actually referenced there, it just happens to match the default namespace name. Listed here only because a MONITORING_NS/zipkin address mismatch would be a real bug if the namespace were ever renamed. | `monitoring` |
 | APP_NS | global | gateway.yaml application, VirtualService routes | `robot-shop` |
 | CLUSTER_NAME | global | cluster metadata (future resource tags) | `sre-stack` |
 

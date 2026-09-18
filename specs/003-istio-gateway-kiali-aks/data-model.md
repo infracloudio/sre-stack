@@ -11,7 +11,7 @@
 | **Namespace** | istio-system | Matches EKS/local |
 | **Chart Version** | 1.30.4 | Pinned per-platform: AKS uses 1.30.4 (Istio 1.17.2 does not support Kubernetes 1.34, which story #97 pins for AKS — see research.md §1). EKS/local remain on 1.17.2, unchanged. |
 | **Install Method** | helm upgrade --install | Idempotent (Principle I) |
-| **Pod Placement** | AKS system node pool (no taint) | Per R10, resolved via `specs/001-azure-aks-setup/data-model.md:99` — the system pool carries no taint, so no tolerations or custom values are needed |
+| **Pod Placement** | AKS system node pool (no taint) | Per R10, resolved via `specs/001-azure-aks-setup/data-model.md:96` (corrected — line 99 is the tainted o11y row, not the system pool; caught by independent audit) — the system pool carries no taint, so no tolerations or custom values are needed |
 | **Tracing Address** | zipkin.monitoring:9411 | From current setup-istio |
 | **Pilot Trace Sampling** | 100% | From current setup-istio |
 
@@ -77,6 +77,6 @@ The `project=sre-stack` / `environment=aks` tagging convention in earlier drafts
 
 - **Idempotency (R6)**: Running setup-istio or setup-gateway twice must exit 0 with no "Creating" output on second run. Validated via `helm status` check.
 - **Resource Cleanup (R7)**: After cleanup-gateway and cleanup-istio, `kubectl get all -n istio-system` must not include user-created resources; system pods may remain.
-- **External IP Assignment (R4, S2)**: LoadBalancer Service must acquire external IP within 2 minutes of creation.
+- **External IP Assignment (R4, S2)**: Correction (stale, fixed now): S2 no longer has a separate 2-minute budget — the LoadBalancer Service's IP acquisition is folded into S1's 5-minute budget for `setup-istio`, since `setup-gateway` does no work on AKS for this story (see spec.md R2 correction).
 - **Pod Readiness (S1)**: All istiod and ingress-gateway pods must reach Running state within 5 minutes.
 - **Cross-cloud Consistency (R1, R2, R8)**: makefile target names and the check-then-create pattern match EKS/local; the Istio chart version is pinned per-platform (see R1) rather than byte-identical, because 1.17.2 cannot run on AKS's Kubernetes 1.34.

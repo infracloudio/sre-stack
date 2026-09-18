@@ -12,13 +12,13 @@
 | istiod | istio/istiod | 1.30.4 | istio-system | none (system pool default) | Control plane pods |
 | istio-ingressgateway | istio/gateway | 1.30.4 | istio-system | none (system pool default) | Gateway pods (receives external traffic) |
 
-Version note: pinned to 1.30.4 rather than EKS/local's 1.17.2, because 1.17.2 does not support Kubernetes 1.34 (AKS's pinned version per story #97). See research.md §1 — 1.31.x may also be a valid choice pending Helm chart verification, unconfirmed as of this writing.
+Version note: pinned to 1.30.4 rather than EKS/local's 1.17.2, because 1.17.2 does not support Kubernetes 1.34 (AKS's pinned version per story #97). Correction (this was stale, fixed now): the 1.31.x question is resolved, not open — the Architect's real `helm search` (research.md §2) confirmed no 1.31.x chart is published yet, so 1.30.4 is the newest installable option, not a runner-up pending confirmation.
 
 ## Pod Placement Contract (per R10 / Constitution V)
 
 **istiod pods**:
 - Scheduled on the AKS system node pool (default scheduling; no toleration needed)
-- Rationale: `specs/001-azure-aks-setup/data-model.md:99` shows the system pool carries no taint, unlike the four workload pools (app/persistent/o11y/loadgen). No custom Helm values required.
+- Rationale: `specs/001-azure-aks-setup/data-model.md:96` (corrected from a wrong citation of line 99, which is actually the tainted o11y row — caught by independent audit, verified via `sed -n '96,99p'`) shows the system pool carries no taint, unlike the four workload pools (app/persistent/o11y/loadgen). No custom Helm values required.
 
 **istio-ingressgateway pods**:
 - Same placement as istiod: AKS system node pool, no toleration needed

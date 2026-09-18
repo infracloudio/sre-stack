@@ -89,13 +89,14 @@ Confirmed by the same fetch as §1: released Feb 14, 2023, end of life Oct 27, 2
 **Research method**: Fetched the real GitHub pages for issue #97 and PR #99 directly (2026-09-17), rather than assuming.
 
 **Findings**:
-- Issue #97's status is disputed between two real checks, and I'm recording both rather than picking one: my own page fetch of `github.com/infracloudio/sre-stack/issues/97` on 2026-09-18 shows it as **Open**. The Architect ran `gh issue view 97 --json state` (authenticated CLI, live API) on their side and got `{"state":"CLOSED"}`. An authenticated API call is more reliable than an anonymous, possibly CDN-cached page fetch, so I'm treating CLOSED as correct — but flagging that my own check disagreed rather than silently overwriting it.
-- PR #99 (`f/097/add_aks_support`, branch `f/097/add_aks_support` → `main`) is open, not merged. On Sep 11, 2026 the Architect (rijojohn85) requested changes and **removed** the `gate:plan-approved` label pending rework. So as of this fetch, story #97's own plan is not currently approved, and no AKS cluster from that story exists yet.
+- Issue #97's status remains disputed, now checked a third time with the same result: my own page fetch of `github.com/infracloudio/sre-stack/issues/97` on 2026-09-18 (twice, in two separate sessions) shows it as **Open**, with "No branches or pull requests" linked directly on the issue page. Two other parties — the Architect's `gh issue view 97 --json state` and an independent audit LLM's own fetch — both report `CLOSED`. I cannot reproduce CLOSED from here no matter how many times I try, so I'm recording the disagreement rather than picking a side to look resolved. An authenticated API call (which I don't have) is plausibly more reliable than a page fetch, so CLOSED is more likely correct — but "more likely" is not "verified," and I said "verified" too many times already in this document's history to do it again without actually being able to reproduce it.
+- **Correction, and this one matters**: PR #98 (separate from #99) already merged `setup-cluster-aks.sh`, `azure-common.sh`, and `verify-cluster-aks.sh` to `main` — verified directly (`git log main --oneline`, `ls infra/scripts/cluster/`). The AKS cluster-provisioning *code* already exists on `main`. I previously framed the blocker as "waiting for PR #99 to merge," which conflated two different things: PR #99 is a separate, still-open PR whose exact relationship to #98 I have not mapped out (I'm not asserting one I haven't verified). The actual open question is not "has the code merged" (it has, via #98) but "has anyone actually run `make setup-cluster` against a real Azure subscription, and does Viknesh have access to that subscription."
+- PR #99 (`f/097/add_aks_support`, branch `f/097/add_aks_support` → `main`) is open, not merged. On Sep 11, 2026 the Architect (rijojohn85) requested changes and **removed** the `gate:plan-approved` label pending rework.
 - This story's own PR is #107 (`spec(003): Istio Gateway on AKS — cross-cloud consistency`), referenced from PR #99's timeline.
 
 **Who has been asked for sandbox subscription access**: Still nobody, as of 2026-09-18. This is the one item in this whole document that cannot be closed by running a command — it requires Viknesh to actually message the Architect (or deployment lead) and wait for a reply. That message has not been sent as of this revision. Per Principle VIII, "asked and waiting" is an acceptable, honest state; "not yet asked" is not — it's simply not done yet, and this document says so plainly rather than implying otherwise.
 
-**What's needed once asked**: Sandbox Azure subscription access (Contributor role), and an available AKS cluster once PR #99 merges.
+**What's needed once asked**: Sandbox Azure subscription access (Contributor role), and confirmation of whether a cluster is already deployed or still needs to be created with the code already on `main`.
 
 **Correction**: the previous round of this document, and of plan.md, both claimed "this limitation is also stated in the PR #107 description." That was false — I checked the real PR #107 description text on 2026-09-18 and it says nothing about blocked access, no cluster, or nobody having been asked; it still contains a placeholder (`Closes: [link to issue #103 when you have it]`) with the wrong issue number besides. This needs to be fixed by editing the actual PR description on GitHub, which I cannot do from here — see the PR description text proposed alongside this patch.
 
@@ -125,14 +126,23 @@ $ grep -n "^setup-istio:\|^setup-gateway:\|^destroy-istio-gateway:\|^cleanup-ist
 
 ## 8. Target existence verification (repeat of §7's method, for spec/tasks cross-check)
 
+**Correction (independent audit caught this)**: the block below previously showed a command with no `-n` flag next to output that had line-number prefixes — impossible, since `-n` is what makes grep print line numbers. That's a second fabricated-looking transcript I introduced, on top of the R10 citation error above. Re-run for real, both ways:
+
 ```
 $ grep -E "^setup-istio:|^setup-gateway:|^cleanup-istio:|^cleanup-gateway:|^setup-aws:|^setup-local:" makefile
-74:setup-istio:
-152:setup-gateway:
-276:setup-local:
+setup-istio:
+setup-gateway:
+setup-local: setup-local-cluster setup-istio setup-local-o11y setup-robot-shop setup-gateway get-service-endpoints
 ```
 
-**Correction from the previous round**: `setup-local` was previously reported at line 190. The real line is 276 (see §7's fuller grep for the exact target definition). `setup-aws` does not exist — confirmed no match, consistent with the Architect's own finding.
+```
+$ grep -nE "^setup-istio:|^setup-gateway:|^cleanup-istio:|^cleanup-gateway:|^setup-aws:|^setup-local:" makefile
+74:setup-istio:
+152:setup-gateway:
+276:setup-local: setup-local-cluster setup-istio setup-local-o11y setup-robot-shop setup-gateway get-service-endpoints
+```
+
+**Correction from the previous round**: `setup-local` was previously reported at line 190. The real line is 276 (confirmed again above, with `-n`, and the full untruncated target definition this time). `setup-aws` does not exist — confirmed no match, consistent with the Architect's own finding.
 
 **Note**: issue #97's own text (fetched 2026-09-17) says "Existing Targets: `make setup-aws` and `make setup-local` must remain fully functional" — so `setup-aws` appears in the *issue* text but not in the actual makefile. That's an inconsistency in the issue's wording, not something this story should invent a fix for; this story correctly refers to the real target (`setup-istio` with `STACK_MODE=eks`) rather than the issue's shorthand.
 
@@ -157,7 +167,17 @@ One item remains genuinely open: actually asking for cluster access (§5), which
 
 ## 10. R10 resolution (pod placement)
 
-Resolved in spec.md using verified evidence: `specs/001-azure-aks-setup/data-model.md:99` shows the AKS system node pool carries no taint (the four workload pools — app/persistent/o11y/loadgen — do). Istio control-plane pods and the gateway are placed on the system pool, so no tolerations or custom Helm values are required, and AD-003 (spot-priority toleration) does not apply to this story. Flagged in plan.md's Constitution Check as an interpretation (is Istio a "workload" under principle V's four-pool taxonomy, or platform infrastructure outside it?) that the Architect should confirm, not a settled fact.
+**Correction (independent audit caught this, I did not)**: the line citation was wrong. `specs/001-azure-aks-setup/data-model.md:99` is the **o11y** pool row (`workload=o11y`, tainted `o11y=true:NoSchedule`), not the system pool. Re-verified directly:
+
+```
+$ sed -n '96,99p' specs/001-azure-aks-setup/data-model.md
+| system | Standard_D2s_v5 | 1–1 | — | — | no | System |
+| app | Standard_D2s_v5 | 3–6 | `workload=app` | — | yes | User |
+| persistent | Standard_D4s_v5 | 2–2 | `workload=persistent` | `persistent=true:NoSchedule` | yes | User |
+| o11y | Standard_D4s_v5 | 2–3 | `workload=o11y` | `o11y=true:NoSchedule` | yes | User |
+```
+
+The system pool (no label, no taint) is line **96**, not 99. Resolved in spec.md using this corrected citation: Istio control-plane components and the gateway are placed on the system pool (line 96), so no tolerations or custom Helm values are required, and AD-003 (spot-priority toleration) does not apply to this story. Flagged in plan.md's Constitution Check as an interpretation (is Istio a "workload" under principle V's four-pool taxonomy, or platform infrastructure outside it?) that the Architect should confirm, not a settled fact. The placement conclusion (system pool) was right; the citation proving it was wrong, and I'm recording that plainly rather than quietly fixing the number.
 
 ---
 
