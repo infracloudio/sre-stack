@@ -72,10 +72,14 @@ setup-cluster-autoscaler:
 	$(CLUSTER_SCRIPT_PATH)/setup-cluster-autoscaler.sh
 
 setup-istio:
+ifeq ($(STACK_MODE),aks)
+	$(CLUSTER_SCRIPT_PATH)/setup-istio-aks.sh
+else
 	helm repo add istio https://istio-release.storage.googleapis.com/charts && helm repo update
 	helm upgrade --install istio-base istio/base -n istio-system --create-namespace --version 1.17.2 --wait --timeout 2m0s
 	helm upgrade --install istiod istio/istiod -n istio-system --version 1.17.2 --set meshConfig.defaultConfig.tracing.zipkin.address=zipkin.monitoring:9411 --set pilot.traceSampling=100 --wait --timeout 2m0s
 	helm upgrade --install istio-ingressgateway istio/gateway -n istio-system --version 1.17.2 --wait --timeout 2m0s
+endif
 
 setup-db-grafana-psql:
 	kubectl create ns $(MONITORING_NS) --dry-run=client -o yaml | kubectl apply -f -
@@ -150,8 +154,12 @@ setup-hotrod:
 	kustomize build app/hotrod | kubectl apply -f -	
 
 setup-gateway:
+ifeq ($(STACK_MODE),aks)
+	$(CLUSTER_SCRIPT_PATH)/setup-gateway-aks.sh
+else
 	kubectl create namespace robot-shop --dry-run=client -o yaml | kubectl apply -f -
 	kubectl apply -f ./app/robot-shop/Istio/gateway.yaml -n $(APP_NS)
+endif
 
 
 setup-keda:
@@ -208,6 +216,12 @@ destroy-cluster-autoscaler:
 
 destroy-yace:
 	$(CLUSTER_SCRIPT_PATH)/destroy-yace.sh
+
+cleanup-istio:
+	$(CLUSTER_SCRIPT_PATH)/cleanup-istio.sh
+
+cleanup-gateway:
+	$(CLUSTER_SCRIPT_PATH)/cleanup-gateway.sh
 
 ifeq ($(STACK_MODE),aks)
 cleanup-cluster:
