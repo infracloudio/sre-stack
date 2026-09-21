@@ -9,19 +9,19 @@
 | Release | Chart | Version | Namespace | Selector Labels | Purpose |
 |---------|-------|---------|-----------|-----------------|---------|
 | istio-base | istio/base | 1.30.4 | istio-system | N/A (cluster-scoped CRDs) | Cluster resource definitions |
-| istiod | istio/istiod | 1.30.4 | istio-system | none (system pool default) | Control plane pods |
-| istio-ingressgateway | istio/gateway | 1.30.4 | istio-system | none (system pool default) | Gateway pods (receives external traffic) |
+| istiod | istio/istiod | 1.30.4 | istio-system | none (pinned to system pool via `nodeSelector`) | Control plane pods |
+| istio-ingressgateway | istio/gateway | 1.30.4 | istio-system | none (pinned to system pool via `nodeSelector`) | Gateway pods (receives external traffic) |
 
 Version note: pinned to 1.30.4 rather than EKS/local's 1.17.2, because 1.17.2 does not support Kubernetes 1.34 (AKS's pinned version per story #97). No 1.31.x chart is published (the Architect's real `helm search`, research.md §2, confirmed this), so 1.30.4 is the newest installable option.
 
 ## Pod Placement Contract (per R10 / Constitution V)
 
 **istiod pods**:
-- Scheduled on the AKS system node pool (default scheduling; no toleration needed)
-- Rationale: `specs/001-azure-aks-setup/data-model.md:96` (verified via `sed -n '96,99p'`) shows the system pool carries no taint, unlike the four workload pools (app/persistent/o11y/loadgen). No custom Helm values required.
+- Scheduled on the AKS system node pool via an explicit `nodeSelector` (`kubernetes.azure.com/mode=system`) set in `setup-istio-aks.sh`. No toleration needed — the system pool carries no taint.
+- Rationale: `specs/001-azure-aks-setup/data-model.md:96` (verified via `sed -n '96,99p'`) shows the system pool carries no taint, unlike the four workload pools (app/persistent/o11y/loadgen) — but the app pool is untainted too, so the `nodeSelector` is what actually enforces this placement. Confirmed on a real AKS 1.34 cluster: without it, both pods landed on the app pool.
 
 **istio-ingressgateway pods**:
-- Same placement as istiod: AKS system node pool, no toleration needed
+- Same placement as istiod: AKS system node pool via the same `nodeSelector`, no toleration needed
 
 ## CRDs & Validation
 

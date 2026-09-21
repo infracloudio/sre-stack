@@ -6,6 +6,15 @@ source "${GIT_TLD}/.env"
 
 echo "Setting up Istio ${ISTIO_VERSION} on AKS in namespace ${ISTIO_NAMESPACE}..."
 
+# AKS labels every system-pool node kubernetes.azure.com/mode=system (every other
+# pool is labeled kubernetes.azure.com/mode=user). Neither the system pool nor the
+# app pool carries a taint, so with no explicit nodeSelector the default scheduler
+# is free to place istiod/the ingress gateway on either -- observed in practice to
+# land on the app pool instead. Pin both to the system pool label explicitly so
+# platform infrastructure doesn't consume capacity reserved for app workloads.
+SYSTEM_POOL_LABEL_KEY='kubernetes\.azure\.com/mode'
+SYSTEM_POOL_LABEL_VALUE='system'
+
 # Add Helm repo
 helm repo add istio https://istio-release.storage.googleapis.com/charts
 helm repo update
@@ -31,6 +40,7 @@ else
     helm upgrade --install istiod istio/istiod \
         -n "${ISTIO_NAMESPACE}" \
         --version "${ISTIO_VERSION}" \
+        --set "pilot.nodeSelector.${SYSTEM_POOL_LABEL_KEY}=${SYSTEM_POOL_LABEL_VALUE}" \
         --wait \
         --timeout "${HELM_TIMEOUT}"
 fi
@@ -43,6 +53,7 @@ else
     helm upgrade --install istio-ingressgateway istio/gateway \
         -n "${ISTIO_NAMESPACE}" \
         --version "${ISTIO_VERSION}" \
+        --set "nodeSelector.${SYSTEM_POOL_LABEL_KEY}=${SYSTEM_POOL_LABEL_VALUE}" \
         --wait \
         --timeout "${HELM_TIMEOUT}"
 fi

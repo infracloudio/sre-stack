@@ -4,7 +4,7 @@
 
 ### setup-istio
 **Description**: Deploy Istio control plane (istio-base, istiod) AND the ingress gateway (istio/gateway chart) to AKS — three Helm installs in sequence, matching EKS exactly. On EKS, all three charts are installed by this same target (verified: `sed -n '74,90p' makefile`); the gateway is not a separate concern from `setup-istio`, it's part of the same Helm sequence.
-**Precondition**: AKS cluster must exist with node pools (per R10, no special label or taint tolerance needed — Istio schedules onto the untainted system pool by default)
+**Precondition**: AKS cluster must exist with node pools (per R10, no taint tolerance needed since the system pool is untainted; placement itself is enforced by an explicit `nodeSelector` in `setup-istio-aks.sh`, not by default scheduling — see kubernetes-resources.md's Pod Placement Contract)
 **Postcondition**: istiod and gateway Deployments Running in istio-system namespace; `istio-ingressgateway` Service has (or is acquiring) an external IP
 **Exit Code**: 0 on success, 1 on failure
 **Idempotency**: Running twice must exit 0 on second run with no resource creation

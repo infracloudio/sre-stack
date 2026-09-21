@@ -161,7 +161,7 @@ _azure_skus_out() {
 # "not found in cache") is an unrelated failure and must never read as
 # absent, or a duplicate gets created (T057).
 _az_err_is_not_found() {  # $1 stderr capture of an az show/exists call
-    grep -qE '^(ERROR: )?\((ResourceNotFound|ResourceGroupNotFound|AgentPoolNotFound)\)|^Code: (ResourceNotFound|ResourceGroupNotFound|AgentPoolNotFound)$' \
+    grep -qE '^(ERROR: )?\((ResourceNotFound|ResourceGroupNotFound|AgentPoolNotFound|NotFound)\)|^Code: (ResourceNotFound|ResourceGroupNotFound|AgentPoolNotFound|NotFound)$' \
         "$1" 2>/dev/null
 }
 
@@ -552,20 +552,6 @@ else
 fi
 echo "allowance check: spot ${AZURE_SPOT_VCPU_CURRENT}/${AZURE_SPOT_VCPU_LIMIT} (need ${_azure_missing_spot} for missing workload pools), DSv5 ${AZURE_DSV5_VCPU_CURRENT}/${AZURE_DSV5_VCPU_LIMIT} (need ${_azure_missing_dsv5} + ${_azure_missing_system} for the system pool), FSv2 ${AZURE_FSV2_VCPU_CURRENT}/${AZURE_FSV2_VCPU_LIMIT} (need ${_azure_missing_fsv2}) — chosen mode: ${AZURE_POOL_MODE}"
 
-# get_lb_endpoint_aks() — fetch the external IP of the istio-ingressgateway Service.
-# Prints a bare IP (e.g., 52.xxx.xxx.xxx), no scheme, no port.
-# Returns 0 on success, 1 if the service doesn't exist or has no external IP yet.
-get_lb_endpoint_aks() {
-    local external_ip
-    external_ip=$(kubectl get svc istio-ingressgateway -n istio-system \
-        -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
-    if [ -n "${external_ip}" ] && [ "${external_ip}" != "<none>" ]; then
-        echo "${external_ip}"
-        return 0
-    else
-        return 1
-    fi
-}
 
 export AZURE_POOL_MODE AZURE_SPOT_VCPU_CURRENT AZURE_SPOT_VCPU_LIMIT \
     AZURE_DSV5_VCPU_CURRENT AZURE_DSV5_VCPU_LIMIT \

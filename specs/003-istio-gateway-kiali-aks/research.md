@@ -65,7 +65,7 @@ $ grep -n "helm upgrade --install istio" makefile
 78:	helm upgrade --install istio-ingressgateway istio/gateway -n istio-system --version 1.17.2 --wait --timeout 2m0s
 ```
 
-**Conclusion**: EKS/local use Istio 1.17.2 at makefile:76-78, with inline `--set` flags on the istiod line (pre-existing; this story does not touch these lines per R8, and does not add new inline `--set` chains of its own since R10 resolved to default system-pool scheduling — no custom values required).
+**Conclusion**: EKS/local use Istio 1.17.2 at makefile:76-78, with inline `--set` flags on the istiod line (pre-existing; this story does not touch these lines per R8). AKS's own `setup-istio-aks.sh` adds one `--set` chain of its own — a `nodeSelector` pinning istiod and the gateway to the system pool (see research.md §10) — which has no EKS/local equivalent since this story leaves those lines untouched.
 
 ---
 
@@ -168,7 +168,7 @@ $ sed -n '96,99p' specs/001-azure-aks-setup/data-model.md
 | o11y | Standard_D4s_v5 | 2–3 | `workload=o11y` | `o11y=true:NoSchedule` | yes | User |
 ```
 
-The system pool (no label, no taint) is line 96. Resolved in spec.md using this citation: Istio control-plane components and the gateway are placed on the system pool (line 96), so no tolerations or custom Helm values are required, and AD-003 (spot-priority toleration) does not apply to this story. Flagged in plan.md's Constitution Check as an interpretation (is Istio a "workload" under principle V's four-pool taxonomy, or platform infrastructure outside it?) that the Architect should confirm, not a settled fact.
+The system pool (no label, no taint) is line 96. The app pool (line 97) carries no taint either, so a bare `helm upgrade --install` with no `nodeSelector` is not guaranteed to land on the system pool — confirmed on a real AKS 1.34 cluster, where both istiod and the gateway pods were scheduled onto the app pool instead. `setup-istio-aks.sh` sets an explicit `nodeSelector` (`kubernetes.azure.com/mode=system`) on both releases to enforce R10's placement. No tolerations are required, since neither pool is tainted; AD-003 (spot-priority toleration) does not apply to this story. Flagged in plan.md's Constitution Check as an interpretation (is Istio a "workload" under principle V's four-pool taxonomy, or platform infrastructure outside it?) that the Architect should confirm, not a settled fact.
 
 ---
 

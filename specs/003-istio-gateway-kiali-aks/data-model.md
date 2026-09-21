@@ -11,7 +11,7 @@
 | **Namespace** | istio-system | Matches EKS/local |
 | **Chart Version** | 1.30.4 | Pinned per-platform: AKS uses 1.30.4 (Istio 1.17.2 does not support Kubernetes 1.34, which story #97 pins for AKS — see research.md §1). EKS/local remain on 1.17.2, unchanged. |
 | **Install Method** | helm upgrade --install | Idempotent (Principle I) |
-| **Pod Placement** | AKS system node pool (no taint) | Per R10, resolved via `specs/001-azure-aks-setup/data-model.md:96` — the system pool carries no taint, so no tolerations or custom values are needed |
+| **Pod Placement** | AKS system node pool, via `nodeSelector` | Per R10 — the system pool carries no taint (`specs/001-azure-aks-setup/data-model.md:96`), but so does the app pool, so `setup-istio-aks.sh` sets an explicit `nodeSelector` (`kubernetes.azure.com/mode=system`) on this release; without it, pods were observed landing on the app pool instead |
 | **Tracing Address** | zipkin.monitoring:9411 | This is EKS/local's existing value (makefile:77), unchanged there per R8. Open question, not resolved here: whether AKS's new `setup-istio-aks.sh` also passes this flag — see plan.md's Constitution Check, Principle II row. |
 | **Pilot Trace Sampling** | 100% | Same open question as Tracing Address above — EKS/local's existing value, not yet decided for AKS |
 
@@ -34,7 +34,7 @@
 | **Namespace** | istio-system | Same as control plane |
 | **Chart Version** | 1.30.4 | Same per-platform pin as istio-base/istiod above |
 | **Service Type** | LoadBalancer | Acquires external IP from Azure LB |
-| **Pod Placement** | AKS system node pool (no taint) | Per R10, same reasoning as control plane above |
+| **Pod Placement** | AKS system node pool, via `nodeSelector` | Per R10, same reasoning as control plane above |
 | **External IP** | Assigned by Azure | Format: 52.xxx.xxx.xxx. `LB_ENDPOINT` is a make variable, assigned at makefile file scope — never exported to the shell environment. |
 | **Ports** | 80:HTTP | 443:HTTPS is future work, not part of this story |
 
