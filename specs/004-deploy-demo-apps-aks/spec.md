@@ -66,10 +66,10 @@ Anyone who already deploys Robot Shop or HotROD to Amazon's cloud, or to their o
 
 ### Functional Requirements
 
-- **FR-001**: Deploying Robot Shop to the AKS cluster MUST use the same deployment command already used to deploy it elsewhere, with no new steps required.
+- **FR-001**: Robot Shop MUST be deployable to the AKS cluster through a single, repeatable deployment command, matching the same command shape already used for other clusters. The command is not currently working on any cluster and restoring it to a working state is part of this story.
 - **FR-002**: All parts of Robot Shop — the store itself and the databases it depends on — MUST be placed within the sections of the cluster already set aside for applications and for data storage.
 - **FR-003**: Robot Shop's databases MUST run inside the cluster; the store MUST NOT depend on any managed database service outside the cluster.
-- **FR-004**: Deploying HotROD to the AKS cluster MUST use the same deployment command already used to deploy it elsewhere, with no new steps required.
+- **FR-004**: HotROD MUST be deployable to the AKS cluster through a single, repeatable deployment command, matching the same command shape already used for other clusters. The command is not currently working on any cluster and restoring it to a working state is part of this story.
 - **FR-005**: HotROD MUST be placed within the section of the cluster already set aside for applications.
 - **FR-006**: Robot Shop and HotROD MUST be sized modestly on this cluster — a single copy of each service, using minimal compute — since this is for demonstration, not for handling real production load. Exact resource requests and limits are determined during Phase 0 research based on actual measurements from the AKS cluster.
 - **FR-007**: Data that Robot Shop's databases store MUST survive a restart of the pieces that hold it.
@@ -106,5 +106,5 @@ Anyone who already deploys Robot Shop or HotROD to Amazon's cloud, or to their o
 
 - The AKS cluster, and the sections of it set aside for applications and for data storage, already exist from the earlier cluster story.
 - The monitoring tools may already be running on the cluster, or may be added independently; this story does not depend on the order the two are done in.
-- The existing deployment commands for Robot Shop and HotROD already work correctly elsewhere and only need to work against this new cluster.
+- The deployment commands for Robot Shop and HotROD are currently disabled everywhere (not just for AKS) and restoring them to a working state is in scope for this story, not a separate prerequisite.
 - No new user-facing feature is being added to either app; they are deployed as they already exist today.
