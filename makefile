@@ -38,7 +38,8 @@ $(error STACK_MODE is '$(STACK_MODE)' but must be eks | local | aks — set it i
 endif
 
 REQUIRED_VARS := AWS_REGION CLUSTER_NAME RDS_MYSQL_DB_NAME AUTO_SCALING_GROUP_POLICY_NAME MONITORING_NS RABBITMQ_NS APP_NS RDS_MYSQL_DB_MASTER_PASSWORD APP_RELEASE_NAME APP_SETUP_TIMEOUT LOCAL_APP_SETUP_TIMEOUT APP_STACK STACK_MODE LOCAL_NODES INOTIFY_MAX_USER_INSTANCES INOTIFY_MAX_USER_WATCHES
-MYSQL_HOST=$(shell aws rds describe-db-instances --db-instance-identifier $(RDS_MYSQL_DB_NAME)  --region $(AWS_REGION) --query 'DBInstances[*].Endpoint.Address' --output text --no-cli-pager)
+# AWS-specific; commented out for now, returns in a future PR (see setup-robot-shop below)
+# MYSQL_HOST=$(shell aws rds describe-db-instances --db-instance-identifier $(RDS_MYSQL_DB_NAME)  --region $(AWS_REGION) --query 'DBInstances[*].Endpoint.Address' --output text --no-cli-pager)
 ifeq ($(STACK_MODE),eks)
 LB_ENDPOINT=$(shell kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 else 
@@ -55,12 +56,13 @@ ifeq ($(STACK_MODE),aks)
 # no application or observability installs. The workloads come in later
 # stories, exactly as the Azure spec scopes them.
 setup: setup-cluster
-else ifeq ($(APP_STACK),hotrod)
-setup: setup-cluster setup-cluster-autoscaler setup-istio setup-observability setup-hotrod setup-gateway get-service-endpoints
-else ifeq ($(APP_STACK),robot-shop)
-setup: setup-cluster setup-cluster-autoscaler setup-yace setup-istio setup-observability setup-db-rds-mysql setup-rabbitmq-operator setup-robot-shop setup-gateway get-service-endpoints
-else ifeq ($(APP_STACK),all)
-setup: setup-cluster setup-cluster-autoscaler setup-yace setup-istio setup-observability setup-db-rds-mysql setup-rabbitmq-operator setup-robot-shop setup-hotrod setup-gateway get-service-endpoints
+# AWS/app-specific composite chains; commented out for now, return in a future PR
+# else ifeq ($(APP_STACK),hotrod)
+# setup: setup-cluster setup-cluster-autoscaler setup-istio setup-observability setup-hotrod setup-gateway get-service-endpoints
+# else ifeq ($(APP_STACK),robot-shop)
+# setup: setup-cluster setup-cluster-autoscaler setup-yace setup-istio setup-observability setup-db-rds-mysql setup-rabbitmq-operator setup-robot-shop setup-gateway get-service-endpoints
+# else ifeq ($(APP_STACK),all)
+# setup: setup-cluster setup-cluster-autoscaler setup-yace setup-istio setup-observability setup-db-rds-mysql setup-rabbitmq-operator setup-robot-shop setup-hotrod setup-gateway get-service-endpoints
 else 
 	@echo "Nothing to setup"
 endif
@@ -68,14 +70,19 @@ endif
 setup-cluster:
 	$(CLUSTER_SCRIPT_PATH)/setup-cluster.sh
 
-setup-cluster-autoscaler:
-	$(CLUSTER_SCRIPT_PATH)/setup-cluster-autoscaler.sh
+# AWS-specific; commented out for now, returns in a future PR
+# setup-cluster-autoscaler:
+# 	$(CLUSTER_SCRIPT_PATH)/setup-cluster-autoscaler.sh
 
 setup-istio:
+ifeq ($(STACK_MODE),aks)
+	$(CLUSTER_SCRIPT_PATH)/setup-istio-aks.sh
+else
 	helm repo add istio https://istio-release.storage.googleapis.com/charts && helm repo update
 	helm upgrade --install istio-base istio/base -n istio-system --create-namespace --version 1.17.2 --wait --timeout 2m0s
 	helm upgrade --install istiod istio/istiod -n istio-system --version 1.17.2 --set meshConfig.defaultConfig.tracing.zipkin.address=zipkin.monitoring:9411 --set pilot.traceSampling=100 --wait --timeout 2m0s
 	helm upgrade --install istio-ingressgateway istio/gateway -n istio-system --version 1.17.2 --wait --timeout 2m0s
+endif
 
 setup-db-grafana-psql:
 	kubectl create ns $(MONITORING_NS) --dry-run=client -o yaml | kubectl apply -f -
@@ -112,8 +119,9 @@ setup-metric-server:
 	helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/  && helm repo update
 	helm upgrade --install metrics-server metrics-server/metrics-server --values ./monitoring/chart-values/metric-server.yaml -n $(MONITORING_NS) --create-namespace
 
-setup-yace:
-	$(CLUSTER_SCRIPT_PATH)/setup-yace.sh
+# AWS-specific (CloudWatch exporter); commented out for now, returns in a future PR
+# setup-yace:
+# 	$(CLUSTER_SCRIPT_PATH)/setup-yace.sh
 
 setup-istio-o11y-addons:
 	kubectl apply -f  monitoring/istio-observability-addons/
@@ -121,7 +129,8 @@ setup-istio-o11y-addons:
 setup-dashboards:
 	kubectl apply -f ./monitoring/dashboards/
 
-setup-observability: setup-db-grafana-psql setup-kube-prometheus-stack setup-loki setup-beyla setup-tempo setup-caretta setup-metric-server setup-yace setup-istio-o11y-addons setup-dashboards
+# setup-yace dropped here: AWS-specific, commented out below, returns in a future PR
+setup-observability: setup-db-grafana-psql setup-kube-prometheus-stack setup-loki setup-beyla setup-tempo setup-caretta setup-metric-server setup-istio-o11y-addons setup-dashboards
 
 setup-optional-otel:
 	kubectl create ns $(MONITORING_NS) --dry-run=client -o yaml | kubectl apply -f -
@@ -130,40 +139,53 @@ setup-optional-otel:
 	helm upgrade --install opentelemetry-collector open-telemetry/opentelemetry-collector --values ./monitoring/chart-values/otel-collector.yaml -n $(MONITORING_NS)
 
 
-setup-db-rds-mysql:
-	./infra/scripts/dbs/rds/mysql/create.sh
+# AWS-specific (RDS); commented out for now, returns in a future PR
+# setup-db-rds-mysql:
+# 	./infra/scripts/dbs/rds/mysql/create.sh
 
-setup-rabbitmq-operator:
-	helm repo add bitnami https://charts.bitnami.com/bitnami && helm repo update
-	helm upgrade --install rabbitmq-operator bitnami/rabbitmq-cluster-operator -f infra/chart-values/rabbitmq-values.yaml -n $(RABBITMQ_NS) --create-namespace --version 3.10.4 --wait
+# App-specific (robot-shop messaging); commented out for now, returns in a future PR
+# setup-rabbitmq-operator:
+# 	helm repo add bitnami https://charts.bitnami.com/bitnami && helm repo update
+# 	helm upgrade --install rabbitmq-operator bitnami/rabbitmq-cluster-operator -f infra/chart-values/rabbitmq-values.yaml -n $(RABBITMQ_NS) --create-namespace --version 3.10.4 --wait
 
-setup-robot-shop:
-	kubectl create namespace robot-shop --dry-run=client -o yaml | kubectl apply -f -
-	kubectl label namespace robot-shop istio-injection=enabled
-ifeq ($(STACK_MODE),eks)
-	helm upgrade --install $(APP_RELEASE_NAME) -n $(APP_NS) --create-namespace ./app/robot-shop/helm/ --set mysql_host=$(MYSQL_HOST) --set mysql_root_password=$(RDS_MYSQL_DB_MASTER_PASSWORD) --wait --timeout $(APP_SETUP_TIMEOUT)
-else
-	helm upgrade --install $(APP_RELEASE_NAME) -n $(APP_NS) --create-namespace ./app/robot-shop/helm/ --set stack_mode=$(STACK_MODE) --set mysql_root_password=$(RDS_MYSQL_DB_MASTER_PASSWORD) --wait --timeout $(LOCAL_APP_SETUP_TIMEOUT)
-endif
+# App-specific (Robot Shop); commented out for now, returns in a future PR
+# setup-robot-shop:
+# 	kubectl create namespace robot-shop --dry-run=client -o yaml | kubectl apply -f -
+# 	kubectl label namespace robot-shop istio-injection=enabled
+# ifeq ($(STACK_MODE),eks)
+# 	helm upgrade --install $(APP_RELEASE_NAME) -n $(APP_NS) --create-namespace ./app/robot-shop/helm/ --set mysql_host=$(MYSQL_HOST) --set mysql_root_password=$(RDS_MYSQL_DB_MASTER_PASSWORD) --wait --timeout $(APP_SETUP_TIMEOUT)
+# else
+# 	helm upgrade --install $(APP_RELEASE_NAME) -n $(APP_NS) --create-namespace ./app/robot-shop/helm/ --set stack_mode=$(STACK_MODE) --set mysql_root_password=$(RDS_MYSQL_DB_MASTER_PASSWORD) --wait --timeout $(LOCAL_APP_SETUP_TIMEOUT)
+# endif
 
-setup-hotrod:
-	kustomize build app/hotrod | kubectl apply -f -	
+# App-specific (HotROD); commented out for now, returns in a future PR
+# setup-hotrod:
+# 	kustomize build app/hotrod | kubectl apply -f -
 
 setup-gateway:
-	kubectl create namespace robot-shop --dry-run=client -o yaml | kubectl apply -f -
-	kubectl apply -f ./app/robot-shop/Istio/gateway.yaml -n $(APP_NS)
+ifeq ($(STACK_MODE),aks)
+	$(CLUSTER_SCRIPT_PATH)/setup-gateway-aks.sh
+else
+	# App-specific (Robot Shop gateway manifest); commented out for now, returns in a future PR
+	# kubectl create namespace robot-shop --dry-run=client -o yaml | kubectl apply -f -
+	# kubectl apply -f ./app/robot-shop/Istio/gateway.yaml -n $(APP_NS)
+	@echo "setup-gateway: app-specific step commented out for now (see PR notes)"
+endif
 
 
-setup-keda:
-	helm repo add kedacore https://kedacore.github.io/charts && helm repo update ; \
-	helm upgrade --install keda kedacore/keda --namespace keda --create-namespace --values ./infra/chart-values/keda-values.yaml --version 2.11.1 ;
-	kubectl apply -f ./infra/keda-policy/scaled-obj-dispatch.yaml
+# App-specific (robot-shop dispatch autoscaling); commented out for now, returns in a future PR
+# setup-keda:
+# 	helm repo add kedacore https://kedacore.github.io/charts && helm repo update ; \
+# 	helm upgrade --install keda kedacore/keda --namespace keda --create-namespace --values ./infra/chart-values/keda-values.yaml --version 2.11.1 ;
+# 	kubectl apply -f ./infra/keda-policy/scaled-obj-dispatch.yaml
 
-setup-loadgen:
-	kubectl create ns loadgen --dry-run=client -o yaml | kubectl apply -f -
-	kubectl apply -f scenarios/load-gen/load.yaml
+# App-specific (load generator); commented out for now, returns in a future PR
+# setup-loadgen:
+# 	kubectl create ns loadgen --dry-run=client -o yaml | kubectl apply -f -
+# 	kubectl apply -f scenarios/load-gen/load.yaml
 
-setup-optional-rmq-consumer-scaling: setup-keda setup-loadgen
+# App-specific; commented out for now, returns in a future PR
+# setup-optional-rmq-consumer-scaling: setup-keda setup-loadgen
 
 
 get-service-endpoints:
@@ -189,9 +211,10 @@ else
 	@echo "---------------------------- Non-existent APP_STACK --------------------------------------"
 endif
 
-destroy-db-rds-mysql:
-	./infra/scripts/dbs/rds/mysql/destroy.sh
-	./infra/scripts/dbs/rds/sg-destroy.sh
+# AWS-specific (RDS); commented out for now, returns in a future PR
+# destroy-db-rds-mysql:
+# 	./infra/scripts/dbs/rds/mysql/destroy.sh
+# 	./infra/scripts/dbs/rds/sg-destroy.sh
 
 destroy-istio-gateway:
 ifeq ($(CHECK_ISTIO_GATEWAY_EXISTS),)
@@ -203,17 +226,36 @@ endif
 destroy-loadgen:
 	kubectl delete -f scenarios/load-gen/load.yaml
 
-destroy-cluster-autoscaler:
-	$(CLUSTER_SCRIPT_PATH)/destroy-cluster-autoscaler.sh
+# AWS-specific; commented out for now, returns in a future PR
+# destroy-cluster-autoscaler:
+# 	$(CLUSTER_SCRIPT_PATH)/destroy-cluster-autoscaler.sh
 
-destroy-yace:
-	$(CLUSTER_SCRIPT_PATH)/destroy-yace.sh
+# AWS-specific; commented out for now, returns in a future PR
+# destroy-yace:
+# 	$(CLUSTER_SCRIPT_PATH)/destroy-yace.sh
+
+ifeq ($(STACK_MODE),aks)
+cleanup-istio:
+	$(CLUSTER_SCRIPT_PATH)/cleanup-istio.sh
+else
+cleanup-istio:
+	@echo "cleanup-istio is AKS-only; on EKS/local use destroy-istio-gateway"
+endif
+
+ifeq ($(STACK_MODE),aks)
+cleanup-gateway:
+	$(CLUSTER_SCRIPT_PATH)/cleanup-gateway.sh
+else
+cleanup-gateway:
+	@echo "cleanup-gateway is AKS-only; nothing to do on EKS/local (see setup-gateway)"
+endif
 
 ifeq ($(STACK_MODE),aks)
 cleanup-cluster:
 	$(CLUSTER_SCRIPT_PATH)/cleanup-cluster.sh
 else
-cleanup-cluster: destroy-cluster-autoscaler destroy-yace
+# destroy-cluster-autoscaler / destroy-yace dropped here: AWS-specific, commented out above
+cleanup-cluster:
 	$(CLUSTER_SCRIPT_PATH)/cleanup-cluster.sh
 endif
 
@@ -223,7 +265,8 @@ ifeq ($(STACK_MODE),aks)
 # other Amazon-only teardown steps run before it.
 cleanup: cleanup-cluster
 else
-cleanup: destroy-istio-gateway destroy-db-rds-mysql cleanup-cluster
+# destroy-db-rds-mysql dropped here: AWS-specific, commented out above
+cleanup: destroy-istio-gateway cleanup-cluster
 endif
 
 lint:
@@ -273,7 +316,8 @@ setup-local-cluster:
 
 setup-local-o11y: setup-db-grafana-psql setup-kube-prometheus-stack setup-loki setup-istio-o11y-addons setup-dashboards
 
-setup-local: setup-local-cluster setup-istio setup-local-o11y setup-robot-shop setup-gateway get-service-endpoints
+# setup-robot-shop dropped here: app-specific, commented out above
+setup-local: setup-local-cluster setup-istio setup-local-o11y setup-gateway get-service-endpoints
 
 cleanup-local:
 	k3d cluster delete $(CLUSTER_NAME)-local
