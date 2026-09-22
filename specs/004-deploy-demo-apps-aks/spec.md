@@ -71,10 +71,10 @@ Anyone who already deploys Robot Shop or HotROD to Amazon's cloud, or to their o
 - **FR-003**: Robot Shop's databases MUST run inside the cluster; the store MUST NOT depend on any managed database service outside the cluster.
 - **FR-004**: Deploying HotROD to the AKS cluster MUST use the same deployment command already used to deploy it elsewhere, with no new steps required.
 - **FR-005**: HotROD MUST be placed within the section of the cluster already set aside for applications.
-- **FR-006**: Robot Shop and HotROD MUST be sized modestly on this cluster — a single copy of each piece, using little compute — since this is for demonstration, not for handling real production load.
+- **FR-006**: Robot Shop and HotROD MUST be sized modestly on this cluster — a single copy of each service, using minimal compute — since this is for demonstration, not for handling real production load. Exact resource requests and limits are determined during Phase 0 research based on actual measurements from the AKS cluster.
 - **FR-007**: Data that Robot Shop's databases store MUST survive a restart of the pieces that hold it.
 - **FR-008**: Running either app's deployment command a second time MUST NOT create duplicates or break the existing deployment.
-- **FR-009**: Once deployed, activity in both apps MUST become visible in the monitoring tools already running on the cluster, without extra setup.
+- **FR-009**: Once deployed, metrics and logs from both apps MUST appear in Grafana (via Prometheus), and logs MUST appear in Loki, without requiring any additional configuration beyond standard instrumentation.
 - **FR-010**: This change MUST NOT alter how Robot Shop or HotROD deploy or behave on Amazon's cloud or the local test cluster.
 
 ### Key Entities
@@ -89,9 +89,18 @@ Anyone who already deploys Robot Shop or HotROD to Amazon's cloud, or to their o
 
 - **SC-001**: A person can deploy Robot Shop and immediately browse and use the store, with no steps beyond running its existing deploy command.
 - **SC-002**: A person can deploy HotROD and immediately generate example activity, with no steps beyond running its existing deploy command.
-- **SC-003**: Activity generated in either app appears in the monitoring dashboards without any manual configuration.
+- **SC-003**: Within minutes of the apps generating user activity, metrics from both apps appear in Grafana (via Prometheus scrape) and logs appear in Loki (via container log collection) without requiring dashboard creation or log queries to be manually configured.
 - **SC-004**: Running either app's deploy command more than once never produces errors or duplicate resources.
 - **SC-005**: A side-by-side comparison of Robot Shop and HotROD's deployment and behavior on Amazon's cloud and the local test cluster, from before and after this change, shows no differences.
+
+## Clarifications
+
+### Session 2026-09-22
+
+- Q: Which node pool should Robot Shop and HotROD use? → A: Application services on `workload=app` pool; data stores on `workload=persistent` pool (per Principle V of constitution)
+- Q: Which monitoring tools should display activity? → A: Grafana/Prometheus (metrics) and Loki (logs) from #101 observability stack
+- Q: Must monitoring be pre-installed before deploying apps? → A: No; apps are fully functional without monitoring, which simply collects their standard emissions
+- Q: What specific CPU/memory limits for "modest sizing"? → A: Spec intent is single replica per service with minimal footprint; exact requests/limits determined during Phase 0 research against real AKS cluster
 
 ## Assumptions
 
