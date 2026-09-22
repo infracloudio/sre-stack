@@ -217,11 +217,21 @@ destroy-cluster-autoscaler:
 destroy-yace:
 	$(CLUSTER_SCRIPT_PATH)/destroy-yace.sh
 
+ifeq ($(STACK_MODE),aks)
 cleanup-istio:
 	$(CLUSTER_SCRIPT_PATH)/cleanup-istio.sh
+else
+cleanup-istio:
+	@echo "cleanup-istio is AKS-only; on EKS/local use destroy-istio-gateway"
+endif
 
+ifeq ($(STACK_MODE),aks)
 cleanup-gateway:
 	$(CLUSTER_SCRIPT_PATH)/cleanup-gateway.sh
+else
+cleanup-gateway:
+	@echo "cleanup-gateway is AKS-only; nothing to do on EKS/local (see setup-gateway)"
+endif
 
 ifeq ($(STACK_MODE),aks)
 cleanup-cluster:
