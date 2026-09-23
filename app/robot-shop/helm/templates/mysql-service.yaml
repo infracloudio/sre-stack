@@ -1,4 +1,4 @@
-{{ if eq .Values.stack_mode "local" }}
+{{ if ne .Values.stack_mode "eks" }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -9,7 +9,7 @@ metadata:
     type: infra
 spec:
   ports:
-  - name: mysql
+  - name: tcp-mysql
     port: 3306
   - name: http-metrics
     port: 9104

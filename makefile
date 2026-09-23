@@ -148,19 +148,19 @@ setup-optional-otel:
 # 	helm repo add bitnami https://charts.bitnami.com/bitnami && helm repo update
 # 	helm upgrade --install rabbitmq-operator bitnami/rabbitmq-cluster-operator -f infra/chart-values/rabbitmq-values.yaml -n $(RABBITMQ_NS) --create-namespace --version 3.10.4 --wait
 
-# App-specific (Robot Shop); commented out for now, returns in a future PR
-# setup-robot-shop:
-# 	kubectl create namespace robot-shop --dry-run=client -o yaml | kubectl apply -f -
-# 	kubectl label namespace robot-shop istio-injection=enabled
-# ifeq ($(STACK_MODE),eks)
-# 	helm upgrade --install $(APP_RELEASE_NAME) -n $(APP_NS) --create-namespace ./app/robot-shop/helm/ --set mysql_host=$(MYSQL_HOST) --set mysql_root_password=$(RDS_MYSQL_DB_MASTER_PASSWORD) --wait --timeout $(APP_SETUP_TIMEOUT)
-# else
-# 	helm upgrade --install $(APP_RELEASE_NAME) -n $(APP_NS) --create-namespace ./app/robot-shop/helm/ --set stack_mode=$(STACK_MODE) --set mysql_root_password=$(RDS_MYSQL_DB_MASTER_PASSWORD) --wait --timeout $(LOCAL_APP_SETUP_TIMEOUT)
-# endif
+setup-robot-shop:
+	kubectl create namespace robot-shop --dry-run=client -o yaml | kubectl apply -f -
+	kubectl label namespace robot-shop istio-injection=enabled
+ifeq ($(STACK_MODE),eks)
+	kubectl delete job mysql-seeder -n $(APP_NS) --ignore-not-found
+	helm upgrade --install $(APP_RELEASE_NAME) -n $(APP_NS) --create-namespace ./app/robot-shop/helm/ --set mysql_host=$(MYSQL_HOST) --set mysql_root_password=$(RDS_MYSQL_DB_MASTER_PASSWORD) --wait --timeout $(APP_SETUP_TIMEOUT)
+else
+	kubectl delete job mysql-seeder -n $(APP_NS) --ignore-not-found
+	helm upgrade --install $(APP_RELEASE_NAME) -n $(APP_NS) --create-namespace ./app/robot-shop/helm/ --set stack_mode=$(STACK_MODE) --set mysql_root_password=$(RDS_MYSQL_DB_MASTER_PASSWORD) --wait --timeout $(LOCAL_APP_SETUP_TIMEOUT)
+endif
 
-# App-specific (HotROD); commented out for now, returns in a future PR
-# setup-hotrod:
-# 	kustomize build app/hotrod | kubectl apply -f -
+setup-hotrod: setup-optional-otel
+	kustomize build app/hotrod | kubectl apply -f -
 
 setup-gateway:
 ifeq ($(STACK_MODE),aks)
