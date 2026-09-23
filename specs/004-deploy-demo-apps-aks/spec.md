@@ -41,18 +41,17 @@ The same person also deploys HotROD, a second demo application, onto the AKS clu
 
 ---
 
-### User Story 3 - Nothing else changes (Priority: P3)
+### User Story 3 - Local test cluster keeps working (Priority: P3)
 
-Anyone who already deploys Robot Shop or HotROD to Amazon's cloud, or to their own local test cluster, keeps doing so exactly as before. Adding AKS as a new place to deploy these apps must not change how they behave anywhere else.
+Anyone who deploys Robot Shop or HotROD to their own local test cluster gets the same behavior they had before these deployment commands were disabled. Restoring the commands as part of this story must not introduce any new, local-specific behavior.
 
 **Why this priority**: this protects current users; it's a constraint on the change rather than new value.
 
-**Independent Test**: compare how Robot Shop and HotROD deploy and run on Amazon's cloud and on the local test cluster, before and after this change, and confirm nothing is different.
+**Independent Test**: compare how Robot Shop and HotROD deploy and run on the local test cluster, from before the deployment commands were disabled to after this change, and confirm nothing new was introduced beyond restoring what already worked.
 
 **Acceptance Scenarios**:
 
-1. **Given** this change is made, **When** Robot Shop or HotROD is deployed to Amazon's cloud, **Then** it behaves exactly as it did before.
-2. **Given** this change is made, **When** Robot Shop or HotROD is deployed to the local test cluster, **Then** it behaves exactly as it did before.
+1. **Given** this change is made, **When** Robot Shop or HotROD is deployed to the local test cluster, **Then** it behaves the same way it did before the deployment commands were disabled.
 
 ---
 
@@ -75,7 +74,7 @@ Anyone who already deploys Robot Shop or HotROD to Amazon's cloud, or to their o
 - **FR-007**: Data that Robot Shop's databases store MUST survive a restart of the pieces that hold it.
 - **FR-008**: Running either app's deployment command a second time MUST NOT create duplicates or break the existing deployment.
 - **FR-009**: Once deployed, metrics and logs from both apps MUST appear in Grafana (via Prometheus), and logs MUST appear in Loki, without requiring any additional configuration beyond standard instrumentation.
-- **FR-010**: This change MUST NOT alter how Robot Shop or HotROD deploy or behave on Amazon's cloud or the local test cluster.
+- **FR-010**: Once restored, Robot Shop and HotROD MUST behave on the local test cluster exactly as they did before their deployment commands were disabled. This story MUST NOT introduce any new, local-specific behavior.
 
 ### Key Entities
 
@@ -91,7 +90,7 @@ Anyone who already deploys Robot Shop or HotROD to Amazon's cloud, or to their o
 - **SC-002**: A person can deploy HotROD and immediately generate example activity, with no steps beyond running its existing deploy command.
 - **SC-003**: Within minutes of the apps generating user activity, metrics from both apps appear in Grafana (via Prometheus scrape) and logs appear in Loki (via container log collection) without requiring dashboard creation or log queries to be manually configured.
 - **SC-004**: Running either app's deploy command more than once never produces errors or duplicate resources.
-- **SC-005**: A side-by-side comparison of Robot Shop and HotROD's deployment and behavior on Amazon's cloud and the local test cluster, from before and after this change, shows no differences.
+- **SC-005**: A comparison of Robot Shop and HotROD's behavior on the local test cluster, from before their deployment commands were disabled to after this story, shows no differences beyond restoring what already worked.
 
 ## Clarifications
 
