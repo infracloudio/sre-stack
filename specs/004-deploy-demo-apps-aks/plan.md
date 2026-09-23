@@ -1,6 +1,6 @@
 # Plan: 004-deploy-demo-apps-aks
 
-**Status**: Draft — awaiting review & `gate:plan-approved` label
+**Status**: Approved — `gate:plan-approved` granted; implementation complete (PR #108)
 
 **Note on provenance**: An earlier pass at this plan (via `/speckit-plan` in a separate session) produced Technical Context and ten "Phase 0 findings" that were approved in that session's chat but never written to this file. Several of those findings were also factually wrong, verified against the live cluster before this version was written (see "Corrected claims" below). This file is built from `research.md` (real, reproducible command output) and the live cluster checks re-run to settle the contradictions, not from that session's transcript.
 

@@ -151,11 +151,10 @@ setup-optional-otel:
 setup-robot-shop:
 	kubectl create namespace robot-shop --dry-run=client -o yaml | kubectl apply -f -
 	kubectl label namespace robot-shop istio-injection=enabled
-ifeq ($(STACK_MODE),eks)
 	kubectl delete job mysql-seeder -n $(APP_NS) --ignore-not-found
+ifeq ($(STACK_MODE),eks)
 	helm upgrade --install $(APP_RELEASE_NAME) -n $(APP_NS) --create-namespace ./app/robot-shop/helm/ --set mysql_host=$(MYSQL_HOST) --set mysql_root_password=$(RDS_MYSQL_DB_MASTER_PASSWORD) --wait --timeout $(APP_SETUP_TIMEOUT)
 else
-	kubectl delete job mysql-seeder -n $(APP_NS) --ignore-not-found
 	helm upgrade --install $(APP_RELEASE_NAME) -n $(APP_NS) --create-namespace ./app/robot-shop/helm/ --set stack_mode=$(STACK_MODE) --set mysql_root_password=$(RDS_MYSQL_DB_MASTER_PASSWORD) --wait --timeout $(LOCAL_APP_SETUP_TIMEOUT)
 endif
 

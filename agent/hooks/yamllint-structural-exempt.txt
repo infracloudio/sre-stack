@@ -28,3 +28,4 @@ app/robot-shop/helm/templates/mysql-seeed-job.yaml
 app/robot-shop/helm/templates/mysql-service.yaml
 app/robot-shop/helm/templates/mysql-statefulset.yaml
 app/robot-shop/helm/templates/rabbitmq-service.yaml
+app/robot-shop/helm/templates/service-monitor.yaml
