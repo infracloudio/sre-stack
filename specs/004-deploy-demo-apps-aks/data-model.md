@@ -23,10 +23,12 @@
 |---|---|---|---|
 | **MySQL** | `nodeSelector: workload: persistent`, toleration `persistent=true:NoSchedule` | `StorageClass: gp2`, `1Gi` (`values.yaml` `mysql:` block) | Templates (`mysql-statefulset.yaml`, `mysql-config.yaml`, `mysql-secret.yaml`, `mysql-service.yaml`, `mysql-seeed-job.yaml`) originally gated on `eq .Values.stack_mode "local"` — a defect (research.md §4b) fixed in this story's plan to `ne .Values.stack_mode "eks"`, so it now renders for `aks` too. Placement config itself was already correct before the fix — only the render condition was wrong. |
 | **MongoDB** | `nodeSelector: workload: persistent` | Chart-managed, no separate finding | Not independently defect-tested in research; placement label present in `values.yaml`, same pattern as MySQL/RabbitMQ |
-| **RabbitMQ** | `nodeSelector: workload: persistent` | Chart-managed | Higher memory allocation (`2Gi`) per `values.yaml`; used by `dispatch` for async messaging |
+| **RabbitMQ** | `nodeSelector: workload: persistent` | Chart-managed | Higher memory allocation (`2Gi`) per `values.yaml`; used by `dispatch`/`payment` for async messaging. `rabbitmq-service.yaml` had the same chart defect as MySQL (T027, found during real Loki log verification) — gated on `eq "local"`, never rendering the `rabbitmq-cluster` Service on `aks`, so `dispatch` silently retried forever (`dial tcp: lookup rabbitmq-cluster ... no such host`) without the pod ever going unhealthy. Fixed to `ne "eks"`, same as T002; verified live post-fix (`Rabbit MQ ready true` in `dispatch` logs). |
 | **Redis** | `nodeSelector: workload: persistent` | `StorageClass: gp2` (StatefulSet, `redis-0` observed live) | Session/cache store |
 
 **Known open defect**: the seed-data Job (`mysql-seeed-job.yaml`) hangs indefinitely when run by the unmeshed `mysql-seeder` pod against the meshed `mysql-0` StatefulSet — reproducible, root cause not confirmed (research.md §4d). Does not block the store's own function (verified live: homepage, product page, cart, checkout all work without seed data); `ratings.cities` table remains empty.
+
+**Resolved defect (T027)**: `rabbitmq-service.yaml`'s render condition was wrong the same way MySQL's was (T002) — found only because T014's real-log re-verification surfaced the connection errors; pod-status checks alone (`dispatch` staying `2/2 Running`) never caught it. Fixed and verified live; see tasks.md T027.
 
 ### 3. HotROD Application (Kustomize)
 

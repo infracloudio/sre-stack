@@ -18,7 +18,7 @@
 # real indentation drift) must still be fixed before it's added.
 #
 # Added by story 004 (specs/004-deploy-demo-apps-aks) to unblock its
-# one-line stack_mode condition fix in these 5 files. The other ~24
+# one-line stack_mode condition fixes in these 6 files. The other ~23
 # Helm template files still on .yamllint.yaml's ignore list likely share
 # this same structural issue and should be triaged the same way — not
 # done here to keep this story's diff scoped to what it actually touched.
@@ -27,3 +27,4 @@ app/robot-shop/helm/templates/mysql-secret.yaml
 app/robot-shop/helm/templates/mysql-seeed-job.yaml
 app/robot-shop/helm/templates/mysql-service.yaml
 app/robot-shop/helm/templates/mysql-statefulset.yaml
+app/robot-shop/helm/templates/rabbitmq-service.yaml
