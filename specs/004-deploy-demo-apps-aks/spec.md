@@ -6,7 +6,7 @@
 
 **Status**: Draft
 
-**Input**: User description: "Deploy Robot Shop and HotROD demo applications onto the AKS cluster so the observability stack has something real to monitor, instead of empty dashboards."
+**Input**: User description: "Deploy Robot Shop and HotROD demo applications onto the AKS cluster so the observability stack has something real to monitor, instead of empty dashboards." Updated 2026-09-23 per issue #102 edit: each app must also have its own way to be reached from outside the cluster, set up in its own namespace.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -75,6 +75,7 @@ Anyone who deploys Robot Shop or HotROD to their own local test cluster gets the
 - **FR-008**: Running either app's deployment command a second time MUST NOT create duplicates or break the existing deployment.
 - **FR-009**: Once deployed, metrics and logs from both apps MUST appear in Grafana (via Prometheus), and logs MUST appear in Loki, without requiring any additional configuration beyond standard instrumentation.
 - **FR-010**: Once restored, Robot Shop and HotROD MUST behave on the local test cluster exactly as they did before their deployment commands were disabled. This story MUST NOT introduce any new, local-specific behavior.
+- **FR-011**: Robot Shop and HotROD MUST each have their own way for a person outside the cluster to reach them, set up separately within each app's own section of the cluster, so one app's traffic path cannot interfere with the other's.
 
 ### Key Entities
 
@@ -91,6 +92,7 @@ Anyone who deploys Robot Shop or HotROD to their own local test cluster gets the
 - **SC-003**: Within minutes of the apps generating user activity, metrics from both apps appear in Grafana (via Prometheus scrape) and logs appear in Loki (via container log collection) without requiring dashboard creation or log queries to be manually configured.
 - **SC-004**: Running either app's deploy command more than once never produces errors or duplicate resources.
 - **SC-005**: A comparison of Robot Shop and HotROD's behavior on the local test cluster, from before their deployment commands were disabled to after this story, shows no differences beyond restoring what already worked.
+- **SC-006**: A person outside the cluster can reach Robot Shop's storefront and HotROD's interface, each through its own address, without one app's setup affecting the other's.
 
 ## Clarifications
 
