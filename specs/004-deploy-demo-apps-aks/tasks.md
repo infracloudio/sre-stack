@@ -83,11 +83,11 @@
 
 ## Phase 6: Polish & Documentation
 
-- [ ] **T022** Update `README.md`: add a "Demo Applications on AKS" section documenting `make setup-robot-shop`, `make setup-hotrod`, and the gateway hosts (`*` for Robot Shop, `hotrod.demo.local` for HotROD).
-- [ ] **T023** Add an ADR entry to `docs/architectural-decisions.md`: host-based `VirtualService` separation chosen over per-app dedicated Gateway objects or path-prefix rewriting (rejected: untested, risks breaking HotROD's internal asset links which likely assume root path `/`).
+- [x] **T022** Update `README.md`: add a "Demo Applications on AKS" section documenting `make setup-robot-shop`, `make setup-hotrod`, and the gateway hosts (`*` for Robot Shop, `hotrod.demo.local` for HotROD). Also corrected the pre-existing stale `STACK_MODE = [ eks | local ]` line (missing `aks`, drift from story 001).
+- [x] **T023** Added AD-005 to `docs/architectural-decisions.md`: host-based `VirtualService` separation chosen over per-app dedicated Gateway objects (extra LoadBalancer cost, no isolation requirement in spec) or path-prefix rewriting (rejected: untested, risks breaking HotROD's internal asset links which likely assume root path `/`); also documents why two wildcard `hosts: "*"` entries on the same gateway was rejected outright (verified live in research.md §7).
 - [ ] **T024** Reconcile the release-name mismatch permanently: confirm no lingering reference to release name `robot-shop` (research-only name) remains anywhere in scripts, docs, or the makefile — only `$(APP_RELEASE_NAME)` (`roboshop`, per `.env`) should be used.
 - [ ] **T025** Paste verification output into the PR: T007-T014 (US1), T015-T019 (US2), T020-T021 (US3) — command executed, exit code, and timestamp for each, per constitution's evidence requirement.
-- [ ] **T026** Close the resource-limits gap found while fixing data-model.md's citation gap (architect review comment): `mongodb` and `redis` have no `resources:` block in `values.yaml` at all — no requests/limits, pre-existing, not introduced by this story. Either add minimal requests/limits per FR-006's "smallest practical CPU/memory" intent, or explicitly accept as out-of-scope-for-this-story in the PR description (architect's call, not a silent skip).
+- [x] **T026** **Corrected**: the original claim (`mongodb`/`redis` have no resource limits at all) was false — verified by reading `mongodb-deployment.yaml` and `redis-statefulset.yaml` directly. Both already set requests/limits, hardcoded in the template rather than sourced from `values.yaml` like every other service. Effective resource constraints already exist; the only gap is the inconsistent configuration pattern (hardcoded vs. `values.yaml`-driven), which is a style/consistency item, not a functional gap. Decision: leave the chart as-is, correct the documentation only (this task and `data-model.md`'s datastore resources row) — no chart change in this story.
 
 ---
 

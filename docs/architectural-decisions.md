@@ -188,3 +188,66 @@ no such person is available to this story.
   is real. The next person who touches the eks path should run
   `make setup` and `make cleanup` once on a real account and report back.
 
+## AD-005 — Host-based `VirtualService` routing, not per-app gateways or path rewriting
+
+**Date**: 2026-09-23 · **Status**: Accepted · **Raised by**: architect
+review of `specs/004-deploy-demo-apps-aks/spec.md` (added FR-011: Robot
+Shop and HotROD must both be externally reachable and must not interfere
+with each other).
+
+### Decision
+
+Robot Shop and HotROD share the one Istio ingress gateway
+(`istio-ingressgateway` in `istio-system`) already installed for the
+cluster. They are told apart by `VirtualService` host matching, not by
+separate infrastructure:
+
+- Robot Shop's existing `Gateway`/`VirtualService`
+  (`app/robot-shop/Istio/gateway.yaml`) keeps `hosts: "*"` — reachable at
+  the ingress IP directly, no header needed.
+- HotROD gets a new `Gateway`/`VirtualService`
+  (`app/hotrod/istio-gateway.yaml`), scoped to `hosts: "hotrod.demo.local"`
+  — reachable only with a matching `Host` header
+  (`curl -H "Host: hotrod.demo.local" http://<ingress-IP>/`).
+
+Both bind the same `Gateway` selector (`istio: ingressgateway`), so no new
+`LoadBalancer` Service or ingress class is created.
+
+### Alternatives considered and rejected
+
+1. **A second dedicated ingress gateway/LoadBalancer for HotROD.** Rejected:
+   doubles the number of cloud LoadBalancer Services (and their cost) for a
+   demo stack that has no scaling or isolation requirement between the two
+   apps — nothing in spec.md's user stories asks for that separation.
+2. **Path-prefix rewriting on one wildcard host** (e.g. `/hotrod` routed to
+   HotROD, `/` to Robot Shop). Rejected: untested against HotROD's own
+   frontend, which likely assumes it is served from root path `/` for its
+   static asset links; rewriting risks breaking the UI in a way that would
+   only surface after deploying, with no fallback if it did.
+3. **Two wildcard `hosts: "*"` `VirtualService` entries on the same
+   gateway.** Rejected outright, not just deprioritized: both would match
+   every request with no way for Istio to disambiguate, so one app would
+   silently swallow the other's traffic depending on config-apply order —
+   verified live during this story's research (`research.md` §7) before
+   settling on the host-scoped approach.
+
+### Why this shape
+
+- Host-based matching is a supported, first-class Istio routing mechanism
+  purpose-built for exactly this — multiple backends behind one gateway —
+  so it needs no new manifests beyond one more `Gateway`/`VirtualService`
+  pair.
+- No rewriting means no risk to HotROD's internal links; the app is served
+  exactly as its own manifests expect.
+- Verified live: `curl http://<ingress-IP>/` reaches Robot Shop and
+  `curl -H "Host: hotrod.demo.local" http://<ingress-IP>/` reaches HotROD,
+  both `200 OK`, with no observed interference either direction.
+
+### What we gave up
+
+- HotROD is only reachable with the `Host` header set (via `curl -H`,
+  `/etc/hosts` entry, or a browser extension) since `hotrod.demo.local`
+  resolves nowhere by default — there is no public DNS record for it. This
+  is acceptable for an internal demo/POC stack; a real external hostname
+  would need its own DNS entry, which is out of scope for this story.
+
