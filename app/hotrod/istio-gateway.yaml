@@ -1,0 +1,33 @@
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: hotrod-gateway
+  namespace: hotrod
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - "hotrod.demo.local"
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: hotrod
+  namespace: hotrod
+spec:
+  hosts:
+  - "hotrod.demo.local"
+  gateways:
+  - hotrod-gateway
+  http:
+  - route:
+    - destination:
+        host: hotrod.hotrod.svc.cluster.local
+        port:
+          number: 8080

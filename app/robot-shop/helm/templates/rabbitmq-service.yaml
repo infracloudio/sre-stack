@@ -1,4 +1,4 @@
-{{- if eq .Values.stack_mode "local" }}
+{{- if ne .Values.stack_mode "eks" }}
 apiVersion: v1
 kind: Service
 metadata:

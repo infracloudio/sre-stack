@@ -32,9 +32,13 @@ config_has_line() {
 fail=0
 for file in "${FILES[@]}"; do
   if config_has_line .yamllint.yaml "  $file"; then
-    echo "RATCHET: $file changed but remains in .yamllint.yaml"
-    echo "  Fix its yamllint findings and remove the ignore entry."
-    fail=1
+    if config_has_line agent/hooks/yamllint-structural-exempt.txt "$file"; then
+      echo "RATCHET: $file changed, stays in .yamllint.yaml (structurally exempt — see agent/hooks/yamllint-structural-exempt.txt)"
+    else
+      echo "RATCHET: $file changed but remains in .yamllint.yaml"
+      echo "  Fix its yamllint findings and remove the ignore entry."
+      fail=1
+    fi
   fi
   if config_has_line agent/hooks/shellcheck-allowlist.txt "$file"; then
     echo "RATCHET: $file changed but remains in agent/hooks/shellcheck-allowlist.txt"

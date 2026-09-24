@@ -148,29 +148,24 @@ setup-optional-otel:
 # 	helm repo add bitnami https://charts.bitnami.com/bitnami && helm repo update
 # 	helm upgrade --install rabbitmq-operator bitnami/rabbitmq-cluster-operator -f infra/chart-values/rabbitmq-values.yaml -n $(RABBITMQ_NS) --create-namespace --version 3.10.4 --wait
 
-# App-specific (Robot Shop); commented out for now, returns in a future PR
-# setup-robot-shop:
-# 	kubectl create namespace robot-shop --dry-run=client -o yaml | kubectl apply -f -
-# 	kubectl label namespace robot-shop istio-injection=enabled
-# ifeq ($(STACK_MODE),eks)
-# 	helm upgrade --install $(APP_RELEASE_NAME) -n $(APP_NS) --create-namespace ./app/robot-shop/helm/ --set mysql_host=$(MYSQL_HOST) --set mysql_root_password=$(RDS_MYSQL_DB_MASTER_PASSWORD) --wait --timeout $(APP_SETUP_TIMEOUT)
-# else
-# 	helm upgrade --install $(APP_RELEASE_NAME) -n $(APP_NS) --create-namespace ./app/robot-shop/helm/ --set stack_mode=$(STACK_MODE) --set mysql_root_password=$(RDS_MYSQL_DB_MASTER_PASSWORD) --wait --timeout $(LOCAL_APP_SETUP_TIMEOUT)
-# endif
+setup-robot-shop:
+	kubectl create namespace robot-shop --dry-run=client -o yaml | kubectl apply -f -
+	kubectl label namespace robot-shop istio-injection=enabled
+	kubectl delete job mysql-seeder -n $(APP_NS) --ignore-not-found
+ifeq ($(STACK_MODE),eks)
+	helm upgrade --install $(APP_RELEASE_NAME) -n $(APP_NS) --create-namespace ./app/robot-shop/helm/ --set mysql_host=$(MYSQL_HOST) --set mysql_root_password=$(RDS_MYSQL_DB_MASTER_PASSWORD) --wait --timeout $(APP_SETUP_TIMEOUT)
+else
+	helm upgrade --install $(APP_RELEASE_NAME) -n $(APP_NS) --create-namespace ./app/robot-shop/helm/ --set stack_mode=$(STACK_MODE) --set mysql_root_password=$(RDS_MYSQL_DB_MASTER_PASSWORD) --wait --timeout $(LOCAL_APP_SETUP_TIMEOUT)
+endif
 
-# App-specific (HotROD); commented out for now, returns in a future PR
-# setup-hotrod:
-# 	kustomize build app/hotrod | kubectl apply -f -
+setup-hotrod: setup-optional-otel
+	kustomize build app/hotrod | kubectl apply -f -
 
 setup-gateway:
-ifeq ($(STACK_MODE),aks)
-	$(CLUSTER_SCRIPT_PATH)/setup-gateway-aks.sh
-else
-	# App-specific (Robot Shop gateway manifest); commented out for now, returns in a future PR
-	# kubectl create namespace robot-shop --dry-run=client -o yaml | kubectl apply -f -
-	# kubectl apply -f ./app/robot-shop/Istio/gateway.yaml -n $(APP_NS)
-	@echo "setup-gateway: app-specific step commented out for now (see PR notes)"
-endif
+	kubectl create namespace robot-shop --dry-run=client -o yaml | kubectl apply -f -
+	kubectl create namespace hotrod --dry-run=client -o yaml | kubectl apply -f -
+	kubectl apply -f ./app/robot-shop/Istio/gateway.yaml -n robot-shop
+	kubectl apply -f ./app/hotrod/istio-gateway.yaml -n hotrod
 
 
 # App-specific (robot-shop dispatch autoscaling); commented out for now, returns in a future PR
@@ -191,23 +186,25 @@ endif
 get-service-endpoints:
 ifeq ($(APP_STACK),hotrod)
 	@echo "---------------------------- $(APP_STACK) service endpoints ----------------------------"
-	@echo "ToDo"
+	@echo "Visit HotROD: curl -H \"Host: hotrod.demo.local\" http://$(LB_ENDPOINT)/"
+	@echo "Visit Grafana dashboard http://$(LB_ENDPOINT)/grafana"
+	@echo "Visit Istio kiali http://$(LB_ENDPOINT)/kiali"
+	@echo "----------------------------------------------------------------------------------------"
 else ifeq ($(APP_STACK),robot-shop)
 	@echo "---------------------------- $(APP_STACK) service endpoints ----------------------------"
 	@echo "Visit Robot shop http://$(LB_ENDPOINT)"
+	@echo "Visit HotROD: curl -H \"Host: hotrod.demo.local\" http://$(LB_ENDPOINT)/"
 	@echo "Visit Grafana dashboard http://$(LB_ENDPOINT)/grafana"
 	@echo "Visit Istio kiali http://$(LB_ENDPOINT)/kiali"
 	@echo "----------------------------------------------------------------------------------------"
 else ifeq ($(APP_STACK),all)
 	@echo "---------------------------- $(APP_STACK) service endpoints ----------------------------"
-	@echo "----------------------------------------------------------------------------------------"
-	@echo ""
-	@echo "---------------------------- $(APP_STACK) service endpoints ----------------------------"
 	@echo "Visit Robot shop http://$(LB_ENDPOINT)"
+	@echo "Visit HotROD: curl -H \"Host: hotrod.demo.local\" http://$(LB_ENDPOINT)/"
 	@echo "Visit Grafana dashboard http://$(LB_ENDPOINT)/grafana"
 	@echo "Visit Istio kiali http://$(LB_ENDPOINT)/kiali"
 	@echo "----------------------------------------------------------------------------------------"
-else 
+else
 	@echo "---------------------------- Non-existent APP_STACK --------------------------------------"
 endif
 

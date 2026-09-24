@@ -50,8 +50,8 @@ need changing for initial setup.
 
 Core provisioning and deployment choices are expressed in the following two variables:
 
-- `STACK_MODE = [ eks| local ]`
-  - Choice of deploying the stack to either `aws/eks` or using a `k3d` cluster on local linux systems.
+- `STACK_MODE = [ eks | aks | local ]`
+  - Choice of deploying the stack to `aws/eks`, `azure/aks`, or using a `k3d` cluster on local systems.
 - `APP_STACK=[ robot-shop | hotrod | all ]`
   - Choice of deploying either or both:
     - [instana/robot-shop](https://github.com/instana/robot-shop)
@@ -99,6 +99,33 @@ Local (k3D) setup/deploy/cleanup commands:
 	setup-local-cluster                 - Setup local k3d cluster
 	cleanup-local                       - Cleanup end-to-end stack on local k8s (k3d)
 ```
+
+### Demo Applications on AKS
+
+With `STACK_MODE=aks` in `.env` and an existing AKS cluster (`make setup-cluster`,
+`make setup-istio`), deploy the demo apps directly:
+
+```
+make setup-robot-shop   # Robot Shop: in-cluster MySQL/MongoDB/RabbitMQ/Redis, app-tier on `workload=app` nodes
+make setup-hotrod       # HotROD: single pod on `workload=app` nodes, needs `make setup-optional-otel` (wired in as a prerequisite)
+```
+
+Both apps share one Istio ingress gateway (`istio-ingressgateway` in
+`istio-system`), reached at its external IP (`kubectl get svc
+istio-ingressgateway -n istio-system`). They're told apart by host, not by
+gateway:
+
+- **Robot Shop**: `hosts: "*"` — reachable directly at the ingress IP, no
+  `Host` header needed.
+- **HotROD**: `hosts: "hotrod.demo.local"` — needs the header, e.g.
+  `curl -H "Host: hotrod.demo.local" http://<ingress-IP>/`.
+
+Host-based separation (rather than two gateways, or path-prefix rewriting)
+avoids two wildcard `VirtualService` entries colliding on the same shared
+gateway. See `docs/architectural-decisions.md` for the full reasoning.
+
+Run `make setup-gateway` to apply both apps' `Gateway`/`VirtualService`
+manifests in one step — the same command works for every `STACK_MODE`.
 
 ### Utility Commands:
 

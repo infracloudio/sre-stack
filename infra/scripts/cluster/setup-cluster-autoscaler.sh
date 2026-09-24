@@ -1,6 +1,7 @@
 #!/bin/bash
 GIT_TLD=`git rev-parse --show-toplevel`
 source ${GIT_TLD}/.env
+cd "${GIT_TLD}" || exit 1
 
 CHECK_ASG_POLICY_EXISTS=$(aws iam list-policies --query "Policies[?PolicyName=='${AUTO_SCALING_GROUP_POLICY_NAME}'].Arn" --output text --no-cli-pager)
 

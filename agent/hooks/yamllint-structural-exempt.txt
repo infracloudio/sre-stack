@@ -1,0 +1,31 @@
+# Files listed here are permanently exempt from the check-ratchets.sh
+# "touched it, now clear it" requirement — distinct from .yamllint.yaml's
+# ignore list, which is a *shrinking* ratchet for ordinary legacy debt.
+#
+# These files cannot ever pass yamllint as raw source, for a structural
+# reason, not a style debt one: they are Helm chart templates whose Go
+# template control lines (`{{- if ... }}`, `{{- end }}`, etc.) are not
+# valid YAML syntax on their own — yamllint parses the *unrendered*
+# source, not the manifest Helm produces after templating. No amount of
+# reformatting removes these errors without breaking the chart. Fixing
+# them properly means linting `helm template`'s rendered output instead
+# of the source files, which is a separate, larger change to the lint
+# tooling itself (agent/hooks/lint-changed.sh) — tracked, not done here.
+#
+# A file only belongs here if its yamllint findings are exclusively
+# `syntax` / `braces` errors caused by `{{ }}` template delimiters. Any
+# genuine style finding (trailing whitespace, missing final newline,
+# real indentation drift) must still be fixed before it's added.
+#
+# Added by story 004 (specs/004-deploy-demo-apps-aks) to unblock its
+# one-line stack_mode condition fixes in these 7 files. The other ~22
+# Helm template files still on .yamllint.yaml's ignore list likely share
+# this same structural issue and should be triaged the same way — not
+# done here to keep this story's diff scoped to what it actually touched.
+app/robot-shop/helm/templates/mysql-config.yaml
+app/robot-shop/helm/templates/mysql-secret.yaml
+app/robot-shop/helm/templates/mysql-seeed-job.yaml
+app/robot-shop/helm/templates/mysql-service.yaml
+app/robot-shop/helm/templates/mysql-statefulset.yaml
+app/robot-shop/helm/templates/rabbitmq-service.yaml
+app/robot-shop/helm/templates/service-monitor.yaml

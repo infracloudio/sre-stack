@@ -1,5 +1,5 @@
 {{- $mysqlUser := "" }}
-{{- if eq .Values.stack_mode "local" }}
+{{- if ne .Values.stack_mode "eks" }}
 {{- $mysqlUser = "root" }}
 {{- else }}
 {{- $mysqlUser = "admin" }}
@@ -45,7 +45,7 @@ spec:
         resources:
           {{- toYaml .Values.mysqlseeder.resources | nindent 12 }}
       restartPolicy: OnFailure
-      {{- with .Values.shipping.affinity }}
+      {{- with .Values.mysqlseeder.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}

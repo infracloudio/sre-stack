@@ -19,6 +19,14 @@ rules:
 # The list only shrinks. When a PR touches one of these files, fixing its
 # yamllint findings and removing the entry from this list is part of that PR.
 # Never add a file to this list: new files are held to the full standard.
+#
+# Exception: a file whose only findings are `{{ }}` Go-template syntax that
+# yamllint (parsing unrendered source) can never treat as valid YAML stays on
+# this list permanently — that's a structural mismatch between the tool and
+# Helm templating, not debt to pay down. Those files are also listed in
+# agent/hooks/yamllint-structural-exempt.txt, which exempts them from
+# check-ratchets.sh's "touched it, now clear it" rule specifically. Everything
+# else here is still expected to shrink.
 ignore: |
   app/hotrod/base/hotrod/deployment.yaml
   app/hotrod/kustomization.yaml

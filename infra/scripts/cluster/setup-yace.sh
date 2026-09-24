@@ -1,6 +1,7 @@
 #!/bin/bash
 GIT_TLD=`git rev-parse --show-toplevel`
 source ${GIT_TLD}/.env
+cd "${GIT_TLD}" || exit 1
 
 CHECK_YACE_POLICY_EXISTS=$(aws iam list-policies --query "Policies[?PolicyName=='${YACE_CLOUDWATCH_POLICY_NAME}'].Arn" --output text --no-cli-pager)
 OBSERVABILITY_NODEGROUP_ROLE_NAME=$(eksctl get nodegroup --cluster "${CLUSTER_NAME}" --region "${AWS_REGION}" --output json | jq -r ".[] | select(.Name == \"${OBSERVABILITY_NODEGROUP_NAME}\") | .NodeInstanceRoleARN | split(\"/\") | .[1]")
