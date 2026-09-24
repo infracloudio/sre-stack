@@ -186,23 +186,25 @@ setup-gateway:
 get-service-endpoints:
 ifeq ($(APP_STACK),hotrod)
 	@echo "---------------------------- $(APP_STACK) service endpoints ----------------------------"
-	@echo "ToDo"
+	@echo "Visit HotROD: curl -H \"Host: hotrod.demo.local\" http://$(LB_ENDPOINT)/"
+	@echo "Visit Grafana dashboard http://$(LB_ENDPOINT)/grafana"
+	@echo "Visit Istio kiali http://$(LB_ENDPOINT)/kiali"
+	@echo "----------------------------------------------------------------------------------------"
 else ifeq ($(APP_STACK),robot-shop)
 	@echo "---------------------------- $(APP_STACK) service endpoints ----------------------------"
 	@echo "Visit Robot shop http://$(LB_ENDPOINT)"
+	@echo "Visit HotROD: curl -H \"Host: hotrod.demo.local\" http://$(LB_ENDPOINT)/"
 	@echo "Visit Grafana dashboard http://$(LB_ENDPOINT)/grafana"
 	@echo "Visit Istio kiali http://$(LB_ENDPOINT)/kiali"
 	@echo "----------------------------------------------------------------------------------------"
 else ifeq ($(APP_STACK),all)
 	@echo "---------------------------- $(APP_STACK) service endpoints ----------------------------"
-	@echo "----------------------------------------------------------------------------------------"
-	@echo ""
-	@echo "---------------------------- $(APP_STACK) service endpoints ----------------------------"
 	@echo "Visit Robot shop http://$(LB_ENDPOINT)"
+	@echo "Visit HotROD: curl -H \"Host: hotrod.demo.local\" http://$(LB_ENDPOINT)/"
 	@echo "Visit Grafana dashboard http://$(LB_ENDPOINT)/grafana"
 	@echo "Visit Istio kiali http://$(LB_ENDPOINT)/kiali"
 	@echo "----------------------------------------------------------------------------------------"
-else 
+else
 	@echo "---------------------------- Non-existent APP_STACK --------------------------------------"
 endif
 
