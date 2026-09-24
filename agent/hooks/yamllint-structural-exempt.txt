@@ -18,7 +18,7 @@
 # real indentation drift) must still be fixed before it's added.
 #
 # Added by story 004 (specs/004-deploy-demo-apps-aks) to unblock its
-# one-line stack_mode condition fixes in these 6 files. The other ~23
+# one-line stack_mode condition fixes in these 7 files. The other ~22
 # Helm template files still on .yamllint.yaml's ignore list likely share
 # this same structural issue and should be triaged the same way — not
 # done here to keep this story's diff scoped to what it actually touched.

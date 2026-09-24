@@ -29,19 +29,10 @@ config_has_line() {
   fi
 }
 
-is_structurally_exempt() {
-  local file="$1"
-  if [ "$CHECK_STAGED" -eq 1 ] && git -C "$ROOT" cat-file -e ":agent/hooks/yamllint-structural-exempt.txt" 2>/dev/null; then
-    git -C "$ROOT" show ":agent/hooks/yamllint-structural-exempt.txt" | grep -Fxq "$file"
-  else
-    [ -f "$ROOT/agent/hooks/yamllint-structural-exempt.txt" ] && grep -Fxq "$file" "$ROOT/agent/hooks/yamllint-structural-exempt.txt"
-  fi
-}
-
 fail=0
 for file in "${FILES[@]}"; do
   if config_has_line .yamllint.yaml "  $file"; then
-    if is_structurally_exempt "$file"; then
+    if config_has_line agent/hooks/yamllint-structural-exempt.txt "$file"; then
       echo "RATCHET: $file changed, stays in .yamllint.yaml (structurally exempt — see agent/hooks/yamllint-structural-exempt.txt)"
     else
       echo "RATCHET: $file changed but remains in .yamllint.yaml"

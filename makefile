@@ -162,14 +162,10 @@ setup-hotrod: setup-optional-otel
 	kustomize build app/hotrod | kubectl apply -f -
 
 setup-gateway:
-ifeq ($(STACK_MODE),aks)
-	$(CLUSTER_SCRIPT_PATH)/setup-gateway-aks.sh
-else
-	# App-specific (Robot Shop gateway manifest); commented out for now, returns in a future PR
-	# kubectl create namespace robot-shop --dry-run=client -o yaml | kubectl apply -f -
-	# kubectl apply -f ./app/robot-shop/Istio/gateway.yaml -n $(APP_NS)
-	@echo "setup-gateway: app-specific step commented out for now (see PR notes)"
-endif
+	kubectl create namespace robot-shop --dry-run=client -o yaml | kubectl apply -f -
+	kubectl create namespace hotrod --dry-run=client -o yaml | kubectl apply -f -
+	kubectl apply -f ./app/robot-shop/Istio/gateway.yaml -n robot-shop
+	kubectl apply -f ./app/hotrod/istio-gateway.yaml -n hotrod
 
 
 # App-specific (robot-shop dispatch autoscaling); commented out for now, returns in a future PR

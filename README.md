@@ -124,9 +124,8 @@ Host-based separation (rather than two gateways, or path-prefix rewriting)
 avoids two wildcard `VirtualService` entries colliding on the same shared
 gateway. See `docs/architectural-decisions.md` for the full reasoning.
 
-Run `infra/scripts/cluster/setup-gateway-aks.sh` (or `make setup-gateway`
-with `STACK_MODE=aks`) to apply both apps' `Gateway`/`VirtualService`
-manifests in one step.
+Run `make setup-gateway` to apply both apps' `Gateway`/`VirtualService`
+manifests in one step — the same command works for every `STACK_MODE`.
 
 ### Utility Commands:
 
