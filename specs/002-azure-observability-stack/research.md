@@ -1,0 +1,324 @@
+# Research: Azure Observability Stack
+
+**Branch**: `002-azure-observability-stack` · **Spec**: [spec.md](./spec.md)
+
+Per constitution principle VIII, cheap checks (chart versions, file paths, make
+targets, existing labels/taints) are settled here against the real repository
+— no cluster needed. Anything that needs a live AKS cluster is listed at the
+end, pending the developer running the command and pasting back the actual
+output; no output block in this file is invented or "expected".
+
+## Cheap checks (repo-only, no cluster)
+
+1. **Observability pool label/taint** — confirmed: `workload=o11y` label,
+   `o11y=true:NoSchedule` taint, `Standard_D4s_v5`, 2–3 nodes, user mode.
+   Source: `specs/001-azure-aks-setup/data-model.md:99`
+   (`| o11y | Standard_D4s_v5 | 2–3 | workload=o11y | o11y=true:NoSchedule | yes | User |`).
+   This is what FR-002's "observability pool" and "workload-separation
+   marking" resolve to.
+
+2. **Existing AWS/local monitoring targets** — confirmed via
+   `grep -n "^setup-loki\|^setup-optional-otel\|^setup-observability" makefile`:
+   - `setup-observability: setup-db-grafana-psql setup-kube-prometheus-stack setup-loki setup-beyla setup-tempo setup-caretta setup-metric-server setup-istio-o11y-addons setup-dashboards` (makefile:133)
+   - `setup-optional-otel` (makefile:135) — standalone, not part of `setup-observability`'s chain.
+   - `setup-loki` (makefile:99) — its own target, already separate from the composite chain shape story 002 needs to mirror on Azure.
+
+3. **AKS `setup:` chain is cluster-only today** — confirmed:
+   ```
+   setup:
+   ifeq ($(STACK_MODE),aks)
+   setup: setup-cluster
+   else
+     ...
+   endif
+   ```
+   (makefile:52-58, comment: "the aks lifecycle is the empty cluster only... the workloads come in later stories"). This is the precedent the 2026-09-25 spec revision follows for keeping the monitoring stack a separate command.
+
+4. **`setup-gateway` is no longer a no-op, and is not AKS-gated** — confirmed via `sed -n '164-168p' makefile`:
+   ```
+   setup-gateway:
+   	kubectl create namespace robot-shop --dry-run=client -o yaml | kubectl apply -f -
+   	kubectl create namespace hotrod --dry-run=client -o yaml | kubectl apply -f -
+   	kubectl apply -f ./app/robot-shop/Istio/gateway.yaml -n robot-shop
+   	kubectl apply -f ./app/hotrod/istio-gateway.yaml -n hotrod
+   ```
+   It creates namespaces and Gateway/VirtualService objects only — no
+   Deployments, no app workloads. Confirms the spec's Assumptions claim that
+   depending on this step does not pull in application workloads.
+
+5. **The shared observability routes bind to `robotshop-gateway`, created only by `setup-gateway`** — confirmed via `cat monitoring/istio-observability-addons/kiali-vs.yaml` (and the same `gateways:` block in `grafana-vs.yaml`/`prometheus-vs.yaml`):
+   ```yaml
+   spec:
+     gateways:
+     - robot-shop/robotshop-gateway
+   ```
+   This is the exact dependency the Architect's finding 1 named, and what the spec's "routing step" glossary term and FR-005 now describe.
+
+6. **`setup-istio-o11y-addons` is one shared, cross-platform apply** — confirmed via `sed -n '126-133p' makefile`: `kubectl apply -f monitoring/istio-observability-addons/` — a single folder containing `grafana-vs.yaml`, `prometheus-vs.yaml`, `kiali-vs.yaml`, `kiali.yaml`, `istio-podmonitor.yaml`, `istio-servicemonitor.yaml` — used by both `setup-observability` (EKS) and `setup-local-o11y` (local). Kiali is already deployed by this shared apply on every platform that runs it today.
+
+7. **Kiali's pinned version in the shared manifest** — confirmed via `head -60 monitoring/istio-observability-addons/kiali.yaml`: `helm.sh/chart: kiali-server-1.63.1`, `app.kubernetes.io/version: "v1.63.1"`, image `quay.io/kiali/kiali`. This is a pre-rendered static manifest (checked-in `helm template` output), not a live Helm release — reusing it on AKS would mean reusing v1.63.1 as-is; giving it its own Azure-specific pin would mean rendering a different version. Which one is compatible with Istio 1.30.4 (next finding) is a live-cluster question — see Live checks below.
+
+8. **AKS runs a newer Istio than EKS/local** — confirmed via `specs/003-istio-gateway-kiali-aks/spec.md` R1: "The chart version is 1.30.4 on AKS (EKS/local remain on 1.17.2, which does not support Kubernetes 1.34)." Kiali v1.63.1 (finding 7) was almost certainly rendered against the 1.17.2-era control plane; whether it also works against 1.30.4 is unverified and is a live-cluster question.
+
+9. **AKS-specific gateway/cleanup scripts already scaffolded by story #104 (003)** — confirmed via `sed -n '234-247p' makefile`: `cleanup-istio`/`cleanup-gateway` branch to `infra/scripts/cluster/cleanup-istio.sh` / `cleanup-gateway.sh` under `STACK_MODE=aks`. `setup-gateway` itself (finding 4) has no such branch — it's one shared target for all platforms.
+
+10. **No existing "Azure-specific chart-values" folder convention yet for monitoring** — confirmed via `ls monitoring/chart-values/`: `caretta.yaml loki.yaml metric-server.yaml otel-collector.yaml prometheus-values.yaml tempo.yaml yace.yaml` — all shared, no per-cloud suffix. `infra/azure/` (via `find infra/azure -type f`) has only `gp2-storageclass.yaml`. FR-008's "own folder" for Azure-specific settings has no established directory to reuse yet; Phase 1 design picks one.
+
+11. **An existing no-cluster test harness precedent exists, but tests CLI behavior, not file content** — confirmed via `agent/tests/azure/`: `fake-az.sh`, `fake-kubectl.sh`, `run-offline-tests.sh`, and per-scenario scripts under `agent/tests/azure/scenarios/` (from story 001). This harness asserts on a fake CLI's call log (what was invoked, how many times, in what order) for `setup-cluster-aks.sh`/`cleanup-cluster.sh`/`verify-cluster-aks.sh`. FR-011's deployment check is a different shape — it needs to inspect chart-values/manifest YAML content (node selector, toleration, label) rather than a call log — so it can borrow this harness's scenario/PASS-FAIL structure but needs its own assertion style. This is a Phase 1 design decision, not resolved here.
+
+12. **Loki's Helm chart moved repos; latest GA is 18.13.5** — confirmed via web search + `artifacthub.io/packages/helm/grafana-community/loki` (page title: "loki 18.13.5 · grafana-community/grafana-community"): as of 2026-03-16, Grafana's OSS Loki chart moved from the old `grafana/helm-charts` repo to `grafana-community/helm-charts` (Promtail and Grafana Agent, used by the old chart, are both past their EOL — 2026-03-02 and 2025-11-01 respectively — matching the Architect's review citation). This story's `setup-loki-aks` target adds the new repo (`https://grafana-community.github.io/helm-charts` or the `oci://ghcr.io/grafana-community/helm-charts/loki` registry — exact add command confirmed in tasks.md/implementation, not needed here) and pins chart `loki` at `18.13.5`, distinct from the existing `setup-loki` target's chart/repo, which stays untouched (FR-007/FR-017). Sources: [Upgrade from the Loki Helm chart to the Community Helm chart](https://grafana.com/docs/loki/latest/setup/upgrade/upgrade-to-community/), [loki 18.13.5 · grafana-community/grafana-community](https://artifacthub.io/packages/helm/grafana-community/loki).
+
+## Live-cluster checks
+
+### L1 — Current cluster state (run 2026-09-25)
+
+Command:
+
+```bash
+kubectl get nodes -L workload --show-labels=false
+kubectl get pods -n istio-system -o wide
+kubectl get svc -n istio-system istio-ingressgateway
+helm list -A
+```
+
+Actual output (verbatim):
+
+```
+NAME                                 STATUS   ROLES    AGE     VERSION    WORKLOAD
+aks-app-36164085-vmss000000          Ready    <none>   2d18h   v1.34.11   app
+aks-app-36164085-vmss000001          Ready    <none>   2d18h   v1.34.11   app
+aks-app-36164085-vmss000002          Ready    <none>   2d18h   v1.34.11   app
+aks-loadgen-12473643-vmss000000      Ready    <none>   2d18h   v1.34.11   loadgen
+aks-nodepool1-10557749-vmss000000    Ready    <none>   2d18h   v1.34.11
+aks-o11y-87088337-vmss000000         Ready    <none>   2d18h   v1.34.11   o11y
+aks-o11y-87088337-vmss000001         Ready    <none>   2d18h   v1.34.11   o11y
+aks-persistent-32573892-vmss000000   Ready    <none>   2d18h   v1.34.11   persistent
+aks-persistent-32573892-vmss000001   Ready    <none>   2d18h   v1.34.11   persistent
+
+NAME                                    READY   STATUS    RESTARTS   AGE     IP             NODE
+istio-ingressgateway-8677d95c5b-5fbrv   1/1     Running   0          2d18h   10.244.0.139   aks-nodepool1-10557749-vmss000000
+istiod-d5f79b88d-7bhpb                  1/1     Running   0          2d18h   10.244.0.220   aks-nodepool1-10557749-vmss000000
+
+NAME                   TYPE           CLUSTER-IP    EXTERNAL-IP       PORT(S)
+istio-ingressgateway   LoadBalancer   10.0.49.224   135.224.177.246   15021:31943/TCP,80:32394/TCP,443:30578/TCP
+
+NAME                     NAMESPACE    REVISION  CHART                          APP VERSION
+caretta                  monitoring   1         caretta-0.0.16                 v0.0.16
+istio-base               istio-system 1         base-1.30.4                    1.30.4
+istio-ingressgateway     istio-system 1         gateway-1.30.4                 1.30.4
+istiod                   istio-system 1         istiod-1.30.4                  1.30.4
+loki                     monitoring   1         loki-stack-2.10.3              v2.9.3
+opentelemetry-collector  monitoring   5         opentelemetry-collector-0.173.1 0.160.0
+prometheus-stack         monitoring   1         kube-prometheus-stack-52.0.0   v0.68.0
+roboshop                 robot-shop   4         robot-shop-1.1.0
+tempo                    monitoring   1         tempo-1.24.4                   2.9.0
+```
+(`aks-managed-*` kube-system addon releases omitted — irrelevant here.)
+
+**What this tells us** (facts, not yet interpreted into decisions):
+
+- The cluster, the four labelled node pools (o11y currently at 2 of its 2–3
+  range), Istio (istio-base/istiod/gateway all 1.30.4, matching finding 8),
+  and the ingress gateway with an external IP are all already up.
+- Contrary to the makefile's "aks lifecycle is the empty cluster only"
+  comment (finding 3), this cluster already has `loki`, `prometheus-stack`,
+  `tempo`, `caretta`, and `opentelemetry-collector` installed as Helm
+  releases in `monitoring`, plus `roboshop` in `robot-shop` — someone ran
+  the individual (shared, not-yet-AKS-specific) sub-targets directly against
+  this cluster outside the composite chain. This is exploratory/manual state
+  from before this story, not evidence of an AKS-specific chain that already
+  exists.
+- `loki`'s installed chart is `loki-stack-2.10.3` / app `v2.9.3` — this is
+  the existing AWS/local pin (`monitoring/chart-values/loki.yaml`'s chart),
+  **not** the "own AKS-specific settings file, pinned to latest GA" FR-007
+  requires. Confirms FR-007 is not yet satisfied by anything currently on
+  the cluster — expected, since that's this story's job, not something
+  already done.
+- `roboshop` (robot-shop) is already deployed, which means Robot Shop's app
+  workload is running on this cluster right now — a fact for the plan/PR to
+  flag, since this story's Out-of-Scope line assumes no app workloads are
+  deployed by this story; one already is, from earlier manual testing or
+  story 004 work. Whether `setup-gateway` has also been run (creating
+  `robotshop-gateway`) is checked next (L2).
+- `helm list -A` says nothing about Kiali, but Kiali is deployed via plain
+  `kubectl apply`, not Helm — its absence from this list doesn't tell us
+  whether it's running. Checked next (L2).
+
+### L2 — Kiali/gateway/metrics-server state (run 2026-09-25)
+
+Command and actual output (verbatim):
+
+```
+$ kubectl get deploy,svc -n monitoring -l app=kiali
+No resources found in monitoring namespace.
+
+$ kubectl get gateway,virtualservice -A
+NAMESPACE    NAME                                            AGE
+hotrod       gateway.networking.istio.io/hotrod-gateway      2d
+robot-shop   gateway.networking.istio.io/robotshop-gateway   2d
+
+NAMESPACE    NAME                                           GATEWAYS                HOSTS                   AGE
+hotrod       virtualservice.networking.istio.io/hotrod      ["hotrod-gateway"]      ["hotrod.demo.local"]   2d
+robot-shop   virtualservice.networking.istio.io/cart                                ["cart"]                45h
+robot-shop   virtualservice.networking.istio.io/catalogue                           ["catalogue"]           45h
+robot-shop   virtualservice.networking.istio.io/mongodb                             ["mongodb"]             45h
+robot-shop   virtualservice.networking.istio.io/payment                             ["payment"]             45h
+robot-shop   virtualservice.networking.istio.io/ratings                             ["ratings"]             45h
+robot-shop   virtualservice.networking.istio.io/redis                               ["redis"]               45h
+robot-shop   virtualservice.networking.istio.io/robotshop   ["robotshop-gateway"]   ["*"]                   2d
+robot-shop   virtualservice.networking.istio.io/shipping                            ["shipping"]            45h
+robot-shop   virtualservice.networking.istio.io/user                                ["user"]                45h
+
+$ kubectl get pods -n kube-system | grep -i metrics-server
+metrics-server-64d77894df-9nrzp   2/2   Running   0   2d18h
+metrics-server-64d77894df-j4hz6   2/2   Running   0   2d18h
+
+$ kubectl get clusterrole system:metrics-server -o yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations: {kubectl.kubernetes.io/last-applied-configuration: ...}
+  labels:
+    addonmanager.kubernetes.io/mode: Reconcile
+    kubernetes.io/cluster-service: "true"
+  name: system:metrics-server
+```
+
+**What this tells us**:
+
+- Kiali, `kiali-vs`, `grafana-vs`, and `prometheus-vs` are all absent — the
+  shared `setup-istio-o11y-addons` apply (finding 6) genuinely has not run
+  on this cluster. No double-install has happened yet; the risk the
+  Architect named (finding 3) is about what happens if this story naively
+  reuses that shared apply, not something already gone wrong here.
+- `robotshop-gateway` and `hotrod-gateway` (and their per-app `VirtualService`s)
+  already exist — `setup-gateway` (finding 4) has already been run on this
+  cluster, and `robotshop-gateway` is up. This means the routing step
+  precondition FR-005 depends on is *already met on this cluster right
+  now* — so applying the monitoring `VirtualService`s here today would bind
+  to a real Gateway immediately. On a genuinely fresh cluster (nobody has
+  run `setup-gateway` yet), the spec's edge case (FR-005/US1 scenario 5)
+  still applies.
+- `roboshop` (finding L1) is a real, currently-running app workload on this
+  cluster from earlier manual/story-004 work — noted for the PR, not a
+  defect of this story.
+- AKS's built-in `metrics-server` add-on is running in `kube-system`
+  (2/2 Ready), owned by AKS's own `addonmanager` (`mode: Reconcile`) via
+  `ClusterRole system:metrics-server`. Its own reconciliation would fight
+  a second installer of the same cluster-scoped name.
+- **`setup-metric-server`'s actual collision was already run live against
+  this exact cluster during story #108's (004) research**, and is recorded
+  verbatim in `specs/004-deploy-demo-apps-aks/research.md` §6, so it is not
+  re-run here — re-running it would just reproduce the same recorded
+  failure against the same unchanged addon:
+  ```
+  Error: unable to continue with install: ClusterRole "system:metrics-server" in namespace "" exists and cannot be imported into the current release: invalid ownership metadata...
+  ```
+  Confirmed real by that story, and explicitly flagged there as "out of
+  scope for this story (belongs to #101's AKS observability work" — i.e.
+  handed to this story to resolve. **Decision needed in plan.md**: skip
+  `setup-metric-server` on AKS entirely (AKS's own addon already serves the
+  same API), rather than try to fix the collision — reusing what the
+  platform already provides is simpler and lower-risk than fighting an
+  addon-manager-reconciled resource.
+
+### L3 — Kiali v1.63.1 against Istio 1.30.4 (run 2026-09-25)
+
+Command and actual output (verbatim, abridged — full log had routine
+Kiali-cache-refresh and Kubernetes `Endpoints`-deprecation warnings only,
+no errors):
+
+```
+$ kubectl apply -f monitoring/istio-observability-addons/kiali.yaml
+serviceaccount/kiali unchanged
+configmap/kiali unchanged
+clusterrole.rbac.authorization.k8s.io/kiali-viewer unchanged
+clusterrole.rbac.authorization.k8s.io/kiali unchanged
+clusterrolebinding.rbac.authorization.k8s.io/kiali unchanged
+role.rbac.authorization.k8s.io/kiali-controlplane unchanged
+rolebinding.rbac.authorization.k8s.io/kiali-controlplane unchanged
+service/kiali unchanged
+deployment.apps/kiali unchanged
+
+$ kubectl apply -f monitoring/istio-observability-addons/kiali-vs.yaml
+virtualservice.networking.istio.io/kiali-vs unchanged
+
+$ kubectl get pods -n monitoring -l app=kiali
+NAME                   READY   STATUS    RESTARTS   AGE
+kiali-658fc489-tt6rn   1/1     Running   0          150m
+
+$ kubectl logs -n monitoring -l app=kiali --tail=40
+2026-09-25T07:46:58Z INF Server endpoint will start at [:20001/kiali]
+2026-09-25T07:46:58Z INF Starting Metrics Server on [:9090]
+2026-09-25T08:35:58Z INF Kiali Cache: Updating cache with new token
+2026-09-25T08:35:58Z INF [Kiali Cache] Waiting for cluster-scoped cache to sync
+2026-09-25T08:35:58Z INF [Kiali Cache] started
+(repeats every ~45 min; only other lines are non-fatal "v1 Endpoints is
+deprecated in v1.33+" warnings — no errors, no crash loop)
+
+$ curl -sI http://135.224.177.246/kiali/
+HTTP/1.1 200 OK
+content-type: text/html
+vary: Accept-Encoding
+server: istio-envoy
+```
+
+**Everything reported "unchanged"** — these exact manifests, unmodified,
+were already applied to this cluster before this check (age 150m; not by
+this story's work, and not present when L2 checked minutes earlier with
+`-l app=kiali` on `deploy,svc` — the L2 query likely used the wrong label
+key, since finding below shows the Deployment does carry `app: kiali`).
+
+**What this tells us, decisively**:
+
+- Kiali v1.63.1 (finding 7) **runs healthy against Istio 1.30.4** (finding 8)
+  on real AKS, unmodified — 1/1 Running, no restarts, clean cache-sync logs,
+  no compatibility error of any kind. The version-mismatch risk the
+  Architect's finding 3 raised does not materialize in practice.
+- It is reachable end-to-end through the exact dependency chain the spec
+  describes: the existing `robotshop-gateway` (created by the routing step,
+  finding 4/L2) plus the shared, unmodified `kiali-vs.yaml` → `curl` through
+  the shared ingress IP returns `200 OK` from `istio-envoy`.
+- **Decision for plan.md**: the service mesh dashboard reuses the existing
+  shared manifests (`kiali.yaml` + `kiali-vs.yaml`) as-is on AKS — no
+  separate Azure-specific version pin needed. This resolves the Assumptions
+  entry that left this open; FR-018 ("compatible version... no duplicate
+  install") is satisfied by reuse, not a new pin.
+- Checked separately (cheap, repo-only) — `monitoring/istio-observability-addons/kiali.yaml:568-573`
+  already sets:
+  ```yaml
+  tolerations:
+    - key: "o11y"
+      value: "true"
+      effect: "NoSchedule"
+  nodeSelector:
+    workload: "o11y"
+  ```
+  on the Kiali Deployment itself — the shared manifest already satisfies
+  FR-002's observability-pool placement without any AKS-specific edit.
+  Confirming the pod actually landed on an `o11y` node (not just that the
+  manifest asks for it) is the last live check below.
+
+### L4 — Kiali's actual node placement (run 2026-09-25)
+
+Command and actual output (verbatim):
+
+```
+$ kubectl get pod -n monitoring -l app=kiali -o wide
+NAME                   READY   STATUS    RESTARTS   AGE    IP             NODE
+kiali-658fc489-tt6rn   1/1     Running   0          178m   10.244.6.162   aks-o11y-87088337-vmss000001
+```
+
+**Confirmed**: the pod is running on `aks-o11y-87088337-vmss000001` — one of
+the two `o11y`-labelled, `o11y=true:NoSchedule`-tainted nodes (finding 1 /
+L1). FR-002's placement requirement is met by the shared manifest as-is,
+verified live, not just asserted from the YAML.
+
+## Phase 0 summary — decisions this story's plan.md will carry forward
+
+1. **Monitoring stack and service mesh dashboard each get their own command**, run after `setup-cluster`/`setup-istio`/`setup-gateway`, per the spec's 2026-09-25 clarification — no change to the composite `setup:` chain's AKS branch (still cluster-only).
+2. **`setup-metric-server` is skipped on the AKS path.** AKS already runs its own `metrics-server` addon (`kube-system`, addon-managed); installing a second one collides on `ClusterRole system:metrics-server` (proven in `specs/004-deploy-demo-apps-aks/research.md` §6, same cluster, not re-run here). The AKS observability chain omits this step rather than trying to fix the collision.
+3. **The service mesh dashboard reuses the existing shared manifests (`monitoring/istio-observability-addons/kiali.yaml` + `kiali-vs.yaml`) unmodified** — no Azure-specific version pin. Proven live: Kiali v1.63.1 runs healthy against Istio 1.30.4, is reachable through the existing `robotshop-gateway` (200 OK), and its Deployment already carries the correct `o11y` `nodeSelector`/toleration, confirmed by where the pod actually landed (L3/L4).
+4. **The routing step (`setup-gateway`) is a real, separate prerequisite**, not automatic — on this cluster it had already been run (L2), but the spec's edge case (fresh cluster, routing not yet run) is real and must be handled by the monitoring command's own screens too, per FR-005/US1 scenario 5, not just Kiali's.
+5. **Loki, the metrics store, Tempo, and Caretta are already installed on this cluster using the shared (non-Azure-specific) chart pins** (L1) — from earlier manual work, not from any AKS-specific target that exists yet. This story still needs to build the real AKS-specific Loki target per FR-007 (latest GA, own settings file); the currently-installed `loki-stack-2.10.3`/`v2.9.3` release is not that target and will need to be reconciled (reinstalled under the new target, or left as-is and pointed at by it — a plan-time decision) rather than assumed correct.
+6. **Robot Shop is already deployed on this cluster** (`roboshop` release, L1) — a fact for the PR, not a defect; this story's "no application workloads" boundary is about what *this story* deploys, and it deploys none.
