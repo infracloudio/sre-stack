@@ -1,0 +1,87 @@
+# kube-prometheus-stack values, trimmed for a local lab.
+# Key tweaks:
+#  - enable the Prometheus remote_write receiver so the OTel collector can push
+#  - Grafana exposed via NodePort 30080 (mapped to host:3000 by kind)
+#  - Pre-load Prometheus, Loki, Tempo datasources with cross-signal correlation
+fullnameOverride: kps
+
+prometheus:
+  prometheusSpec:
+    enableRemoteWriteReceiver: true
+    # Keep retention small on a laptop
+    retention: 24h
+    resources:
+      requests:
+        cpu: 100m
+        memory: 400Mi
+    # Pick up ServiceMonitors from any namespace, no label selector
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+
+alertmanager:
+  enabled: false  # not needed for the lab
+
+# Disable cAdvisor scraping noise on kind (kubelet cAdvisor metrics path differs)
+kubeApiServer:
+  enabled: true
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeProxy:
+  enabled: false
+
+grafana:
+  enabled: true
+  service:
+    type: NodePort
+    nodePort: 30080
+  adminPassword: admin
+  defaultDashboardsTimezone: browser
+  # Pre-wire the three datasources so trace ↔ logs ↔ metrics linking works
+  # out of the box. The `derivedFields` and `tracesToLogsV2` blocks are what
+  # actually wire correlation together.
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      url: http://loki.observability.svc:3100
+      access: proxy
+      jsonData:
+        derivedFields:
+          - datasourceUid: tempo
+            matcherRegex: "trace_id=(\\w+)"
+            name: TraceID
+            url: "$${__value.raw}"
+    - name: Tempo
+      type: tempo
+      uid: tempo
+      # Tempo's HTTP query API is on 3200 (not 3100 — that's Loki).
+      # OTLP gRPC for ingestion is on 4317 and is configured in the
+      # collector's otlp/tempo exporter separately.
+      url: http://tempo.observability.svc:3200
+      access: proxy
+      jsonData:
+        tracesToLogsV2:
+          datasourceUid: loki
+          spanStartTimeShift: "-5m"
+          spanEndTimeShift: "5m"
+          tags:
+            - key: service.name
+              value: service_name
+            - key: k8s.pod.name
+              value: pod
+            - key: k8s.namespace.name
+              value: namespace
+          filterByTraceID: true
+        tracesToMetrics:
+          datasourceUid: prometheus
+          tags:
+            - key: service.name
+              value: service
+        serviceMap:
+          datasourceUid: prometheus
+        nodeGraph:
+          enabled: true

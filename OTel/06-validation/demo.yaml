@@ -1,0 +1,86 @@
+# Three short-lived workloads, all using service.name="demo-app", emitting one
+# signal each through the agent's local OTLP endpoint (the DaemonSet exposes
+# 4317 on every node's pod IP — we resolve via the agent's headless Service).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo
+---
+# Traces — telemetrygen sends 100 spans
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: demo-traces
+  namespace: demo
+spec:
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: gen
+          image: ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen:latest
+          args:
+            - traces
+            - --otlp-endpoint=otel-gateway.observability.svc:4317
+            - --otlp-insecure
+            - --duration=30s
+            - --rate=5
+            - --otlp-attributes=service.name="demo-app"
+            - --otlp-attributes=service.namespace="demo"
+---
+# Metrics
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: demo-metrics
+  namespace: demo
+spec:
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: gen
+          image: ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen:latest
+          args:
+            - metrics
+            - --otlp-endpoint=otel-gateway.observability.svc:4317
+            - --otlp-insecure
+            - --duration=30s
+            - --rate=5
+            - --otlp-attributes=service.name="demo-app"
+---
+# Logs — emit via stdout so filelogreceiver picks them up too
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-logger
+  namespace: demo
+  labels:
+    app: demo-logger
+    service.name: demo-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-logger
+  template:
+    metadata:
+      labels:
+        app: demo-logger
+        service.name: demo-app   # surfaced by k8sattributes preset
+    spec:
+      containers:
+        - name: logger
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              i=0
+              while true; do
+                i=$((i+1))
+                echo "ts=$(date -Iseconds) level=info msg='demo log line' trace_id=00112233445566778899aabbccddee$(printf '%02d' $((i % 100)))"
+                sleep 2
+              done

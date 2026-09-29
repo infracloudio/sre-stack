@@ -1,0 +1,125 @@
+# Gateway values — step 07 ADDS the prometheusreceiver and a target-allocator
+# so the collector takes over scraping from Prometheus, ServiceMonitor by
+# ServiceMonitor. This is the incremental path the scope calls for: we keep
+# Prometheus running as a metrics *store* (remote_write target) but move
+# *scraping* into the collector tier.
+mode: deployment
+replicaCount: 1
+fullnameOverride: otel-gateway
+
+image:
+  repository: otel/opentelemetry-collector-contrib
+
+presets:
+  kubernetesAttributes:
+    enabled: true
+    extractAllPodLabels: true
+  kubernetesEvents:
+    enabled: true
+  clusterMetrics:
+    enabled: true
+
+# NEW: target allocator — discovers ServiceMonitors/PodMonitors and assigns
+# scrape targets to gateway replicas. With one replica it's overkill, but it
+# makes the scrape config declarative and matches the production pattern.
+targetAllocator:
+  enabled: true
+  replicas: 1
+  allocationStrategy: consistent-hashing
+  prometheusCR:
+    enabled: true
+    # Pick up every ServiceMonitor/PodMonitor in the cluster, no label filter.
+    # Tighten this later by setting serviceMonitorSelector to phase the
+    # migration ServiceMonitor-by-ServiceMonitor (scope explicitly says
+    # "start with a couple of ServiceMonitors").
+    serviceMonitorSelector: {}
+    podMonitorSelector: {}
+
+service:
+  type: NodePort
+
+ports:
+  otlp:
+    enabled: true
+    containerPort: 4317
+    servicePort: 4317
+    nodePort: 30317
+    protocol: TCP
+  otlp-http:
+    enabled: true
+    containerPort: 4318
+    servicePort: 4318
+    nodePort: 30318
+    protocol: TCP
+
+resources:
+  limits:
+    cpu: 1
+    memory: 1Gi
+
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc: { endpoint: 0.0.0.0:4317 }
+        http: { endpoint: 0.0.0.0:4318 }
+    # NEW: prometheus receiver. The target-allocator fills in scrape configs
+    # at runtime from the CRs it discovers, so we declare an empty static
+    # config block and point the receiver at the allocator.
+    prometheus:
+      config:
+        scrape_configs: []
+      target_allocator:
+        endpoint: http://otel-gateway-targetallocator:80
+        interval: 30s
+        collector_id: ${env:POD_NAME}
+    # k8s_events + k8s_cluster injected by presets
+
+  processors:
+    memory_limiter:
+      check_interval: 5s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+    batch:
+      send_batch_size: 1024
+      timeout: 5s
+    resource/loki-labels:
+      attributes:
+        - action: insert
+          key: loki.resource.labels
+          value: service.name,k8s.namespace.name,k8s.pod.name,k8s.container.name
+
+  exporters:
+    otlp/tempo:
+      endpoint: tempo.observability.svc:4317
+      tls: { insecure: true }
+    otlphttp/loki:
+      endpoint: http://loki.observability.svc:3100/otlp
+      tls: { insecure: true }
+    prometheusremotewrite/prom:
+      endpoint: http://kps-prometheus.observability.svc:9090/api/v1/write
+      tls: { insecure: true }
+      resource_to_telemetry_conversion:
+        enabled: true
+
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, k8sattributes, batch]
+        exporters: [otlp/tempo]
+      # OTLP-pushed app metrics (from agents) AND scraped metrics
+      # (via the prometheus receiver) share one pipeline so they get the same
+      # k8sattributes treatment and ship out the same exporter.
+      metrics:
+        receivers: [otlp, prometheus]
+        processors: [memory_limiter, k8sattributes, batch]
+        exporters: [prometheusremotewrite/prom]
+      metrics/cluster:
+        receivers: [k8s_cluster]
+        processors: [memory_limiter, k8sattributes, batch]
+        exporters: [prometheusremotewrite/prom]
+      logs:
+        receivers: [otlp, k8sobjects]
+        processors: [memory_limiter, k8sattributes, resource/loki-labels, batch]
+        exporters: [otlphttp/loki]

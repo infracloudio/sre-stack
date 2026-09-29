@@ -1,0 +1,90 @@
+# Robot Shop — local k3d override values
+# Fixes two blockers for the 4-node demo cluster:
+#   1. workload=persistent nodeSelector → no such node, redirect to workload=app
+#   2. replicas:3 + required podAntiAffinity → only 1 app node, reduce to 1 replica
+#
+# IMPORTANT: affinity: null (not {}) — Helm merges maps so {} leaves base affinity
+# unchanged. null explicitly deletes the key, clearing the podAntiAffinity.
+
+stack_mode: local
+
+# ── Persistent services: move to workload=app, drop persistent tolerations ──
+
+mongodb:
+  nodeSelector:
+    workload: app
+  tolerations: []
+
+mysql:
+  nodeSelector:
+    workload: app
+  tolerations: []
+
+redis:
+  nodeSelector:
+    workload: app
+  tolerations: []
+
+payment:
+  replicas: 1
+  nodeSelector:
+    workload: app
+  tolerations: []
+  affinity: null
+
+shipping:
+  replicas: 1
+  nodeSelector:
+    workload: app
+  tolerations: []
+  affinity: null
+  resources:
+    limits:
+      cpu: 300m
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 512Mi
+
+rabbitmq:
+  nodeSelector:
+    workload: app
+  tolerations: []
+
+mysqlseeder:
+  nodeSelector:
+    workload: app
+  tolerations: []
+
+# ── App-tier services: replicas 3 → 1, remove required anti-affinity ──
+
+cart:
+  replicas: 1
+  affinity: null
+
+catalogue:
+  replicas: 1
+  affinity: null
+
+dispatch:
+  replicas: 1
+  affinity: null
+
+ratings:
+  replicas: 1
+  affinity: null
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+user:
+  replicas: 1
+  affinity: null
+
+web:
+  replicas: 1
+  affinity: null
