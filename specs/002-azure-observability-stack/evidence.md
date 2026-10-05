@@ -265,3 +265,99 @@ the cluster. EKS/local still apply it.
   (not installed). Recorded, not removed.
 - The Tempo datasource provisioned by the shared `prometheus-values.yaml`
   is broken on AKS because Tempo is out of scope — accepted in AD-006.
+
+---
+
+## 11. Re-runs are safe (T021 — FR-003, SC-007)
+
+Second runs on the same cluster, 2026-10-05 21:23–21:40 IST. Before and
+after each run, every object in `monitoring` (plus the cluster-wide
+Kiali/Alloy/Loki/Prometheus/collector RBAC) was listed by kind, name and
+UID, excluding pods, ReplicaSets and Helm's own release secrets; pods were
+listed with readiness and restart counts.
+
+### `make setup-kiali-aks` — second run: PASS
+
+```
+make setup-kiali-aks exit=0
+Mesh is running (istiod found in istio-system). Applying Kiali (v2.32.0)...
+networkpolicy.networking.k8s.io/kiali unchanged
+serviceaccount/kiali unchanged
+configmap/kiali unchanged
+clusterrole.rbac.authorization.k8s.io/kiali unchanged
+clusterrolebinding.rbac.authorization.k8s.io/kiali unchanged
+service/kiali unchanged
+deployment.apps/kiali unchanged
+virtualservice.networking.istio.io/kiali-vs unchanged
+```
+
+### `make setup-aks-o11y` — second run: all 6 steps PASS (Alloy step run separately)
+
+```
+namespace/monitoring configured
+service/postgres unchanged
+statefulset.apps/postgresql-psql configured
+job.batch/create-grafana-database unchanged
+Release "prometheus-stack" has been upgraded.   (REVISION 2 -> 4)
+Release "loki" has been upgraded.               (REVISION 3 -> 5)
+bash ./infra/scripts/cluster/setup-log-shipper-aks.sh
+Error: Get "https://release-assets.githubusercontent.com/...alloy-1.13.0.tgz...":
+  context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+make: *** [makefile:194: setup-log-shipper-aks] Error 1
+```
+
+The chain stopped at step 4 both times it was tried: Helm could not
+download the Alloy chart from GitHub's release-asset host (a network
+timeout on this machine, not a cluster or script error). The two steps it
+never reached were then run directly:
+
+```
+make setup-aks-o11y-routes setup-dashboards   exit=0
+virtualservice.networking.istio.io/grafana-vs unchanged
+virtualservice.networking.istio.io/prometheus-vs unchanged
+podmonitor.monitoring.coreos.com/envoy-stats-monitor unchanged
+servicemonitor.monitoring.coreos.com/istio-component-monitor unchanged
+configmap/app-dashboards unchanged
+configmap/service-dashboard unchanged
+configmap/mysql-dashboards unchanged
+configmap/rabbitmq-dashboards unchanged
+skipping rds.yaml (AWS RDS dashboard, not applicable on AKS)
+```
+
+The Alloy step was then run on its own once the download got through
+(21:59 IST; the earlier hangs were Helm's TCP connection to one GitHub
+release-asset address sitting in `SYN-SENT`, never answered):
+
+```
+make setup-log-shipper-aks
+Installing the Grafana Alloy log shipper (chart 1.13.0) into namespace monitoring...
+Release "alloy" has been upgraded. Happy Helming!
+STATUS: deployed
+REVISION: 5
+Log shipper installed.
+
+### alloy DaemonSet after the re-run
+desired=9 ready=9 updated=9 generation=1 observedGeneration=1
+```
+
+### State comparison (after all six steps and the Kiali re-run)
+
+```
+objects before=125 after=125
+diff (sorted): IDENTICAL — same objects, same UIDs
+pods: IDENTICAL — same names, readiness and restart counts
+helm: alloy rev 5 · loki rev 5 · opentelemetry-collector rev 3 · prometheus-stack rev 4 (all deployed)
+```
+
+Notes:
+- "configured" on the namespace and the Postgres StatefulSet is
+  `kubectl apply` refreshing its last-applied annotation; no object was
+  created or replaced (UIDs unchanged) and no pod restarted.
+- `helm upgrade --install` always records a new revision, even with no
+  change; the revision numbers moving is expected and created nothing.
+  The Alloy DaemonSet's `generation` stayed at 1, so its pod spec did not
+  change and no Alloy pod was rolled.
+- The chain was proven step by step rather than in one uninterrupted
+  `make setup-aks-o11y`, because the chart download timed out on the
+  operator's network twice. Every step ran a second time; none created
+  anything.

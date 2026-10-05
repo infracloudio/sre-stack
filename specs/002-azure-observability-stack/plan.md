@@ -26,7 +26,7 @@ Give AKS its own observability command (mirroring the cluster-only pattern the o
 ## Approach
 
 1. **New AKS observability target**, `setup-aks-o11y` (mirrors `setup-local-o11y`'s naming), chaining all six targets: `setup-db-grafana-psql setup-kube-prometheus-stack setup-loki-aks setup-log-shipper-aks setup-aks-o11y-routes setup-dashboards`. No `setup-metric-server` (research.md Phase 0 summary #2: AKS's built-in addon already serves the same API; installing a second one collides on `ClusterRole system:metrics-server`, proven live in story 004's research against this exact cluster). No Tempo/Beyla/Caretta (out of scope).
-2. **New target `setup-loki-aks`**, values file at `infra/azure/chart-values/loki.yaml` — **a new subfolder** of `infra/azure/` (today that folder holds only `gp2-storageclass.yaml`), satisfying FR-008's "own folder" without inventing a second Azure folder under `monitoring/`. Chart `loki` pinned at `18.13.7` from the `grafana-community/helm-charts` repo (research.md finding 12; the old `grafana/helm-charts` chart depends on Promtail/Grafana Agent, both past EOL). The values file sets **sixteen** settings, every one confirmed by an offline render (research.md finding 16, exit 0):
+2. **New target `setup-loki-aks`**, values file at `infra/azure/chart-values/loki.yaml` — **a new subfolder** of `infra/azure/` (today that folder holds only `gp2-storageclass.yaml`), satisfying FR-008's "own folder" without inventing a second Azure folder under `monitoring/`. Chart `loki` pinned at `18.13.7` from the `grafana-community/helm-charts` repo (research.md finding 12; the old `grafana/helm-charts` chart depends on Promtail/Grafana Agent, both past EOL). The values file sets **sixteen** settings (a seventeenth, `loki.commonConfig.replication_factor: 1`, was added live — Implementation departures item 5), every one confirmed by an offline render (research.md finding 16, exit 0):
    - *Placement*: `singleBinary.nodeSelector: {workload: o11y}`, `singleBinary.tolerations: [o11y=true:NoSchedule]` — **per-component** keys; this chart has no top-level placement keys, so the old `loki-stack` file's shape would be silently ignored.
    - *Flat name for Grafana and Alloy* (finding 14): `fullnameOverride: loki`, `gateway.enabled: false`, `loki.auth_enabled: false` — keeps the Service at the flat `loki:3100` that the shared `prometheus-values.yaml` `additionalDataSources` entry already hardcodes, with no tenant header required (FR-006).
    - *Actually runs* (findings 15–16): `deploymentMode: Monolithic`, `singleBinary.replicas: 1`, `loki.storage.type: filesystem`, `loki.useTestSchema: true`, `read.replicas: 0`, `write.replicas: 0`, `backend.replicas: 0` (without the last three the render fails).
@@ -71,7 +71,7 @@ Give AKS its own observability command (mirroring the cluster-only pattern the o
 | `infra/azure/chart-values/loki.yaml` (new; `chart-values/` is a new subfolder) | Loki values for AKS: chart `loki` `18.13.7` from `grafana-community/helm-charts` (research.md finding 12). Sixteen settings, every one confirmed by an offline render (research.md finding 16) — listed in Approach item 2: per-component placement under `singleBinary.*`; flat `loki:3100` Service with no tenant header (`fullnameOverride`, `gateway.enabled: false`, `loki.auth_enabled: false`); Monolithic single-binary on filesystem storage with the test schema; SimpleScalable targets zeroed; canary, test, and both caches off. | FR-006, FR-007, FR-002, FR-008 |
 | `infra/scripts/cluster/setup-kiali-aks.sh` (new) | Checks `helm status istiod -n istio-system` before applying Kiali; refuses with a plain message if the mesh isn't up. Applies the AKS-specific rendered manifest `infra/azure/kiali/kiali.yaml` (v2.32.0) plus the shared `kiali-vs.yaml` — the shared v1.63 manifest's graph API crashes on Kubernetes 1.34 (see Implementation departures). A dedicated script (not an inline recipe) so it's unit-testable the same way `setup-cluster-aks.sh`/`verify-cluster-aks.sh` already are. | FR-013, FR-018 |
 | `agent/tests/azure/check-observability-placement.sh` (new) + scenarios | Offline, no-cluster check asserting `nodeSelector`/`tolerations` — on the two new AKS-specific files (`loki.yaml`, `alloy.yaml`) and on the shared `monitoring/istio-observability-addons/kiali.yaml` and `monitoring/chart-values/prometheus-values.yaml` this story wires into the AKS path, since FR-011 covers every workload this story's commands place on the observability pool, not only newly-written files. New assertion style alongside the existing fake-CLI harness, not a modification of it. | FR-011 |
-| `infra/azure/chart-values/alloy.yaml` (new) | Log-shipper values for AKS: chart `alloy` `1.13.0` from `grafana/helm-charts`, DaemonSet mode, `discovery.kubernetes`/`discovery.relabel`/`loki.write` configured to push to `http://loki:3100/loki/api/v1/push` — the new AKS Loki's push endpoint, guaranteed to keep that flat name by item 2's `fullnameOverride`/`gateway.enabled` decision — `controller.tolerations: [{operator: Exists}]`, so it runs on all five pools (spec Clarification 2026-10-05). Not yet live-verified (research.md finding 13; T023). | FR-002, FR-007 |
+| `infra/azure/chart-values/alloy.yaml` (new) | Log-shipper values for AKS: chart `alloy` `1.13.0` from `grafana/helm-charts`, DaemonSet mode, `discovery.kubernetes`/`discovery.relabel`/`loki.write` configured to push to `http://loki:3100/loki/api/v1/push` — the new AKS Loki's push endpoint, guaranteed to keep that flat name by item 2's `fullnameOverride`/`gateway.enabled` decision — `controller.tolerations: [{operator: Exists}]`, so it runs on all five pools (spec Clarification 2026-10-05). Live-verified by T023 (research.md finding 13); two live fixes recorded as Implementation departures item 3. | FR-002, FR-007 |
 | `infra/scripts/cluster/setup-aks-o11y-routes.sh` (new) | Applies the four unmodified routing/scrape files from Approach item 3 with `kubectl apply`. Resolves the repo root and sources `.env`. | FR-005 |
 | `infra/scripts/cluster/setup-log-shipper-aks.sh` (new) | Adds the `grafana` Helm repo and runs `helm upgrade --install alloy grafana/alloy --version 1.13.0 -f infra/azure/chart-values/alloy.yaml -n "${MONITORING_NS}"`. Resolves the repo root and sources `.env`. | FR-002 |
 | `agent/scripts/verify-aks-observability.sh` (new) | Read-only live-cluster reporter for FR-012: checks every monitoring/Kiali workload's actual node placement and both Grafana datasources' actual health, prints a plain PASS/FAIL report. Mirrors the reporting style of story 001's `infra/scripts/cluster/verify-cluster-aks.sh`. Needs a live cluster to run against; this task only creates the script (found missing entirely from tasks.md in the second review). | FR-012 |
@@ -115,10 +115,12 @@ No new cleanup script is needed — AKS's existing `cleanup: cleanup-cluster` al
 
 ## Implementation departures (2026-10-05)
 
-Live implementation against a freshly-built cluster found two plan
-assumptions false. Both are recorded here (constitution VIII/IX) and
-captured as AKS-specific files under `infra/azure/`, leaving the shared
-EKS/local files untouched (FR-017):
+Live implementation against a freshly-built cluster found five places
+where the plan did not hold. All are recorded here (constitution VIII/IX)
+and captured as AKS-specific files or `STACK_MODE=aks` branches, leaving
+the shared EKS/local files and behaviour untouched (FR-017). Items 1–2
+changed a plan decision; items 3–5 are smaller fixes inside planned
+files:
 
 1. **T013/T024's "the optional collector needs no AKS-specific work" was
    wrong.** `setup-optional-otel` never pinned its chart, so it floated to
@@ -140,14 +142,54 @@ EKS/local files untouched (FR-017):
    Robot Shop nodes/edges, UI 200) and pointing `setup-kiali-aks` at it.
    EKS/local keep the shared v1.63 manifest. Also fixes FR-018/FR-019,
    which no longer hold as written against AKS's Kubernetes 1.34.
+3. **Alloy config (`infra/azure/chart-values/alloy.yaml`, T004/T023).**
+   (a) The first draft's `regex = "(?s.*)"` is Perl syntax Go's RE2
+   rejects, so every Alloy pod crash-looped at config parse; the regex
+   line was removed (the rule needs none). (b) The shared Application
+   Dashboard queries `{app="<service>"}`, but Robot Shop pods carry
+   `service=<name>`, not `app.kubernetes.io/name`, so `{app="ratings"}`
+   returned nothing. A fallback rule copies the pod `service` label into
+   `app` only when it is non-empty (`regex = "(.+)"`), never overwriting
+   `app.kubernetes.io/name`. Verified live: all eight Robot Shop services
+   resolve `{app="<svc>"}` (evidence.md §4, §9, §10.1, §10.4).
+4. **`setup-dashboards` skips `rds.yaml` on AKS.** The target applied the
+   whole shared dashboards folder, including the AWS RDS CloudWatch
+   dashboard, which has no data source on AKS. A `STACK_MODE=aks` branch
+   applies every other file individually and skips that one; EKS/local
+   still apply the folder (evidence.md §10.5).
+5. **Loki needs a 17th setting: `loki.commonConfig.replication_factor: 1`.**
+   The chart's default replication factor is 3; with Approach item 2's
+   single replica every ring query failed with "too many unhealthy
+   instances in the ring". The offline render (research.md finding 16)
+   could not catch this — it only shows up at query time. Added to
+   `infra/azure/chart-values/loki.yaml`; verified live by Loki answering
+   label and log queries (evidence.md §4).
 
-Both are out of story 002's stated scope and should be formalised in a
-follow-up story; AD-006 carries the same correction.
+Items 1–2 are out of story 002's stated scope and should be formalised in
+a follow-up story; AD-006 carries all five corrections.
 
 ## Verification results (2026-10-05, live AKS cluster sre-stack-d6d56b)
 
-- Placeholder — see the task-by-task results in the implement run's final
-  report; `make lint` passes, the placement check prints five PASS lines
-  (loki, alloy, otel, prometheus-values, AKS kiali), `setup-aks-o11y` and
-  `setup-kiali-aks` are idempotent, Loki receives Robot Shop logs, and the
-  Kiali graph renders.
+Full verbatim output is in [evidence.md](./evidence.md). Summary:
+
+- `verify-aks-observability.sh` (FR-012, SC-006): `0 failure(s)`. Every
+  monitoring and Kiali pod is on an `o11y` node; Alloy and node-exporter
+  run on all five pools; Prometheus is healthy and Loki answers queries
+  (evidence.md §2).
+- Endpoints (FR-004/FR-005): `/prometheus` 200, `/kiali/` 200, `/grafana`
+  302 to its login page, which returns 200 (§3).
+- Logs (FR-002): Loki holds Robot Shop log lines with the `namespace`,
+  `pod`, `container`, `node`, `app` and `job` labels (§4).
+- Kiali (FR-018/FR-019): v2.32.0 running; the Robot Shop graph has 14
+  nodes and 17 edges (§6).
+- Deployment check (FR-011, SC-005): `make lint` prints five PASS lines
+  (loki, alloy, otel, prometheus-values, AKS kiali) and exits 0 (§7);
+  removing `singleBinary.nodeSelector` or `singleBinary.tolerations` from
+  `loki.yaml` makes it fail and name the file.
+- Missing mesh (FR-013, SC-009): with `helm status istiod` failing,
+  `setup-kiali-aks.sh` prints "the service mesh is not running", applies
+  nothing, and exits 1; `setup-aks-o11y` has no dependency on it.
+- Re-runs (FR-003, SC-007): a second `setup-kiali-aks` left every object
+  `unchanged`; all six `setup-aks-o11y` steps ran a second time (the Alloy
+  step separately, after a chart-download timeout) with the same 125
+  objects and UIDs and no pod restarts (evidence.md §11).

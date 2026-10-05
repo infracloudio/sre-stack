@@ -30,7 +30,8 @@ AWS EKS or local k3d. Application code comes from upstream images.
 - `make setup` / `make cleanup`: EKS lifecycle.
 - `make setup-local` / `make cleanup-local`: full k3d lifecycle.
 - `make setup-aks-o11y`: AKS monitoring stack (Prometheus, Grafana,
-  Loki, the Grafana Alloy log shipper, routes, dashboards) after
+  Loki, the Grafana Alloy log shipper via `setup-log-shipper-aks`,
+  routes, dashboards) after
   cluster → istio → gateway; `make setup-kiali-aks` installs Kiali
   separately and refuses when the mesh is not running. AKS skips
   `setup-metric-server` (built-in addon) and does not install Tempo,

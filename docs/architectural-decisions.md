@@ -376,3 +376,18 @@ unmodified); they are recorded here so a follow-up story can formalise the
 Kiali-v2 and collector-pin decisions rather than have them live only in
 this ADR.
 
+Three smaller live fixes changed no decision above but are recorded so the
+files explain themselves (plan.md "Implementation departures" items 3–5):
+
+- **Alloy `app` label falls back to the pod's `service` label.** The
+  shared Application Dashboard queries `{app="<service>"}`; Robot Shop
+  pods carry `service=<name>`, not `app.kubernetes.io/name`. A relabel
+  rule copies `service` into `app` only when non-empty, so it never
+  overwrites `app.kubernetes.io/name`. (The first Alloy draft also used a
+  Perl-only regex, `(?s.*)`, that Go's RE2 rejects; it was removed.)
+- **`setup-dashboards` skips `rds.yaml` on AKS.** The AWS RDS CloudWatch
+  dashboard has no data source on AKS; EKS/local still apply it.
+- **Loki sets `loki.commonConfig.replication_factor: 1`.** The chart's
+  default of 3 fails every ring query with a single Loki replica; an
+  offline render cannot show this, only a live query can.
+
