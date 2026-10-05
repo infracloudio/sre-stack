@@ -110,3 +110,42 @@ No new cleanup script is needed — AKS's existing `cleanup: cleanup-cluster` al
 10. **`make lint` passes** with no new errors.
 11. **Log shipper actually ships logs (FR-002, US1)**: after `setup-log-shipper-aks` runs, generate a log line on any pod (e.g. `kubectl logs` a known workload after triggering activity), then query Loki (via Grafana Explore or `logcli`) and confirm that line actually arrives. This is the live confirmation Approach item 7 and the Risks table both flag as not yet done — required before convergence, not optional polish.
 12. **Optional telemetry collector still works on AKS (FR-010, US3)**: run `make setup-optional-otel` against the AKS cluster (independent of `setup-aks-o11y`/`setup-kiali-aks`) and confirm it installs cleanly, as it already did once in story 004's research — then confirm `make setup-aks-o11y` alone does not install it.
+
+## Implementation departures (2026-10-05)
+
+Live implementation against a freshly-built cluster found two plan
+assumptions false. Both are recorded here (constitution VIII/IX) and
+captured as AKS-specific files under `infra/azure/`, leaving the shared
+EKS/local files untouched (FR-017):
+
+1. **T013/T024's "the optional collector needs no AKS-specific work" was
+   wrong.** `setup-optional-otel` never pinned its chart, so it floated to
+   latest (0.175.0); the shared values pin image 0.94.0. The newer chart
+   emits component names (`file_log`/`k8s_attributes`/`otlp_grpc`) and
+   config keys (`memory_ballast`, `service.telemetry.metrics.address`)
+   that image rejects — a crash-loop, so T024's "installs cleanly" was a
+   scheduling success misread as health. Fixed with chart pinned to
+   **0.81.2** (its app version *is* 0.94.0) and
+   `infra/azure/chart-values/otel-collector.yaml`, via a `STACK_MODE=aks`
+   branch in `setup-optional-otel`. Verified live: 1/1 Running.
+2. **Approach item 4's "Kiali's existing manifest, unmodified" did not
+   hold.** The shared v1.63 manifest is healthy as a pod, but its
+   traffic-graph API crashes against Kubernetes 1.34 (`cannot unmarshal
+   object into []*kubernetes.RegistryEndpoint`; the `Endpoints` API shape
+   changed) — the MEDIUM risk in the Risks table materialised. Fixed by
+   rendering `kiali-server` **2.32.0** to
+   `infra/azure/kiali/kiali.yaml` (verified live: graph API returns real
+   Robot Shop nodes/edges, UI 200) and pointing `setup-kiali-aks` at it.
+   EKS/local keep the shared v1.63 manifest. Also fixes FR-018/FR-019,
+   which no longer hold as written against AKS's Kubernetes 1.34.
+
+Both are out of story 002's stated scope and should be formalised in a
+follow-up story; AD-006 carries the same correction.
+
+## Verification results (2026-10-05, live AKS cluster sre-stack-d6d56b)
+
+- Placeholder — see the task-by-task results in the implement run's final
+  report; `make lint` passes, the placement check prints five PASS lines
+  (loki, alloy, otel, prometheus-values, AKS kiali), `setup-aks-o11y` and
+  `setup-kiali-aks` are idempotent, Loki receives Robot Shop logs, and the
+  Kiali graph renders.

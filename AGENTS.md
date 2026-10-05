@@ -29,6 +29,20 @@ AWS EKS or local k3d. Application code comes from upstream images.
 
 - `make setup` / `make cleanup`: EKS lifecycle.
 - `make setup-local` / `make cleanup-local`: full k3d lifecycle.
+- `make setup-aks-o11y`: AKS monitoring stack (Prometheus, Grafana,
+  Loki, the Grafana Alloy log shipper, routes, dashboards) after
+  cluster → istio → gateway; `make setup-kiali-aks` installs Kiali
+  separately and refuses when the mesh is not running. AKS skips
+  `setup-metric-server` (built-in addon) and does not install Tempo,
+  Beyla, or Caretta. The two per-machine helpers (Alloy,
+  node-exporter) run on every node pool; everything else lands on the
+  `workload=o11y` pool. Grafana's admin password:
+  `kubectl get secret prometheus-stack-grafana -n monitoring -o jsonpath='{.data.admin-password}' | base64 -d`.
+  The optional `make setup-optional-otel` collector has an AKS branch that
+  pins chart 0.81.2 + `infra/azure/chart-values/otel-collector.yaml` (the
+  shared target floats the chart and crash-loops), and Kiali on AKS is
+  applied from `infra/azure/kiali/kiali.yaml` (v2.32.0) because the shared
+  v1.63 graph API crashes on Kubernetes 1.34.
 - `make get-service-endpoints`: application and dashboard URLs.
 - `make install-check` then `make install`: preview/bootstrap developer tools.
 - `make hooks`: enable pre-commit hooks (done by `make install`; `make lint`

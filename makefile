@@ -21,6 +21,17 @@ help:
 	@echo "	cleanup-local                       - Cleanup end-to-end stack on local k8s (k3d)"
 	@echo ""
 	@echo ""
+	@echo "Azure (AKS) setup/cleanup commands:"
+	@echo "	setup                             - Setup empty AKS cluster (cluster only)"
+	@echo "	setup-aks-o11y                    - Setup monitoring/observability on AKS (Prometheus, Grafana, Loki, Alloy, routes)"
+	@echo "	setup-loki-aks                    - Setup Loki (AKS-specific chart and values)"
+	@echo "	setup-log-shipper-aks             - Setup the Grafana Alloy log shipper (AKS)"
+	@echo "	setup-aks-o11y-routes             - Apply the observability routes and scrape configs (AKS)"
+	@echo "	setup-kiali-aks                   - Setup Kiali (AKS, refuses when the mesh is not running)"
+	@echo "	setup-optional-otel               - Setup OpenTelemetry (works on AKS too)"
+	@echo "	cleanup                           - Cleanup AKS cluster"
+	@echo ""
+	@echo ""
 	@echo "Utilities:"
 	@echo " get-service-endpoints           - Print exposed service endpoints."
 	@echo " install                         - Install all dev dependencies (lint tools, kubectl, helm, k3d, eksctl, aws/az CLI)"
@@ -127,7 +138,18 @@ setup-istio-o11y-addons:
 	kubectl apply -f  monitoring/istio-observability-addons/
 
 setup-dashboards:
+ifeq ($(STACK_MODE),aks)
+# RDS is AWS-only; on AKS apply every dashboard except rds.yaml (specs/002).
+# The for-loop keeps the individual-file apply shape used elsewhere on AKS.
+	@for _f in monitoring/dashboards/*.yaml; do \
+		case "$$_f" in \
+			*rds.yaml) echo "skipping $$(basename $$_f) (AWS RDS dashboard, not applicable on AKS)";; \
+			*) kubectl apply -f "$$_f";; \
+		esac; \
+	done
+else
 	kubectl apply -f ./monitoring/dashboards/
+endif
 
 # setup-yace dropped here: AWS-specific, commented out below, returns in a future PR
 setup-observability: setup-db-grafana-psql setup-kube-prometheus-stack setup-loki setup-beyla setup-tempo setup-caretta setup-metric-server setup-istio-o11y-addons setup-dashboards
@@ -136,7 +158,48 @@ setup-optional-otel:
 	kubectl create ns $(MONITORING_NS) --dry-run=client -o yaml | kubectl apply -f -
 	helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
 	helm repo update
+ifeq ($(STACK_MODE),aks)
+# AKS-specific values (specs/002 FR-010, corrected): the shared values pin an
+# old collector image (0.94.0) while this target never pinned the chart, so
+# the chart floated to latest and generated newer component names
+# (file_log / k8s_attributes / otlp_grpc) plus removed config keys
+# (memory_ballast, service.telemetry.metrics.address) that crash-loop that
+# image. Chart 0.81.2 is the release whose app version is 0.94.0, so this pin
+# keeps the existing values valid. EKS/local take the branch below unchanged
+# (FR-017).
+	helm upgrade --install opentelemetry-collector open-telemetry/opentelemetry-collector --version 0.81.2 --values ./infra/azure/chart-values/otel-collector.yaml -n $(MONITORING_NS)
+else
 	helm upgrade --install opentelemetry-collector open-telemetry/opentelemetry-collector --values ./monitoring/chart-values/otel-collector.yaml -n $(MONITORING_NS)
+endif
+
+# --- AKS observability (specs/002-azure-observability-stack) -------------------
+# setup-aks-o11y chains the core monitoring stack; no setup-metric-server
+# (AKS's built-in addon already serves the same API — installing a second one
+# collides on ClusterRole system:metrics-server), no Tempo/Beyla/Caretta
+# (out of scope). A missing mesh never blocks this chain (FR-013).
+#
+# setup-aks-o11y-routes applies only the four routing/scrape files the AKS
+# path needs, individually — NOT the whole monitoring/istio-observability-
+# addons/ folder (that shared apply stays EKS/local's). This coupling is
+# recorded in docs/architectural-decisions.md (AD for story 002): a file
+# added to that folder later does not automatically reach AKS.
+setup-aks-o11y: setup-db-grafana-psql setup-kube-prometheus-stack setup-loki-aks setup-log-shipper-aks setup-aks-o11y-routes setup-dashboards
+
+setup-loki-aks:
+	helm repo add grafana-community https://grafana-community.github.io/helm-charts
+	helm repo update
+	helm upgrade --install loki grafana-community/loki --version 18.13.7 --values ./infra/azure/chart-values/loki.yaml -n $(MONITORING_NS) --create-namespace
+
+setup-log-shipper-aks:
+	bash $(CLUSTER_SCRIPT_PATH)/setup-log-shipper-aks.sh
+
+setup-aks-o11y-routes:
+	bash $(CLUSTER_SCRIPT_PATH)/setup-aks-o11y-routes.sh
+
+# Separate from setup-aks-o11y on purpose (FR-013): it refuses when the mesh
+# is not actually running, instead of failing the core stack.
+setup-kiali-aks:
+	bash $(CLUSTER_SCRIPT_PATH)/setup-kiali-aks.sh
 
 
 # AWS-specific (RDS); commented out for now, returns in a future PR
@@ -184,7 +247,23 @@ setup-gateway:
 
 
 get-service-endpoints:
-ifeq ($(APP_STACK),hotrod)
+ifeq ($(STACK_MODE),aks)
+# AKS branch first (specs/002): the monitoring VirtualServices bind to the
+# robotshop-gateway created only by the routing step (setup-gateway), so
+# without it the URLs would print but not resolve (US1 scenario 5, FR-005).
+	@if kubectl get gateway robotshop-gateway -n robot-shop >/dev/null 2>&1; then \
+		echo "---------------------------- Azure AKS service endpoints -------------------------------"; \
+		echo "Visit Grafana dashboard http://$(LB_ENDPOINT)/grafana"; \
+		echo "Visit Prometheus http://$(LB_ENDPOINT)/prometheus"; \
+		echo "Visit Istio kiali http://$(LB_ENDPOINT)/kiali"; \
+		echo "-----------------------------------------------------------------------------------------"; \
+	else \
+		echo "---------------------------- Azure AKS service endpoints -------------------------------"; \
+		echo "The monitoring stack is installed but its addresses are not reachable yet — the routing step hasn't run."; \
+		echo "Run 'make setup-gateway' first, then 'make get-service-endpoints' again."; \
+		echo "-----------------------------------------------------------------------------------------"; \
+	fi
+else ifeq ($(APP_STACK),hotrod)
 	@echo "---------------------------- $(APP_STACK) service endpoints ----------------------------"
 	@echo "Visit HotROD: curl -H \"Host: hotrod.demo.local\" http://$(LB_ENDPOINT)/"
 	@echo "Visit Grafana dashboard http://$(LB_ENDPOINT)/grafana"
@@ -273,6 +352,7 @@ lint:
 	@bash agent/hooks/check-ratchets.sh
 	@bash agent/hooks/lint-changed.sh $$(git ls-files)
 	@helm lint app/robot-shop/helm --strict
+	@bash agent/tests/azure/check-observability-placement.sh
 	@bash agent/hooks/check-speckit-version.sh
 	@bash agent/tools/loom.sh --check
 

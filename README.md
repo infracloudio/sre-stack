@@ -127,6 +127,65 @@ gateway. See `docs/architectural-decisions.md` for the full reasoning.
 Run `make setup-gateway` to apply both apps' `Gateway`/`VirtualService`
 manifests in one step — the same command works for every `STACK_MODE`.
 
+### Monitoring on AKS
+
+With `STACK_MODE=aks`, the monitoring stack has its own commands — the
+`setup` target on AKS creates the empty cluster only. Run order:
+
+```
+make setup-cluster     # empty AKS cluster + node pools
+make setup-istio       # Istio mesh + ingress gateway
+make setup-gateway     # routing entry point (also needed before the URLs resolve)
+make setup-aks-o11y    # monitoring stack (Prometheus, Grafana, Loki, Alloy, routes, dashboards)
+make setup-kiali-aks   # Kiali, separately — it refuses when the mesh is not running
+```
+
+`make setup-aks-o11y` chains (in order) `setup-db-grafana-psql
+setup-kube-prometheus-stack setup-loki-aks setup-log-shipper-aks
+setup-aks-o11y-routes setup-dashboards`. It deliberately skips
+`setup-metric-server` — AKS's built-in metrics-server addon already serves
+the same API, and installing a second one collides (see
+`docs/architectural-decisions.md`). It also leaves out Tempo, Beyla, and
+Caretta, which are out of scope on AKS.
+
+Differences from the EKS/local monitoring stack:
+
+- **Loki** is installed from its new home (`grafana-community/loki`,
+  chart pinned at the version named in
+  `infra/azure/chart-values/loki.yaml`) with Azure-specific settings —
+  the EKS/local `make setup-loki` target and its values file stay
+  untouched.
+- **The log shipper is Grafana Alloy**, not Promtail. The new Loki chart
+  bundles no shipper at all, and the standalone Promtail chart is
+  deprecated; `make setup-log-shipper-aks` installs `grafana/alloy`
+  instead.
+- **Two per-machine helpers run on every node pool**: the Alloy DaemonSet
+  and node-exporter tolerate every taint and carry no node filter, so
+  each runs on all five pools (system, app, persistent, o11y, loadgen).
+  Every other monitoring workload runs only on the `workload=o11y` pool.
+- **`make get-service-endpoints`** under `STACK_MODE=aks` prints the
+  Grafana, Prometheus, and Kiali URLs — or, if the routing step
+  (`make setup-gateway`) has not run yet, a plain message saying the
+  addresses are not reachable yet instead of URLs that don't resolve.
+
+Grafana's admin password comes from its cluster secret:
+
+```
+kubectl get secret prometheus-stack-grafana -n monitoring -o jsonpath='{.data.admin-password}' | base64 -d
+```
+
+The optional OpenTelemetry collector is installed by
+`make setup-optional-otel`, which has an AKS-specific branch: it pins chart
+`0.81.2` and uses `infra/azure/chart-values/otel-collector.yaml` (the shared
+target floats the chart to latest, which is incompatible with the shared
+values' older collector image and crash-loops). It is never installed by
+`make setup-aks-o11y` or the cluster-creation command — run it only when you
+want it.
+
+Kiali on AKS is applied from `infra/azure/kiali/kiali.yaml` (rendered from
+`kiali-server` 2.32.0), because the shared v1.63 manifest's traffic-graph API
+crashes against Kubernetes 1.34. See `docs/architectural-decisions.md` AD-006.
+
 ### Utility Commands:
 
 ```

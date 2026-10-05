@@ -1,0 +1,86 @@
+# Grafana Alloy values for STACK_MODE=aks only (specs/002-azure-observability-
+# stack). Chart: grafana/alloy pinned at 1.13.0 (research.md finding 13),
+# installed by the setup-log-shipper-aks makefile target. The old
+# grafana-community/loki chart no longer bundles a log shipper, and the
+# standalone promtail chart is deprecated and frozen — Alloy is Grafana's own
+# actively-maintained successor.
+
+# DaemonSet (the chart default, stated explicitly) with a toleration for
+# every taint: a per-machine helper runs on all five pools (system, app,
+# persistent, o11y, loadgen) per the spec Clarification of 2026-10-05 — the
+# same reach node-exporter already has. This chart's placement lives under
+# controller.* (research.md finding 16); there are no top-level keys.
+controller:
+  type: daemonset
+  tolerations:
+    - operator: Exists
+
+alloy:
+  configMap:
+    content: |
+      // Kubernetes pod logs -> Loki, following Grafana's official pattern
+      // (grafana.com/docs/alloy/latest/collect/logs-in-kubernetes/).
+      discovery.kubernetes "pods" {
+        role = "pod"
+        // DaemonSet: collect only the pods on the same node to keep this
+        // cheap (one shipper per machine).
+        selectors {
+          role  = "pod"
+          field = "spec.nodeName=" + coalesce(sys.env("HOSTNAME"), constants.hostname)
+        }
+      }
+
+      discovery.relabel "pods" {
+        targets = discovery.kubernetes.pods.targets
+
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "pod"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_container_name"]
+          target_label  = "container"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_node_name"]
+          target_label  = "node"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+          target_label  = "app"
+        }
+        // Fallback for workloads that label with `service` instead of
+        // `app.kubernetes.io/name` — Robot Shop's pods do, and the shared
+        // Application Dashboard's per-service panels query {app="<service>"}
+        // (e.g. {app="ratings"} for Error Logs). regex "(.+)" means this only
+        // fires when the service label is non-empty, so it never clobbers the
+        // app.kubernetes.io/name value above.
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_service"]
+          target_label  = "app"
+          regex         = "(.+)"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_pod_container_name"]
+          separator     = "/"
+          target_label  = "job"
+        }
+      }
+
+      // loki.source.kubernetes tails logs through the Kubernetes API — the
+      // docs' sanctioned pattern for DaemonSet shippers without system
+      // privileges or hostPath mounts.
+      loki.source.kubernetes "pods" {
+        targets    = discovery.relabel.pods.output
+        forward_to = [loki.write.loki.receiver]
+      }
+
+      loki.write "loki" {
+        endpoint {
+          url = "http://loki:3100/loki/api/v1/push"
+        }
+      }
