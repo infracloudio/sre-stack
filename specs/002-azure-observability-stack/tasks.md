@@ -1,5 +1,12 @@
 # Tasks: 002-azure-observability-stack
 
+**Status**: COMPLETE — all T001–T026 done and verified live on cluster
+`sre-stack-d6d56b` (2026-10-05). Evidence:
+[evidence.md](./evidence.md). The four departures from the original plan
+(Kiali v2, collector chart pin, Alloy `app` label, RDS dashboard removed on
+AKS) are recorded in `plan.md` §"Implementation departures (2026-10-05)" and
+AD-006, and are accepted scope.
+
 **Input**: Design documents from `/specs/002-azure-observability-stack/`
 
 **Prerequisites**: plan.md (required), spec.md (required), research.md (completed), constitution.md (v1.4.0)
@@ -63,9 +70,9 @@
 
 **Independent Test** (spec.md): with the cluster/mesh/routing step ready, run the monitoring stack's command, open the printed addresses, confirm both sources connected and healthy, and every workload on the observability pool.
 
-- [ ] **T006 [P] [US1]** Create `infra/scripts/cluster/setup-aks-o11y-routes.sh` (resolves the repo root and sources `.env`, like `setup-cluster-aks.sh`): applies four unmodified files individually — `monitoring/istio-observability-addons/grafana-vs.yaml`, `prometheus-vs.yaml`, `istio-podmonitor.yaml`, `istio-servicemonitor.yaml` — with `kubectl apply`, idempotent on re-run. These need only Istio's CRDs (already installed by `setup-istio`), not istiod actually running, so this rides with the core stack ungated by mesh readiness. Verify: `bash infra/scripts/cluster/setup-aks-o11y-routes.sh --dry-run` (or `kubectl apply --dry-run=client` inside it) applies all four without error against a cluster with Istio's CRDs installed.
+- [X] **T006 [P] [US1]** Create `infra/scripts/cluster/setup-aks-o11y-routes.sh` (resolves the repo root and sources `.env`, like `setup-cluster-aks.sh`): applies four unmodified files individually — `monitoring/istio-observability-addons/grafana-vs.yaml`, `prometheus-vs.yaml`, `istio-podmonitor.yaml`, `istio-servicemonitor.yaml` — with `kubectl apply`, idempotent on re-run. These need only Istio's CRDs (already installed by `setup-istio`), not istiod actually running, so this rides with the core stack ungated by mesh readiness. Verify: `bash infra/scripts/cluster/setup-aks-o11y-routes.sh --dry-run` (or `kubectl apply --dry-run=client` inside it) applies all four without error against a cluster with Istio's CRDs installed.
 
-- [ ] **T007 [P] [US1]** Create `infra/scripts/cluster/setup-log-shipper-aks.sh` (resolves the repo root and sources `.env`): `helm repo add grafana https://grafana.github.io/helm-charts` (if not present), then `helm upgrade --install alloy grafana/alloy --version 1.13.0 --values infra/azure/chart-values/alloy.yaml -n "${MONITORING_NS}"`. Idempotent by construction (`helm upgrade --install`). Verify: script exits 0 against a real cluster with the `monitoring` namespace already present (T001 having cleared the way).
+- [X] **T007 [P] [US1]** Create `infra/scripts/cluster/setup-log-shipper-aks.sh` (resolves the repo root and sources `.env`): `helm repo add grafana https://grafana.github.io/helm-charts` (if not present), then `helm upgrade --install alloy grafana/alloy --version 1.13.0 --values infra/azure/chart-values/alloy.yaml -n "${MONITORING_NS}"`. Idempotent by construction (`helm upgrade --install`). Verify: script exits 0 against a real cluster with the `monitoring` namespace already present (T001 having cleared the way).
 
 - [X] **T025 [US1]** Extend the `STACK_MODE=aks` branch of `get-service-endpoints` (stubbed in T002) with a routing-Gateway existence check: before printing Grafana/Prometheus/Kiali URLs, check for `robot-shop/robotshop-gateway` (`kubectl get gateway robotshop-gateway -n robot-shop`, research.md finding 5) — the Gateway the monitoring `VirtualService`s (T006) bind to. If it doesn't exist, print a plain "not reachable yet — the routing step hasn't run" message and exit 0 instead of printing a URL. Implements US1 acceptance scenario 5, which the generated tasks.md had no task for at all (found in the second Architect review). Verify: against a cluster/mock without the Gateway, the branch prints the plain message and no URL; with the Gateway present, it prints the URLs exactly as T002 already specifies.
 
@@ -85,7 +92,7 @@
 
 **Independent Test** (spec.md): with the service mesh already running, run the service mesh dashboard's command, open its address, confirm it loads and shows mesh traffic.
 
-- [ ] **T011 [US2]** Create `infra/scripts/cluster/setup-kiali-aks.sh` (resolves the repo root and sources `.env`): checks `helm status istiod -n istio-system` first, refuses with a clear plain-language message naming the missing mesh if not found (FR-013), then applies the existing unmodified `monitoring/istio-observability-addons/kiali.yaml` + `kiali-vs.yaml`. Idempotent on re-run. Dedicated script (unit-testable like `setup-cluster-aks.sh`/`verify-cluster-aks.sh`), not an inline recipe. Verify: run against a cluster without Istio installed — script exits non-zero with a message naming the mesh; against a cluster with Istio running, applies both files and exits 0.
+- [X] **T011 [US2]** Create `infra/scripts/cluster/setup-kiali-aks.sh` (resolves the repo root and sources `.env`): checks `helm status istiod -n istio-system` first, refuses with a clear plain-language message naming the missing mesh if not found (FR-013), then applies the existing unmodified `monitoring/istio-observability-addons/kiali.yaml` + `kiali-vs.yaml`. Idempotent on re-run. Dedicated script (unit-testable like `setup-cluster-aks.sh`/`verify-cluster-aks.sh`), not an inline recipe. Verify: run against a cluster without Istio installed — script exits non-zero with a message naming the mesh; against a cluster with Istio running, applies both files and exits 0.
 
 - [X] **T012 [US2]** Add the `setup-kiali-aks` makefile recipe calling T011's script. Verify: `grep -A2 "^setup-kiali-aks:" makefile` shows it calling `infra/scripts/cluster/setup-kiali-aks.sh`.
 
@@ -119,23 +126,23 @@
 
 - [X] **T016 [P]** Run `agent/tests/azure/check-observability-placement.sh` (T005) and confirm it exits 0; then temporarily remove `singleBinary.nodeSelector` from `infra/azure/chart-values/loki.yaml` and confirm the script fails and names the file; restore it, remove `singleBinary.tolerations` instead, and confirm it fails again (SC-005).
 
-- [ ] **T017** Starting from a signed-in Azure session with a bare cluster, run the full command sequence (cluster → istio → gateway → `setup-aks-o11y`) in one working session with no manual steps beyond signing in, filling in settings, and running the commands (SC-001). Verify: `kubectl get pods -n monitoring` — Prometheus, Grafana, Loki, and the Alloy DaemonSet pods `Running`/`Ready`; `kubectl get pods -n monitoring -o wide` — all on `o11y` nodes except the two per-machine helpers (Alloy and node-exporter DaemonSet pods), which run on all five pools (SC-002).
+- [X] **T017** Starting from a signed-in Azure session with a bare cluster, run the full command sequence (cluster → istio → gateway → `setup-aks-o11y`) in one working session with no manual steps beyond signing in, filling in settings, and running the commands (SC-001). Verify: `kubectl get pods -n monitoring` — Prometheus, Grafana, Loki, and the Alloy DaemonSet pods `Running`/`Ready`; `kubectl get pods -n monitoring -o wide` — all on `o11y` nodes except the two per-machine helpers (Alloy and node-exporter DaemonSet pods), which run on all five pools (SC-002).
 
-- [ ] **T018** `make get-service-endpoints` under `STACK_MODE=aks` prints Grafana and Prometheus URLs (FR-004); `curl -sI http://<LB_ENDPOINT>/grafana` and `/prometheus` both return `200` (FR-005, SC-003).
+- [X] **T018** `make get-service-endpoints` under `STACK_MODE=aks` prints Grafana and Prometheus URLs (FR-004); `curl -sI http://<LB_ENDPOINT>/grafana` and `/prometheus` both return `200` (FR-005, SC-003).
 
-- [ ] **T019** Open the Grafana endpoint, confirm the app loads and reports the Prometheus and Loki datasources connected and healthy (FR-006); confirm Grafana's dashboards/users/settings are stored in the same in-cluster database `setup-db-grafana-psql` already provides, unchanged by this story (FR-009).
+- [X] **T019** Open the Grafana endpoint, confirm the app loads and reports the Prometheus and Loki datasources connected and healthy (FR-006); confirm Grafana's dashboards/users/settings are stored in the same in-cluster database `setup-db-grafana-psql` already provides, unchanged by this story (FR-009).
 
-- [ ] **T020** Run `make setup-kiali-aks` on a cluster with Istio present — Kiali pod `Running` on an `o11y` node; `curl -sI http://<LB_ENDPOINT>/kiali/` → `200`; open the UI itself (not just the status code) and confirm it displays the mesh's current traffic graph — Robot Shop is already running on this cluster (research.md L1), so there's real traffic to see, not an empty view (FR-019, SC-008). Then on a cluster with Istio removed or unavailable, run it again and confirm it stops with a clear message naming the missing mesh, while `make setup-aks-o11y` still succeeds independently (FR-013, SC-009).
+- [X] **T020** Run `make setup-kiali-aks` on a cluster with Istio present — Kiali pod `Running` on an `o11y` node; `curl -sI http://<LB_ENDPOINT>/kiali/` → `200`; open the UI itself (not just the status code) and confirm it displays the mesh's current traffic graph — Robot Shop is already running on this cluster (research.md L1), so there's real traffic to see, not an empty view (FR-019, SC-008). Then on a cluster with Istio removed or unavailable, run it again and confirm it stops with a clear message naming the missing mesh, while `make setup-aks-o11y` still succeeds independently (FR-013, SC-009).
 
-- [ ] **T021** Re-run `make setup-aks-o11y` and `make setup-kiali-aks` a second time each — both exit 0, no new resources created (FR-003, SC-007).
+- [X] **T021** Re-run `make setup-aks-o11y` and `make setup-kiali-aks` a second time each — both exit 0, no new resources created (FR-003, SC-007).
 
 - [X] **T026** Create `agent/scripts/verify-aks-observability.sh` (FR-012): a read-only, no-mutation script (resolves the repo root and sources `.env`) mirroring the reporting style of story 001's `infra/scripts/cluster/verify-cluster-aks.sh`. It queries the live cluster for (1) every monitoring/Kiali workload's actual node — `kubectl get pods -n monitoring -o wide` plus the Kiali pod, checking each lands on an `o11y` node, except the two per-machine helpers (Alloy, node-exporter), which it expects on every pool — and (2) both Grafana datasources' actual health via Grafana's own datasource-health API (`/api/datasources/<id>/health` for the Prometheus and Loki datasource IDs), printing a plain PASS/FAIL line per check. T022 runs this script; before this task, nothing did — the generated tasks.md ran it as if it already existed (found in the second Architect review). Verify offline: the script exists, is executable, and fails clearly (not silently) with a plain message when no `kubeconfig`/cluster is reachable, rather than hanging or crashing.
 
-- [ ] **T022** Run `agent/scripts/verify-aks-observability.sh` (T026) against the freshly-set-up cluster (FR-012, SC-006); confirm it reports every monitoring workload (including Kiali) on the observability pool and both datasources healthy — this report is the acceptance evidence for the story.
+- [X] **T022** Run `agent/scripts/verify-aks-observability.sh` (T026) against the freshly-set-up cluster (FR-012, SC-006); confirm it reports every monitoring workload (including Kiali) on the observability pool and both datasources healthy — this report is the acceptance evidence for the story.
 
 - [X] **T023** **Log shipper actually ships logs (FR-002 — the gap this review pass exists to close).** After T007/T017, generate a log line on any pod (trigger some activity, or just `kubectl logs` a known workload to confirm it's producing output), then query the new AKS Loki (via Grafana Explore, or `logcli` against the AKS Loki endpoint) and confirm that line actually arrives. If Alloy's config from T004/T007 does not work as designed, fall back to the deprecated standalone `promtail` chart (still installable) rather than leaving no shipper at all — but try Alloy first and record what actually happened, per constitution principle VIII. This task is not optional polish; User Story 1 is not done until it passes.
 
-- [ ] **T024** **Optional collector confirmed on AKS (FR-010 — the other gap this review pass closes).** Run `make setup-optional-otel` against the AKS cluster, independent of `setup-aks-o11y`/`setup-kiali-aks`, and confirm it installs cleanly (as it already did once in story 004's research) with its pod on an `o11y` node. Then confirm `make setup-aks-o11y` alone does not install it.
+- [X] **T024** **Optional collector confirmed on AKS (FR-010 — the other gap this review pass closes).** Run `make setup-optional-otel` against the AKS cluster, independent of `setup-aks-o11y`/`setup-kiali-aks`, and confirm it installs cleanly (as it already did once in story 004's research) with its pod on an `o11y` node. Then confirm `make setup-aks-o11y` alone does not install it.
 
 ---
 
@@ -159,7 +166,7 @@
 
 ## Done When
 
-- [ ] All Phase 1-6 tasks complete, including T025
-- [ ] All Phase 7 verification tasks passing, **including T023 (logs actually arrive), T024 (collector confirmed), and T026 (FR-012 script exists before T022 runs it)**
-- [ ] `make lint` passes with no new errors
-- [ ] Documentation updated (T009, T010)
+- [X] All Phase 1-6 tasks complete, including T025
+- [X] All Phase 7 verification tasks passing, **including T023 (logs actually arrive), T024 (collector confirmed), and T026 (FR-012 script exists before T022 runs it)**
+- [X] `make lint` passes with no new errors
+- [X] Documentation updated (T009, T010)
