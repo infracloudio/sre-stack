@@ -71,7 +71,18 @@ kubectl get nodes -L workload       # nodes in app, loadgen, o11y, persistent, a
 make setup-istio                    # Istio 1.30.4 + the shared ingress gateway
 ```
 
-## 4. Demo applications
+## 4. Observability stack (this story)
+
+```bash
+make setup-aks-o11y                 # Postgres for Grafana, Prometheus+Grafana, Loki, Alloy, routes, dashboards
+make setup-kiali-aks                # Kiali, separately; refuses if the mesh is not running
+```
+
+Run this before the demo apps: Robot Shop's chart renders ServiceMonitor
+custom resources, and their CRDs are only on the cluster once
+`setup-kube-prometheus-stack` (inside `setup-aks-o11y`) has run.
+
+## 5. Demo applications
 
 ```bash
 make setup-robot-shop               # Robot Shop, with in-cluster MySQL/MongoDB/RabbitMQ/Redis
@@ -81,13 +92,6 @@ make setup-gateway                  # the routing step: Gateway/VirtualService f
 
 `make setup-gateway` must run before the dashboards can be reached: the
 Grafana, Prometheus and Kiali routes bind to the Robot Shop gateway.
-
-## 5. Observability stack (this story)
-
-```bash
-make setup-aks-o11y                 # Postgres for Grafana, Prometheus+Grafana, Loki, Alloy, routes, dashboards
-make setup-kiali-aks                # Kiali, separately; refuses if the mesh is not running
-```
 
 ## 6. Traffic (optional, but the dashboards are empty without it)
 
@@ -174,6 +178,11 @@ story.
   Ctrl-C and run `make setup-log-shipper-aks`, then
   `make setup-aks-o11y-routes setup-dashboards`. Everything is safe to
   re-run.
+- **`make setup-robot-shop` fails with `no matches for kind "ServiceMonitor"
+  in version "monitoring.coreos.com/v1"`.** The Prometheus Operator CRDs are
+  not on the cluster yet — run `make setup-aks-o11y` first, then re-run
+  `make setup-robot-shop`. The failed attempt leaves nothing behind, so no
+  manual uninstall is needed.
 - **`make get-service-endpoints` says the addresses are not reachable
   yet.** Run `make setup-gateway`.
 - **`make setup-kiali-aks` says the service mesh is not running.** Run
