@@ -34,7 +34,7 @@ Give AKS its own observability command (mirroring the cluster-only pattern the o
    AWS/local's `setup-loki` target and `monitoring/chart-values/loki.yaml` stay untouched (FR-007/FR-017).
 3. **New target `setup-aks-o11y-routes`**: applies only `monitoring/istio-observability-addons/grafana-vs.yaml`, `prometheus-vs.yaml`, `istio-podmonitor.yaml`, `istio-servicemonitor.yaml` — the same files EKS/local already use via `setup-istio-o11y-addons`, unmodified, applied individually rather than via that whole-folder target. These four need only Istio's CRDs (already installed by `setup-istio`), not istiod actually running, so they ride with the core stack, ungated by mesh readiness (FR-005: reachability, not install, is what depends on the mesh/routing step).
 4. **New target `setup-kiali-aks`, separate from `setup-aks-o11y`**: checks the mesh is actually up (`helm status istiod -n istio-system`), refuses clearly if not (FR-013), then applies `monitoring/istio-observability-addons/kiali.yaml` + `kiali-vs.yaml` — the exact same shared files, unmodified. Research (L3/L4) proved these already carry the correct `nodeSelector`/toleration and run healthy against AKS's Istio 1.30.4 with no changes, so this story adds no new Kiali chart or version pin — only the AKS wiring and the mesh-readiness gate. `setup-istio-o11y-addons` itself (EKS/local's whole-folder apply) is untouched. The existing pin is chart `kiali-server-1.63.1` with image `quay.io/kiali/kiali:v1.63`. Compatibility with Istio 1.30.4 is shown so far only by pod health and a `200` response; FR-018's real proof is T020's traffic graph.
-5. **Deployment check (FR-011)**: a new offline script, `agent/tests/azure/check-observability-placement.sh`, written in Python 3 with PyYAML (both already present — no new tool; `yq` is not in `install-deps.sh`). It checks **the exact key path each chart actually reads**, not a text match, so a placement key the chart ignores fails the check instead of passing (research.md finding 16 showed a top-level `nodeSelector` is silently ignored by the new Loki chart):
+5. **Deployment check (FR-011)**: a new offline script, `agent/tests/azure/check-observability-placement.sh`, written in Python 3 with PyYAML (no new tool; `yq` is not in `install-deps.sh`; PyYAML comes from the system `python3` or, failing that, `uv run --with pyyaml` — see Review fixes). It checks **the exact key path each chart actually reads**, not a text match, so a placement key the chart ignores fails the check instead of passing (research.md finding 16 showed a top-level `nodeSelector` is silently ignored by the new Loki chart):
    - `infra/azure/chart-values/loki.yaml`: `singleBinary.nodeSelector` / `singleBinary.tolerations` select and tolerate `o11y`.
    - `infra/azure/chart-values/alloy.yaml`: `controller.tolerations` contains `operator: Exists` (a per-machine helper, runs on every pool).
    - `monitoring/chart-values/prometheus-values.yaml` (shared, untouched, but wired into the AKS chain): `prometheus.prometheusSpec`, `alertmanager.alertmanagerSpec`, `grafana`, `prometheusOperator`, `kube-state-metrics` each select and tolerate `o11y`; node-exporter is allowed as the second per-machine helper.
@@ -167,6 +167,35 @@ files:
 
 Items 1–2 are out of story 002's stated scope and should be formalised in
 a follow-up story; AD-006 carries all five corrections.
+
+## Review fixes (2026-10-08, PR #103 implementation review of 8298d2d)
+
+Two merge blockers from the implementation review, both fixed without
+changing scope:
+
+1. **`verify-aks-observability.sh` could not fail on placement (FR-012,
+   SC-006).** Its embedded Python printed `FAIL` for a pod off the `o11y`
+   pool or a per-machine helper missing from a pool, but always exited 0,
+   and the wrapper only counted a non-zero exit — so placement problems
+   ended in `0 failure(s)`. The Python block now counts its `FAIL` lines
+   and exits with that count, which the wrapper adds to `failures`. It
+   also now fails when a helper (Alloy, node-exporter) has no pods at all,
+   which the pool-coverage check alone could not see. New offline test
+   `agent/tests/azure/check-verify-observability-offline.sh` (fake
+   `kubectl`/`curl`, four cases: all-good, misplaced Grafana pod, Alloy
+   missing a pool, node-exporter absent) is called from `make lint`; it
+   fails 5 of 9 checks against the old script and passes against the fix.
+   The live all-pass run in evidence.md §2 is unaffected.
+2. **`make lint` failed where system `python3` lacks PyYAML.** Approach
+   item 5 and T005 claimed PyYAML was "already present"; it is not —
+   `make install` installs `yamllint` via the package manager, which does
+   not give the system `python3` a `yaml` module (CI only had it because
+   `pip install yamllint` pulls it in). `check-observability-placement.sh`
+   now uses the system `python3` when it can `import yaml`, otherwise runs
+   under `uv run --no-project --with pyyaml` (`uv` is already in
+   `make install`'s tool list), and only fails — naming `make install` —
+   when neither is available. Verified with a `python3` that cannot
+   import `yaml`: five PASS lines, exit 0.
 
 ## Verification results (2026-10-05, live AKS cluster sre-stack-d6d56b)
 

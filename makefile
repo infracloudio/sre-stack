@@ -353,6 +353,7 @@ lint:
 	@bash agent/hooks/lint-changed.sh $$(git ls-files)
 	@helm lint app/robot-shop/helm --strict
 	@bash agent/tests/azure/check-observability-placement.sh
+	@bash agent/tests/azure/check-verify-observability-offline.sh
 	@bash agent/hooks/check-speckit-version.sh
 	@bash agent/tools/loom.sh --check
 

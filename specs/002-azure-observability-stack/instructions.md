@@ -139,7 +139,8 @@ It should print `PASS` for every pod and end with
 make lint
 ```
 
-It should print five `PASS` placement lines and exit 0 (evidence.md §7).
+It should print five `PASS` placement lines (evidence.md §7), then the
+verifier's offline tests ending `9 checks, 0 failed`, and exit 0.
 Loom's "spec pack is N days old" warnings are expected and not about this
 story.
 

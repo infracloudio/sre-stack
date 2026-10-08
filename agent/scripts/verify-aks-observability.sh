@@ -53,9 +53,11 @@ trap 'rm -rf "${_kubectl_tmp}"' EXIT
 kubectl get pods -n "${_monitoring_ns}" -o json --request-timeout=30s 2>/dev/null > "${_kubectl_tmp}/pods.json" || echo '{"items": []}' > "${_kubectl_tmp}/pods.json"
 kubectl get nodes -o json --request-timeout=30s 2>/dev/null > "${_kubectl_tmp}/nodes.json" || echo '{"items": []}' > "${_kubectl_tmp}/nodes.json"
 
+# The Python block exits with its own FAIL count (0 = all placement checks
+# passed), so every misplaced pod or uncovered pool counts as a failure.
 VERIFY_PODS_FILE="${_kubectl_tmp}/pods.json" VERIFY_NODES_FILE="${_kubectl_tmp}/nodes.json" \
 VERIFY_MONITORING_NS="${_monitoring_ns}" \
-python3 <<'EOF' || failures=$((failures + 1))
+python3 <<'EOF' || failures=$((failures + $?))
 import json, os, sys
 
 try:
@@ -102,11 +104,13 @@ for pod in pods:
         others.append((name, pool,
                        [f"expected an o11y node (pool={pool or 'unknown'})"]))
 
+failed = 0
 placed = 0
 for name, pool, problems in others:
     if problems:
         for problem in problems:
             print(f"FAIL {name}: {problem}", file=sys.stderr)
+            failed += 1
     else:
         print(f"PASS {name}: on o11y pool")
     placed += 1
@@ -115,6 +119,12 @@ if placed == 0:
           "(is the stack installed in namespace "
           f"{os.environ['VERIFY_MONITORING_NS']}?)", file=sys.stderr)
     sys.exit(1)
+
+# A helper with no pods at all is missing, not merely short of a pool.
+for expected in ("alloy", "node-exporter"):
+    if not any(expected in ds for ds in helpers):
+        print(f"FAIL per-machine helper {expected}: no pods found", file=sys.stderr)
+        failed += 1
 
 missing_helper_pools = {}
 for ds, covered in sorted(helpers.items()):
@@ -125,10 +135,14 @@ if missing_helper_pools:
     for ds, gaps in sorted(missing_helper_pools.items()):
         print(f"FAIL per-machine helper {ds}: not running on every node pool "
               f"(missing: {', '.join(gaps)})", file=sys.stderr)
+        failed += 1
 else:
     for ds, covered in sorted(helpers.items()):
         print(f"PASS per-machine helper {ds}: running on every node pool "
               f"({', '.join(sorted(covered))})")
+
+# Exit status carries the FAIL count (capped well below 256) to the wrapper.
+sys.exit(min(failed, 100))
 EOF
 
 # --- 2. Grafana datasources' actual health (FR-006) ------------------------------

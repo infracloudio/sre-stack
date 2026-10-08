@@ -2,8 +2,10 @@
 # check-observability-placement.sh — the offline deployment check for the AKS
 # observability path (specs/002-azure-observability-stack, FR-011).
 #
-# A thin wrapper around Python 3 + PyYAML (both already present; yq is not in
-# install-deps.sh). It reads each chart-values/manifest file and asserts the
+# A thin wrapper around Python 3 + PyYAML (yq is not in install-deps.sh).
+# PyYAML comes from the system python3 when it has it; otherwise the check
+# runs under `uv run --with pyyaml` (uv is in `make install`'s tool list), so
+# a plain `make install` is enough for `make lint` to pass. It reads each chart-values/manifest file and asserts the
 # placement at the exact key path each chart actually reads — not a text
 # match — so a placement key the chart silently ignores fails here
 # (research.md finding 16: the new Loki chart ignores top-level
@@ -37,7 +39,17 @@ if ! command -v python3 >/dev/null 2>&1; then
     exit 1
 fi
 
-python3 - "${_repo_root}" <<'PYEOF'
+# Pick an interpreter that can `import yaml`.
+if python3 -c 'import yaml' >/dev/null 2>&1; then
+    _python=(python3)
+elif command -v uv >/dev/null 2>&1; then
+    _python=(uv run --quiet --no-project --with pyyaml python3)
+else
+    echo "FAIL cannot run: the python3 yaml module is not installed and uv is not available (run 'make install', or install PyYAML, then re-run)." >&2
+    exit 1
+fi
+
+"${_python[@]}" - "${_repo_root}" <<'PYEOF'
 import sys
 import os
 
