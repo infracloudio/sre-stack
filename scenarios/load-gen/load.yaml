@@ -1,3 +1,4 @@
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -30,7 +31,15 @@ spec:
       nodeSelector:
         workload: loadgen
       tolerations:
-      - key: "loadgen"
-        operator: "Equal"
-        value: "true"
-        effect: "NoSchedule"
+        # AKS spot nodes carry the scalesetpriority taint on EVERY node
+        # (story 005 plan, verified live 2026-10-09). Toleration is listable
+        # and harmless on EKS/local (no such taint); without it the pod
+        # cannot schedule on AKS, which is where quickstart steps 3-5 run.
+        - key: "loadgen"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+        - key: "kubernetes.azure.com/scalesetpriority"
+          operator: "Equal"
+          value: "spot"
+          effect: "NoSchedule"
