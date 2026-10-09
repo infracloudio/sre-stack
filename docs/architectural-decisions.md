@@ -251,3 +251,143 @@ Both bind the same `Gateway` selector (`istio: ingressgateway`), so no new
   is acceptable for an internal demo/POC stack; a real external hostname
   would need its own DNS entry, which is out of scope for this story.
 
+## AD-006 — AKS observability: platform reuse over more installs
+
+**Date**: 2026-10-05 · **Status**: Accepted · **Raised by**:
+`specs/002-azure-observability-stack` (plan.md Approach items 1–7,
+research.md findings 12–16, spec Clarifications of 2026-09-15 and
+2026-10-05).
+
+### Decision
+
+The AKS monitoring path (`make setup-aks-o11y` and its constituent
+targets) reuses what the platform or the repo already provides rather than
+installing more of it. Six choices, each traced to its evidence:
+
+1. **Skip `setup-metric-server` on AKS.** AKS's built-in metrics-server
+   addon already serves the standard `metrics.k8s.io` API
+   (research.md L2: 2/2 Running, standard `ClusterRole
+   system:metrics-server` owned by Azure's addon manager), and installing
+   a second one collides on that exact ClusterRole — proven live in
+   `specs/004-deploy-demo-apps-aks/research.md` §6. The AKS chain omits
+   the target rather than fighting an addon-manager-reconciled resource.
+2. **Reuse Kiali's existing manifest unmodified.** The shared pre-rendered
+   `monitoring/istio-observability-addons/kiali.yaml` (chart
+   `kiali-server-1.63.1`, image `v1.63`) runs healthy against AKS's
+   Istio 1.30.4 — verified live (research.md L3/L4: pod Running on an
+   `o11y` node, `200 OK` through `robotshop-gateway`) — so story 002 adds
+   only AKS wiring and the mesh-readiness gate (`make setup-aks-kiali`
+   refuses when istiod is absent, FR-013), not a new Azure-specific pin.
+3. **Apply the four observability routing/scrape files individually**
+   (`grafana-vs.yaml`, `prometheus-vs.yaml`, `istio-podmonitor.yaml`,
+   `istio-servicemonitor.yaml` via `setup-aks-o11y-routes`), not through
+   the whole-folder `setup-istio-o11y-addons` target, which stays
+   EKS/local's. Known accepted coupling: a file added to that shared
+   folder later does not automatically reach AKS (plan.md Risks; no
+   drift check in this story).
+4. **`grafana/alloy`, not the deprecated standalone `promtail` chart,
+   ships logs on AKS.** The new Loki chart bundles no shipper at all
+   (research.md finding 13), and Promtail is deprecated and frozen;
+   Alloy (chart `1.13.0`) is Grafana's own actively-maintained successor.
+   Its config is not yet live-verified at plan time — a real render
+   confirmed the DaemonSet and its `operator: Exists` toleration offline;
+   the live proof is the implementation task that queries Loki for an
+   actually-arrived log line (constitution VIII deferral, recorded for
+   the Architect).
+5. **Keep the new Loki chart's Service flat.** The chart is pinned at
+   `18.13.7` from the `grafana-community/helm-charts` repo (finding 12),
+   and its values (`infra/azure/chart-values/loki.yaml`) set
+   `fullnameOverride: loki`, `gateway.enabled: false`,
+   `loki.auth_enabled: false` so the Service stays at the flat
+   `loki:3100` the shared `prometheus-values.yaml`
+   `additionalDataSources` entry and the Alloy shipper both hardcode —
+   instead of adopting the chart's default gateway topology, which would
+   render a `loki-gateway` Service every existing consumer misses
+   (findings 14, 16: placement lives under `singleBinary.*`, the
+   Monolithic-mode targets must be zeroed, and the canary/test/caches
+   are disabled rather than given their own `o11y` placement).
+6. **Run both per-machine helpers on every pool.** The Alloy DaemonSet
+   (`controller.tolerations: [{operator: Exists}]`, the chart's actual
+   placement keys per finding 16) and node-exporter tolerate every
+   taint and carry no nodeSelector, so each runs on all five pools
+   (system, app, persistent, o11y, loadgen) — the spec's
+   Clarification of 2026-10-05 — instead of being pinned to `o11y`.
+7. **Also accepted**: the shared `prometheus-values.yaml` provisions a
+   Tempo datasource (`http://tempo.monitoring:3100`), but Tempo is out
+   of scope on AKS — on a fresh AKS cluster Grafana shows one broken
+   datasource. Accepted, not fixed: FR-006 requires only the metrics
+   and logs sources; fixing it would mean editing a shared file (which
+   would touch EKS/local) or carrying a third AKS-specific values file
+   for one broken entry.
+
+### Why this shape
+
+- Reusing AKS's addon and the proven Kiali manifest keeps the new
+  install surface to exactly what AKS lacks (Loki's own chart, a log
+  shipper, the routing apply) — each a smaller, separately-verifiable
+  change.
+- Every choice traces to live output (research.md L1–L4) or a real
+  offline render (finding 16), not documentation reading alone; the one
+  documentation-shaped choice (Alloy) carries its explicit deferral and
+  live-verification task.
+- The `.env` configuration surface is unchanged: no new required keys
+  (everything reuses `MONITORING_NS`), and chart settings stay in the
+  repo's existing `*/chart-values/` mechanism (Principle II's exception).
+
+### What we gave up
+
+- One broken Tempo datasource on a fresh AKS Grafana (accepted, above)
+  and a known not-yet-proven Alloy config (accepted with its own
+  verification task). Also left as-is: Loki's volume claim names no
+  StorageClass, so on AKS it uses the cluster default rather than
+  `gp2` — pre-existing behaviour shared with EKS/local; follow-up story.
+
+### Corrected during live implementation (2026-10-05)
+
+Two decisions above did not survive first contact with the running
+cluster. Both are now fixed with AKS-specific files under `infra/azure/`,
+leaving the shared EKS/local files untouched (FR-017):
+
+- **Point 2 is superseded: Kiali is no longer reused unmodified.** The
+  shared v1.63 manifest runs (pod healthy, UI `200`) but its traffic-graph
+  API crashes against Kubernetes 1.34 (`json: cannot unmarshal object into
+  Go value of type []*kubernetes.RegistryEndpoint` — the deprecated
+  `Endpoints` API shape changed). AKS now uses a manifest rendered from
+  `kiali-server` **2.32.0** at `infra/azure/kiali/kiali.yaml`, applied by
+  `setup-aks-kiali`. Verified live: the graph API returns real nodes/edges
+  for Robot Shop, and the UI loads. EKS/local keep the shared v1.63
+  manifest via `setup-istio-o11y-addons`. The chart's generated
+  component/image naming (chart 2.32 / image v2.32.0) is copied verbatim
+  into the manifest; the `kiali-vs.yaml` VirtualService is unchanged.
+- **The optional collector did not work on AKS unmodified (FR-010).**
+  `setup-optional-otel` never pinned its chart, so the chart floated to
+  latest (0.175.0) while the shared values pin an old image (0.94.0); the
+  newer chart emits component names (`file_log`, `k8s_attributes`,
+  `otlp_grpc`) and config keys (`memory_ballast`,
+  `service.telemetry.metrics.address`) the old image rejects — a
+  crash-loop. AKS now pins chart **0.81.2** (the release whose app version
+  *is* 0.94.0) with values at
+  `infra/azure/chart-values/otel-collector.yaml`, via a `STACK_MODE=aks`
+  branch in `setup-optional-otel`; `setup-hotrod` inherits it. Verified
+  live: 1/1 Running. EKS/local keep the shared values unchanged.
+
+Both are out of story 002's original scope (which reused shared files
+unmodified); they are recorded here so a follow-up story can formalise the
+Kiali-v2 and collector-pin decisions rather than have them live only in
+this ADR.
+
+Three smaller live fixes changed no decision above but are recorded so the
+files explain themselves (plan.md "Implementation departures" items 3–5):
+
+- **Alloy `app` label falls back to the pod's `service` label.** The
+  shared Application Dashboard queries `{app="<service>"}`; Robot Shop
+  pods carry `service=<name>`, not `app.kubernetes.io/name`. A relabel
+  rule copies `service` into `app` only when non-empty, so it never
+  overwrites `app.kubernetes.io/name`. (The first Alloy draft also used a
+  Perl-only regex, `(?s.*)`, that Go's RE2 rejects; it was removed.)
+- **`setup-dashboards` skips `rds.yaml` on AKS.** The AWS RDS CloudWatch
+  dashboard has no data source on AKS; EKS/local still apply it.
+- **Loki sets `loki.commonConfig.replication_factor: 1`.** The chart's
+  default of 3 fails every ring query with a single Loki replica; an
+  offline render cannot show this, only a live query can.
+

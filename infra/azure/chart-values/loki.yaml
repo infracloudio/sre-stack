@@ -1,0 +1,70 @@
+# Loki values for STACK_MODE=aks only (specs/002-azure-observability-stack).
+# Chart: grafana-community/loki pinned at 18.13.7 (research.md finding 12),
+# installed by the setup-aks-loki makefile target. The AWS/local setup-loki
+# target and monitoring/chart-values/loki.yaml stay untouched (FR-007/FR-017).
+#
+# Every setting below was confirmed by an offline render of chart 18.13.7
+# (research.md findings 15-16): the chart has no top-level placement keys,
+# defaults singleBinary.replicas to 0, storage to s3, auth to on, and ships
+# a canary plus two cache workloads that this story does not need.
+
+# Monolithic single-binary mode (small demo install; SimpleScalable targets
+# must be zeroed in this mode or the chart's own validate.yaml fails the
+# render, finding 16).
+deploymentMode: Monolithic
+
+# Flat Service name and no tenant header: the shared
+# monitoring/chart-values/prometheus-values.yaml additionalDataSources entry
+# and the Alloy shipper (infra/azure/chart-values/alloy.yaml) both hardcode
+# http://loki:3100 — the chart's gateway topology would instead render a
+# loki-gateway Service (research.md findings 14, 16).
+fullnameOverride: loki
+gateway:
+  enabled: false
+loki:
+  auth_enabled: false
+  # Single instance: the chart's default replication_factor is 3, which with
+  # one pod makes every ring query fail with "too many unhealthy instances in
+  # the ring" (found live during implementation).
+  commonConfig:
+    replication_factor: 1
+  # Filesystem storage: no object-store credentials in scope (finding 15).
+  storage:
+    type: filesystem
+  # Chart's own sanctioned test schema; the default schemaConfig is empty and
+  # an empty schema breaks the render (research.md findings 15-16).
+  useTestSchema: true
+
+# Single replica on the observability pool: per-component keys — this chart
+# has no top-level nodeSelector/tolerations (research.md finding 16).
+singleBinary:
+  replicas: 1
+  nodeSelector:
+    workload: o11y
+  tolerations:
+    - key: o11y
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+
+# Zeroed SimpleScalable targets: Monolithic mode fails the render with both
+# non-zero (research.md finding 16).
+read:
+  replicas: 0
+write:
+  replicas: 0
+backend:
+  replicas: 0
+
+# No extra workloads: none is required by any FR, and disabling is simpler
+# than giving each its own o11y placement. Disabling the canary requires
+# test.enabled: false (the chart's own validate.yaml refuses otherwise,
+# finding 16).
+lokiCanary:
+  enabled: false
+test:
+  enabled: false
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
