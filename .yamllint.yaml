@@ -28,7 +28,6 @@ rules:
 # check-ratchets.sh's "touched it, now clear it" rule specifically. Everything
 # else here is still expected to shrink.
 ignore: |
-  app/hotrod/base/hotrod/deployment.yaml
   app/hotrod/kustomization.yaml
   app/robot-shop/helm/Chart.yaml
   app/robot-shop/helm/templates/cart-deployment.yaml
@@ -59,7 +58,6 @@ ignore: |
   app/robot-shop/helm/templates/web-deployment.yaml
   app/robot-shop/helm/templates/web-service.yaml
   app/robot-shop/helm/templates/yace-monitor.yaml
-  app/robot-shop/helm/values.yaml
   infra/chart-values/keda-values.yaml
   infra/chart-values/rabbitmq-values.yaml
   infra/cluster-autoscale.yaml
@@ -71,7 +69,6 @@ ignore: |
   monitoring/chart-values/loki.yaml
   monitoring/chart-values/metric-server.yaml
   monitoring/chart-values/otel-collector.yaml
-  monitoring/chart-values/prometheus-values.yaml
   monitoring/chart-values/tempo.yaml
   monitoring/chart-values/yace.yaml
   monitoring/dashboards/application.yaml
@@ -79,8 +76,6 @@ ignore: |
   monitoring/dashboards/mysql.yaml
   monitoring/dashboards/rabbitmq.yaml
   monitoring/dashboards/rds.yaml
-  monitoring/grafana-postgres/job.yaml
-  monitoring/grafana-postgres/statefulset.yaml
   monitoring/istio-observability-addons/istio-podmonitor.yaml
   monitoring/istio-observability-addons/istio-servicemonitor.yaml
   monitoring/istio-observability-addons/kiali.yaml

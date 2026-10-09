@@ -20,15 +20,15 @@ spec:
         name: hotrod
         args: ["all"]
         env:
-          - name: OTEL_EXPORTER_OTLP_ENDPOINT
-            value: http://opentelemetry-collector.monitoring:4318
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: http://opentelemetry-collector.monitoring:4318
         ports:
-          - containerPort: 8080
-            name: frontend
-          - containerPort: 8081
-            name: customer
-          - containerPort: 8083
-            name: route
+        - containerPort: 8080
+          name: frontend
+        - containerPort: 8081
+          name: customer
+        - containerPort: 8083
+          name: route
         resources:
           limits:
             cpu: 100m
@@ -36,5 +36,10 @@ spec:
           requests:
             cpu: 100m
             memory: 100M
+      tolerations:
+      - key: kubernetes.azure.com/scalesetpriority
+        operator: Equal
+        value: spot
+        effect: NoSchedule
       nodeSelector:
         workload: app
