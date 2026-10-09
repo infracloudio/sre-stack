@@ -9,8 +9,10 @@
 ## Summary
 
 Story 005 adds the three application-observability capabilities that story 002
-left out of scope on AKS: service mapping (Beyla), request tracing (Tempo),
-and automatic application measurements (Beyla), wired into the existing
+left out of scope on AKS: service mapping (Caretta — feeds the existing
+`Service Map ☸️` panel via `caretta_links_observed`), request tracing
+(Tempo, with Beyla exporting spans to it), and automatic application
+measurements (Beyla). Wired into the existing
 Grafana stack. Today the AKS chain `setup-aks-o11y` installs none of them, and
 Grafana carries a Tempo datasource pointing at a nonexistent service. The
 approach follows the EKS/local shapes (chart installs with Azure-specific
@@ -28,24 +30,49 @@ service-mesh prerequisite added.
 -->
 
 **Language/Version**: Bash (repository scripts), GNU make, Helm 3, kubectl.
-Target cluster: Azure AKS, Kubernetes **1.34.11** (verified live on the
-planning cluster `sre-stack-452138`, southindia, 2026-10-09).
+Target clusters: Azure AKS. Current kubeconfig context is stale — the research
+cluster `sre-stack-452138` (southindia, Kubernetes **1.34.11**, verified live
+2026-10-09) was deleted after research; re-provision one (`make setup-aks`) at
+implementation time before any live task.
+
+**Term explanations (principle VII, first use)**:
+- **eBPF** — a kernel-side program hook that lets a pod observe and encode
+  network traffic and request work of the node's own processes without
+  changing the app.
+- **OTLP** — OpenTelemetry's wire protocol; the standard endpoint (here
+  Tempo's, port 4317 gRPC/4318 HTTP) that tracing exporters push spans to.
+- **DaemonSet** — a Kubernetes workload kind that schedules exactly one pod
+  on every node; how per-node collectors (Beyla, Caretta, Alloy,
+  node-exporter) get full-fleet coverage.
+- **hostPath** — a volume that mounts a node directory (here `/sys/fs/bpf`)
+  into the pod, needed when a tool must reach kernel state rather than
+  process state.
+- **prometheus scrape job** — the Prometheus-side periodic pull of a metrics
+  HTTP endpoint; jobs defined here live in the kube-prometheus-stack values.
 
 **Primary Dependencies**:
-- **Tempo chart 1.24.4** (app 2.9.0) — tracing backend. Verified latest stable
-  against live `grafana` repo (`helm search repo grafana/tempo --versions`),
-  2026-10-09.
-- **Beyla chart 1.16.11** (app 3.32.0) — eBPF service map + automatic
-  application measurements. Verified latest stable against live `grafana`
-  repo, same date.
-- **Caretta chart 0.0.16** (app v0.0.16) — service map (EKS/local incumbent).
+- **Tempo chart 3.1.0** (app 3.1.0, `grafana-community/tempo`; the
+  `grafana/tempo` 1.24.4 entry is deprecated — research.md Finding 1).
+  Tracing backend. Verified latest stable against live repo
+  (`helm search repo grafana-community/tempo --versions`), 2026-10-09.
+- **Beyla chart 1.16.11** (app 3.32.0) — eBPF request tracing export +
+  automatic application measurements. Verified latest stable against live
+  `grafana` repo, same date.
+- **Caretta chart 0.0.16** (app v0.0.16) — service map (EKS/local
+  incumbent; also the Service Map panel's data source on AKS — research.md
+  Finding 3 showed Beyla has no `caretta_links_observed` equivalent).
   Verified latest stable against live `groundcover` repo, same date.
 - kube-prometheus-stack **52.0.0** (already installed on AKS), Grafana as the
   map/trace/metrics UI.
 - AKS gets its own values files under `infra/azure/chart-values/`; these picks
   never change EKS/local settings (FR-008).
 
-**Verified live cluster state (2026-10-09)**:
+**Verified live cluster state (2026-10-09) — HISTORICAL, cluster deleted**: the
+research cluster `sre-stack-452138` was deleted the evening of 2026-10-09
+(kubeconfig DNS no longer resolves — confirmed 2026-10-09, analysis run).
+Facts below are the date's findings; numbers are re-provable only by
+re-provisioning. Acceptance evidence (SC-002 etc.) regenerates live during
+implementation — quickstart.md + T016 own that.
 - Five pools: `nodepool1` (system, no workload label, no taint), app×3,
   persistent×2, o11y×2, loadgen×1. Every non-system pool labelled `workload=`
   and tainted to match.
@@ -81,12 +108,12 @@ instructions (FR-012).
 |---|---|---|
 | I. Re-runnable scripts | ✅ | Helm `upgrade --install` is idempotent — directly serves FR-010/FR-011. |
 | II. Pinned versions | ✅ (with note) | New AKS installs get explicit `--version` pins (Tempo 3.1.0 community chart, Beyla 1.16.11, Caretta 0.0.16, prometheus-stack 52.0.0). Note: existing `setup-tempo`/`setup-caretta` (EKS/local) have **no** chart pin today — FR-007 forbids touching them, so they stay as-is; this story does not copy that gap. |
-| III. One configuration surface | ✅ | Tunables live in values files / `.env`, never hand-edited in-cluster (the read-only Grafana datasource is fixed via values overlay, not API edits). |
+| III. One configuration surface | ✅ (amended 2026-10-09, analysis run) | Fixed chart settings (image tags, receiver ports, placement, scrape jobs) are chart-shape facts and stay in the pinned values files under `infra/azure/chart-values/`; operator tunables live in `.env` — this story adds **zero** new `.env` keys (no new credentials, no new toggles; the release/namespace variables the targets read are the existing ones). |
 | IV. No secrets | ✅ | No new credentials. |
 | V. Workload placement | ✅ (with note) | Beyla + Caretta DaemonSets run on every node with explicit tolerations for `app/persistent/o11y/loadgen` and the spot taint `kubernetes.azure.com/scalesetpriority=spot:NoSchedule` (developer requirement; verified live every node carries it). Tempo and all other added workloads restricted to `workload=o11y`. No new StorageClass (contract stays `gp2`). |
 | VI. Specs without technical detail | ✅ | Approved spec contains no tech; technology lives here. |
-| VII. Plain language | ✅ | Plan/docs written plain; jargon explained at first use. |
-| VIII. Try it before you plan it | ✅ | Live cluster access granted and used — `sre-stack-452138` (southindia, K8s 1.34.11). Findings 1–4 in `research.md` carry real command output, failures included; no substitutes needed. |
+| VII. Plain language | ✅ (amended 2026-10-09, analysis run) | Jargon gets first-use explanations (see Technical Context term block); the original row treated the docs as already-jargon-free, which the analysis run showed was not true for eBPF/OTLP/DaemonSet/hostPath. |
+| VIII. Try it before you plan it | ✅ (amended 2026-10-09, analysis run) | Planning-time live runs followed principle VIII on the research cluster `sre-stack-452138` (deleted the same evening — see Technical Context). Findings 1–4 in `research.md` carry real command output where the run produced printable blocks; some claim lines summarize without the full paste (analysis finding C3) and now carry reproduction commands so implementation re-proves each one live, on a re-provisioned cluster. |
 | IX. Author in steps | ✅ | Section-by-section authoring with developer approval performed throughout. |
 | X. Converge to agreed scope | ✅ | Spec closed with 5 edge cases; SC-001–SC-011 are the exit criteria. |
 
@@ -116,6 +143,7 @@ infra/azure/chart-values/tempo.yaml                            # NEW — Tempo 3
 infra/azure/chart-values/beyla.yaml                            # NEW — Beyla 1.16.11 values (tolerations+spot, /sys/fs/bpf hostPath, otel→tempo:4318)
 infra/azure/chart-values/caretta.yaml                          # NEW — Caretta 0.0.16 values (memory 512Mi, deps disabled, tolerations+spot)
 infra/azure/chart-values/prometheus-stack.yaml                 # NEW — overlay: Tempo datasource :3200 + caretta/beyla scrape jobs
+scenarios/load-gen/load.yaml                                   # AMENDED at analysis run — spot-taint toleration added so the traffic generator schedules on AKS (finding I4); harmless on EKS/local
 monitoring/dashboards/application.yaml                         # UNTOUCHED
 monitoring/chart-values/prometheus-values.yaml                 # UNTOUCHED (shared — FR-007/FR-008)
 ```

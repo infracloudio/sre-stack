@@ -7,6 +7,14 @@ that session; nothing written from memory. Findings proposed one at a time,
 approved by the developer before the next was started. One self-caught error
 recorded under Finding 1.
 
+**Verbatim policy note (analysis run 2026-10-09)**: the trial cluster
+`sre-stack-452138` was deleted the evening of 2026-10-09. Some "Live-run
+record" lines below summarize session output without the full pasted block
+(analysis finding C3). Each such claim carries a `Reproduce:` command;
+implementation re-runs them live and pastes fresh output into the PR
+evidence before the story merges. Claims whose sessions already carry
+paste-verbatim blocks are unaffected.
+
 ---
 
 ## Finding 1 (approved) — Tempo on AKS 1.34: current charts deprecated, community chart works
@@ -45,12 +53,16 @@ Live-run record (2026-10-09):
 - First install attempt with default helm timeout: timed out at 120 s and
   created **no release** (`helm status: release not found`). Retry with
   `--timeout 10m` succeeded. **The make target must set a long timeout.**
+  Reproduce: `helm upgrade --install tempo grafana-community/tempo --version 3.1.0 -n monitoring --create-namespace` (observe default-timeout failure), then rerun with `--timeout 10m`; `helm status tempo -n monitoring` before/after.
 - Install (chart defaults) → `STATUS: deployed`,
   pod `tempo-0 1/1 Running` on AKS 1.34.11.
+  Reproduce: `helm list -n monitoring | grep tempo; kubectl get pod -n monitoring | grep tempo`.
 - Synthetic OTLP/HTTP span (`POST :4318/v1/traces`) → `200`.
 - Trace-by-ID lookup → `200`, full span returned.
 - TraceQL search with an explicit time window → returns the trace.
 - `GET :3200/ready` → `ready`; `/api/echo` → `echo`.
+  Reproduce (all three): probe pod —
+  `kubectl run tempo-probe --rm -it --image=curlimages/curl --restart=Never -- curl -s -X POST http://tempo.monitoring:4318/v1/traces -o /dev/null -w '%{http_code}'` and `curl -s http://tempo.monitoring:3200/ready`.
 
 Failures and quirks recorded:
 
@@ -111,19 +123,26 @@ Live-run record (2026-10-09):
   http://tempo.monitoring:4318` + tolerations) → **9/9 pods Running, one on
   every node in every pool** (app×3, persistent×2, o11y×2, loadgen×1,
   system×1) including the spot-tainted nodes.
+  Reproduce: `kubectl get pod -n monitoring -o wide | grep beyla`.
 - eBPF attached to: istio-proxy/envoy/pilot-agent, node(web, NodeJS),
   java(shipping), hotrod. Log (verbatim, prefix trimmed):
   `msg="instrumenting process" ... cmd=/go/bin/hotrod-linux ... type=go` —
   no instrumentation errors.
+  Reproduce: `kubectl logs -n monitoring ds/beyla | grep "instrumenting process" | head`.
 - Generated fresh shop traffic (45 requests via the shop's service DNS:
   catalogue `/products`, user/cart `/health`; **all 200**).
+  Reproduce: the traffic runbook (quickstart step 3) — generate, then
+  `curl -s -o /dev/null -w '%{http_code}' http://catalogue:80/products`.
 - Beyla captured real measurements: `http_server_request_duration_seconds`
   count `47` with `http_route="/*"`,
   `db_client_operation_duration_seconds` 46 `SELECT` observations.
+  Reproduce: Grafana Explore/Prometheus —
+  `sum(increase(http_server_request_duration_seconds_count{service_namespace="robot-shop"}[$__range]))` over the traffic window.
 - Traces landed in Tempo: TraceQL
   `{resource.service.name="catalogue" && name="GET /products"}` over the
   traffic window → **15 traces**, root service `catalogue`, multi-span
   (3 spans in the inspectable trace). By-ID lookup works.
+  Reproduce: Grafana Explore/Tempo TraceQL over the same window; open a returned trace.
 
 Failures and quirks recorded:
 
@@ -168,6 +187,9 @@ Live-run record (2026-10-09):
   fleet then crash-looped**: OOMKilled (~17 s runtime, exit 137, no error
   logs in the pod), `caretta_polls_made` stuck at `0`, and
   **`caretta_links_observed` produced zero series despite generated traffic**.
+  Reproduce: install with chart defaults (no values file), watch
+  `kubectl get pod -n monitoring | grep caretta`, then
+  `kubectl describe pod | grep -A3 "Last State"` → exit 137.
 - Re-install with `resources.limits.memory: 512Mi` +
   `tolerations: [{operator: Exists}]` → **all 9 pods stable** (zero restarts
   past 90 s, where defaults crashed at 17 s) and
@@ -175,6 +197,9 @@ Live-run record (2026-10-09):
   **42 links in the robot-shop namespace** (ratings→mysql,
   cart/user/catalogue→…, services→istiod). The Service Map panel's data
   source is live on AKS.
+  Reproduce: apply the AKS caretta values, wait 90 s
+  (`kubectl get pod -n monitoring | grep caretta` — zero restarts), then query
+  Prometheus: `count(caretta_links_observed{client_namespace="robot-shop"})`.
 - The shared `prometheus-values.yaml:330` caretta scrape job already exists
   and worked untouched — targets came up and metrics flowed.
 
