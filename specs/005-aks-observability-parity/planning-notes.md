@@ -37,7 +37,7 @@ before choosing an older release. The spec captures this requirement as FR-009.
 
 ## Additional developer requirements
 
-The developer requires idempotent setup, integration into `make setup-aks`,
+The developer requires setup that is safe to run twice, integration into `make setup-aks`,
 and an update to the existing `instructions.md`. These are captured in
 FR-010–FR-012. During planning, include verification that two successive runs
 with unchanged settings succeed without creating duplicate installations and

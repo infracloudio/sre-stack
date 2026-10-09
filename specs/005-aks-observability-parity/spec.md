@@ -50,13 +50,14 @@ As a person operating a supported environment, I want the added Azure capabiliti
 
 **Why this priority**: The issue explicitly requires existing Azure panels, monitoring setup without a service mesh, and the other environments' installations to keep working. A service mesh is a layer that manages communication between application services.
 
-**Independent Test**: Compare existing Azure panels under traffic that produces their data, run Azure monitoring setup without a service mesh, and verify existing Amazon and local observability installation workflows.
+**Independent Test**: Compare existing Azure panels under traffic that produces their data, run Azure monitoring setup without a service mesh, verify existing Amazon and local observability installation workflows, and check where the per-node collectors and the other added workloads run.
 
 **Acceptance Scenarios**:
 
 1. **Given** existing Azure panels show data for generated traffic, **When** the added capabilities are enabled and equivalent traffic is generated, **Then** the request-error, request-volume, success-rate, and error-log panels continue showing their corresponding data.
 2. **Given** Azure monitoring prerequisites are met and no service mesh is installed, **When** a person runs monitoring setup, **Then** it succeeds without requiring a service mesh.
 3. **Given** an existing Amazon or local setup workflow, **When** a person installs observability through that workflow, **Then** service mapping, tracing, and automatic application measurement remain installed through the same workflow as before.
+4. **Given** the earlier Azure observability story's placement rule and its automated checks are in place, **When** the added capabilities are installed, **Then** the per-node collectors run on every machine in every pool, every other added monitoring workload runs only on the observability pool, and the automated deployment check still passes with the amended exception list.
 
 ## Requirements *(mandatory)*
 
@@ -71,9 +72,10 @@ As a person operating a supported environment, I want the added Azure capabiliti
 - **FR-007**: Existing Amazon and local observability installation workflows and behavior MUST remain unchanged, including installation of service mapping, tracing, and automatic application measurement. This supports User Story 4.
 - **FR-008**: Azure-specific settings for the added capabilities MUST be maintained separately from Amazon and local settings, so changing the Azure setup does not change those environments. This supports User Story 4.
 - **FR-009**: The added Azure capabilities MUST use the latest stable releases available when their versions are verified during planning. These release choices MUST NOT change the releases used by Amazon or local environments. This supports User Stories 1–4.
-- **FR-010**: Setup of the added Azure capabilities MUST be idempotent: running it again with unchanged settings after a successful installation MUST succeed, create no additional installations, and leave all three capabilities usable. For example, a person can run setup twice without removing the first installation.
+- **FR-010**: Setup of the added Azure capabilities MUST be safe to run twice: running it again with unchanged settings after a successful installation MUST succeed, create no additional installations, and leave all three capabilities usable. For example, a person can run setup twice without removing the first installation.
 - **FR-011**: The existing one-command Azure deployment MUST include all three added capabilities through its monitoring setup, without requiring the person to run extra installation steps. Repeating that deployment with unchanged settings MUST preserve the behavior required by FR-010.
 - **FR-012**: The existing Azure deployment instructions MUST be updated to describe the integrated setup, safe repeat runs, how to generate demo-shop traffic, and how to confirm live service links, inspectable traces, and automatically collected application measurements.
+- **FR-013**: The per-node collectors that provide service mapping and automatic application measurement MUST run on every machine in every pool (system, app, observability, database, and load-generator), because each collector can only observe the work running on the machine it is on. Every other added monitoring workload MUST run only on the observability pool and tolerate its workload-separation marking. This keeps the earlier Azure observability story's placement rule (its FR-002 and FR-011, as amended) working and supports User Story 4.
 
 ## Success Criteria *(mandatory)*
 
@@ -89,6 +91,7 @@ As a person operating a supported environment, I want the added Azure capabiliti
 - **SC-008**: Two successive runs of the Azure monitoring setup with unchanged settings both succeed, leave exactly one installation of each added capability, and allow the person to confirm all three traffic results described in SC-002 after the second run. This verifies FR-010.
 - **SC-009**: Two successive runs of the existing one-command Azure deployment with unchanged settings both succeed and include all three added capabilities without extra installation steps. After the second run, each added capability has exactly one installation and all three traffic results described in SC-002 can be confirmed. This verifies FR-011.
 - **SC-010**: Using the updated Azure deployment instructions, a reviewer can complete the integrated setup, repeat it safely, generate demo-shop traffic, and confirm all three results described in SC-002 without needing deployment or verification steps supplied outside the guide. For example, the guide explains how to find and open a trace from the generated traffic. This verifies FR-012.
+- **SC-011**: On a live Azure cluster, the per-node collectors run on every machine in every pool, and every other added monitoring workload runs only on the observability pool. The earlier story's automated deployment check and its live placement verification pass with the amended exception list. This verifies FR-013.
 
 ## Assumptions
 
