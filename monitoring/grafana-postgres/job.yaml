@@ -17,5 +17,9 @@ spec:
         - key: "o11y"
           value: "true"
           effect: "NoSchedule"
+        - key: kubernetes.azure.com/scalesetpriority
+          operator: Equal
+          value: spot
+          effect: NoSchedule
       nodeSelector:
         workload: "o11y"

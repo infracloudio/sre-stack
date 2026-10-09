@@ -158,6 +158,10 @@ data:
       tls_config:
         source: config
       tolerations:
+      - key: kubernetes.azure.com/scalesetpriority
+        operator: Equal
+        value: spot
+        effect: NoSchedule
       - effect: NoSchedule
         key: o11y
         value: "true"
@@ -526,6 +530,10 @@ spec:
           secretName: "kiali-multi-cluster-secret"
           optional: true
       tolerations:
+      - key: kubernetes.azure.com/scalesetpriority
+        operator: Equal
+        value: spot
+        effect: NoSchedule
       - effect: NoSchedule
         key: o11y
         value: "true"

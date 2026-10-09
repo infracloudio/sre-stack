@@ -1,7 +1,7 @@
 defaultRules:
   create: false
 
-additionalPrometheusRulesMap: 
+additionalPrometheusRulesMap:
   rule-name:
     groups:
     - name: GroupA
@@ -44,15 +44,19 @@ alertmanager:
   alertmanagerSpec:
     loglevel: debug
     tolerations:
-      - key: o11y
-        value: "true"
-        effect: NoSchedule 
+    - key: o11y
+      value: "true"
+      effect: NoSchedule
+    - key: kubernetes.azure.com/scalesetpriority
+      operator: Equal
+      value: spot
+      effect: NoSchedule
     nodeSelector:
       workload: o11y
     # configSecret: promalertmanager
   config:
     global:
-      slack_api_url: "slack-webhook-url" 
+      slack_api_url: "slack-webhook-url"
       resolve_timeout: 5m
     inhibit_rules:
     route:
@@ -71,7 +75,7 @@ alertmanager:
     - name: 'slack'
       slack_configs:
       - channel: '#sre-stack'
-        send_resolved: true 
+        send_resolved: true
         # title: 'Monitoring Event Notification'
         # text:
     # templates:
@@ -80,7 +84,7 @@ alertmanager:
 ###kube-prometheus-stack###
 grafana:
   replicas: 2
-  grafana.ini: 
+  grafana.ini:
     database:
       type: postgres
       host: postgres
@@ -91,13 +95,17 @@ grafana:
     GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s:/grafana"
     GF_SERVER_SERVE_FROM_SUB_PATH: 'true'
   tolerations:
-    - key: o11y
-      value: "true"
-      effect: NoSchedule 
+  - key: o11y
+    value: "true"
+    effect: NoSchedule
+  - key: kubernetes.azure.com/scalesetpriority
+    operator: Equal
+    value: spot
+    effect: NoSchedule
   nodeSelector:
     workload: o11y
   plugins:
-    - novatec-sdg-panel
+  - novatec-sdg-panel
 
   sidecar:
     dashboards:
@@ -120,7 +128,7 @@ grafana:
         etcd:
           enabled: false
       provider:
-        allowUiUpdates: true 
+        allowUiUpdates: true
         foldersFromFilesStructure: true
     datasources:
       enabled: true
@@ -171,7 +179,7 @@ grafana:
     requests:
       cpu: 500m
       memory: 512Mi
-  extraConfigmapMounts: 
+  extraConfigmapMounts:
 
 
   deleteDatasources: []
@@ -180,7 +188,7 @@ grafana:
 
   ## Configure additional grafana datasources (passed through tpl)
   ## ref: http://docs.grafana.org/administration/provisioning/#datasources
-  additionalDataSources: 
+  additionalDataSources:
   - name: loki
     access: proxy
     orgId: 1
@@ -207,7 +215,6 @@ grafana:
   #   version: 1
 
 
-
   # readinessProbe:
   # httpGet:
   #   path: /api/health
@@ -220,7 +227,7 @@ grafana:
   #   initialDelaySeconds: 60
   #   timeoutSeconds: 30
   #   failureThreshold: 10
-  # datasources: 
+  # datasources:
   #   datasources.yaml:
   #     apiVersion: 1
   #     datasources:
@@ -232,7 +239,7 @@ grafana:
   #       defaultDatasourceEnabled: true
   #       isDefaultDatasource: true
 
-  # dashboardProviders: 
+  # dashboardProviders:
   #   dashboardproviders.yaml:
   #     apiVersion: 1
   #     providers:
@@ -318,67 +325,79 @@ grafana:
 prometheus:
   enabled: true
   service:
-      ## Port for Prometheus Service to listen on
-      ##
-      port: 9090
-      ## Service type
-      # type: LoadBalancer
+    ## Port for Prometheus Service to listen on
+    ##
+    port: 9090
+    ## Service type
+    # type: LoadBalancer
   prometheusSpec:
     enableRemoteWriteReceiver: true
     externalUrl: "https://localhost:9090/prometheus/"
     additionalScrapeConfigs:
-      - job_name: 'caretta'
-        metrics_path: /metrics
-        scrape_interval: 5s
-        kubernetes_sd_configs:
-        - role: pod
-          namespaces:
-            own_namespace: true
-        relabel_configs:
-          - source_labels: [__meta_kubernetes_pod_label_app]
-            separator: ;
-            regex: caretta
-            replacement: $1
-            action: keep
-          - action: labelmap
-            regex: __meta_kubrnetes_pod_label_(.+)
-          - source_labels: [__meta_kubernetes_pod_name]
-            action: replace
-            target_label: caretta_pod
-          - source_labels: [__meta_kubernetes_pod_node_name]
-            action: replace
-            target_label: caretta_node
+    - job_name: 'caretta'
+      metrics_path: /metrics
+      scrape_interval: 5s
+      kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          own_namespace: true
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        separator: ;
+        regex: caretta
+        replacement: $1
+        action: keep
+      - action: labelmap
+        regex: __meta_kubrnetes_pod_label_(.+)
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: caretta_pod
+      - source_labels: [__meta_kubernetes_pod_node_name]
+        action: replace
+        target_label: caretta_node
     tolerations:
-      - key: o11y
-        value: "true"
-        effect: NoSchedule 
+    - key: o11y
+      value: "true"
+      effect: NoSchedule
+    - key: kubernetes.azure.com/scalesetpriority
+      operator: Equal
+      value: spot
+      effect: NoSchedule
     nodeSelector:
       workload: o11y
   additionalServiceMonitors:
-      - name: prometheus-operator-cloudwatch
-        endpoints:
-        - port: http
-          path: /metrics
-          interval: 30s
-        namespaceSelector:
-          matchNames:
-          - monitoring
-        selector:
-          matchLabels:
-            app.kubernetes.io/name: yet-another-cloudwatch-exporter
+  - name: prometheus-operator-cloudwatch
+    endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+    namespaceSelector:
+      matchNames:
+      - monitoring
+    selector:
+      matchLabels:
+        app.kubernetes.io/name: yet-another-cloudwatch-exporter
 
 prometheusOperator:
   tolerations:
-    - key: o11y
-      value: "true"
-      effect: NoSchedule 
+  - key: o11y
+    value: "true"
+    effect: NoSchedule
+  - key: kubernetes.azure.com/scalesetpriority
+    operator: Equal
+    value: spot
+    effect: NoSchedule
   nodeSelector:
     workload: o11y
 
 kube-state-metrics:
   tolerations:
-    - key: o11y
-      value: "true"
-      effect: NoSchedule 
+  - key: o11y
+    value: "true"
+    effect: NoSchedule
+  - key: kubernetes.azure.com/scalesetpriority
+    operator: Equal
+    value: spot
+    effect: NoSchedule
   nodeSelector:
     workload: o11y

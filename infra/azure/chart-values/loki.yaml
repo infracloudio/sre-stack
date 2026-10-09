@@ -46,6 +46,10 @@ singleBinary:
       operator: Equal
       value: "true"
       effect: NoSchedule
+    - key: kubernetes.azure.com/scalesetpriority
+      operator: Equal
+      value: spot
+      effect: NoSchedule
 
 # Zeroed SimpleScalable targets: Monolithic mode fails the render with both
 # non-zero (research.md finding 16).
