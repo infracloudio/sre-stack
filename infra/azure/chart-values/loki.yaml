@@ -1,6 +1,6 @@
 # Loki values for STACK_MODE=aks only (specs/002-azure-observability-stack).
 # Chart: grafana-community/loki pinned at 18.13.7 (research.md finding 12),
-# installed by the setup-loki-aks makefile target. The AWS/local setup-loki
+# installed by the setup-aks-loki makefile target. The AWS/local setup-loki
 # target and monitoring/chart-values/loki.yaml stay untouched (FR-007/FR-017).
 #
 # Every setting below was confirmed by an offline render of chart 18.13.7

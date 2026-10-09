@@ -276,7 +276,7 @@ installing more of it. Six choices, each traced to its evidence:
    `kiali-server-1.63.1`, image `v1.63`) runs healthy against AKS's
    Istio 1.30.4 — verified live (research.md L3/L4: pod Running on an
    `o11y` node, `200 OK` through `robotshop-gateway`) — so story 002 adds
-   only AKS wiring and the mesh-readiness gate (`make setup-kiali-aks`
+   only AKS wiring and the mesh-readiness gate (`make setup-aks-kiali`
    refuses when istiod is absent, FR-013), not a new Azure-specific pin.
 3. **Apply the four observability routing/scrape files individually**
    (`grafana-vs.yaml`, `prometheus-vs.yaml`, `istio-podmonitor.yaml`,
@@ -354,7 +354,7 @@ leaving the shared EKS/local files untouched (FR-017):
   Go value of type []*kubernetes.RegistryEndpoint` — the deprecated
   `Endpoints` API shape changed). AKS now uses a manifest rendered from
   `kiali-server` **2.32.0** at `infra/azure/kiali/kiali.yaml`, applied by
-  `setup-kiali-aks`. Verified live: the graph API returns real nodes/edges
+  `setup-aks-kiali`. Verified live: the graph API returns real nodes/edges
   for Robot Shop, and the UI loads. EKS/local keep the shared v1.63
   manifest via `setup-istio-o11y-addons`. The chart's generated
   component/image naming (chart 2.32 / image v2.32.0) is copied verbatim

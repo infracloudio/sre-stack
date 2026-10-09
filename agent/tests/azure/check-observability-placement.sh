@@ -17,7 +17,7 @@
 #   - monitoring/chart-values/prometheus-values.yaml (shared; wired into the
 #     AKS chain unmodified)
 #   - monitoring/istio-observability-addons/kiali.yaml (shared; applied on
-#     the AKS path by setup-kiali-aks)
+#     the AKS path by setup-aks-kiali)
 #
 # The two per-machine helpers (Alloy DaemonSet, node-exporter) run on every
 # pool by spec decision (Clarification 2026-10-05), so neither is required to

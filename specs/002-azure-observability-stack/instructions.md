@@ -45,6 +45,20 @@ In `.env` (already tracked; only these three lines matter for AKS):
 | `AZURE_SUBSCRIPTION_ID` | your subscription ID, or leave empty to use the one `az` is signed in to |
 | `AZURE_LOCATION` | leave empty for `eastus2` |
 
+## One shot (steps 2–5 and 7)
+
+```bash
+make setup-aks
+```
+
+Runs steps 2–5 below in order (cluster, mesh, observability stack and
+Kiali, demo apps and routing), then prints the endpoints (step 7). It does
+not start the load generator: it prints the step 6 commands at the end for
+you to run if you want traffic. It also does not run the checks (the
+verify script in step 2, and step 8). Every step is safe to re-run, so if
+one fails, fix the cause and run `make setup-aks` again. The sections below
+are the same steps one at a time.
+
 ## 2. Create the cluster
 
 ```bash
@@ -75,7 +89,7 @@ make setup-istio                    # Istio 1.30.4 + the shared ingress gateway
 
 ```bash
 make setup-aks-o11y                 # Postgres for Grafana, Prometheus+Grafana, Loki, Alloy, routes, dashboards
-make setup-kiali-aks                # Kiali, separately; refuses if the mesh is not running
+make setup-aks-kiali                # Kiali, separately; refuses if the mesh is not running
 ```
 
 Run this before the demo apps: Robot Shop's chart renders ServiceMonitor
@@ -154,7 +168,7 @@ story.
 | Logs (FR-002) | Grafana → Explore → Loki → `{namespace="robot-shop"}` | Robot Shop log lines with `app`, `pod`, `container`, `node` labels | §4 |
 | Dashboards | Grafana → Dashboards → Application Dashboard | Request and error panels populated once the load generator has run | §9 |
 | Kiali graph (FR-019) | Kiali → Traffic Graph → namespace `robot-shop` | Live graph of the Robot Shop services | §6 |
-| Re-runs (FR-003) | Run `make setup-aks-o11y` and `make setup-kiali-aks` again | Exit 0; Helm says "upgraded" and kubectl says "unchanged"; no new pods | §11 |
+| Re-runs (FR-003) | Run `make setup-aks-o11y` and `make setup-aks-kiali` again | Exit 0; Helm says "upgraded" and kubectl says "unchanged"; no new pods | §11 |
 | Missing routing (US1 scenario 5) | On a cluster where `make setup-gateway` has not run, run `make get-service-endpoints` | A plain "not reachable yet — the routing step hasn't run" message, no URLs | — |
 
 ### Accepted, not defects
@@ -176,7 +190,7 @@ story.
 - **`make setup-aks-o11y` hangs at "Installing the Grafana Alloy log
   shipper…".** Helm is waiting on a chart download from GitHub's release
   server that never connects (seen twice during the evidence run). Press
-  Ctrl-C and run `make setup-log-shipper-aks`, then
+  Ctrl-C and run `make setup-aks-log-shipper`, then
   `make setup-aks-o11y-routes setup-dashboards`. Everything is safe to
   re-run.
 - **`make setup-robot-shop` fails with `no matches for kind "ServiceMonitor"
@@ -186,7 +200,7 @@ story.
   manual uninstall is needed.
 - **`make get-service-endpoints` says the addresses are not reachable
   yet.** Run `make setup-gateway`.
-- **`make setup-kiali-aks` says the service mesh is not running.** Run
+- **`make setup-aks-kiali` says the service mesh is not running.** Run
   `make setup-istio` first.
 - **`make setup-cluster` stops on quota.** The message names the quota and
   the numbers. Raise it under Azure Portal → Quotas → Compute, or set a

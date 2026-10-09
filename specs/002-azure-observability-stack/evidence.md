@@ -6,6 +6,12 @@ pool mode) · **Branch**: `002-azure-observability-stack`
 All outputs below are verbatim from the live cluster built and exercised for
 this story. Nothing here is projected or "expected" output.
 
+> **Target names changed after these runs (2026-10-09).** The output below
+> keeps the names as they were run. Today's names: `setup-loki-aks` →
+> `setup-aks-loki`, `setup-log-shipper-aks` → `setup-aks-log-shipper`,
+> `setup-kiali-aks` → `setup-aks-kiali` (scripts renamed to match). See
+> plan.md "Review fixes" item 3.
+
 ---
 
 ## 1. Cluster and node pools

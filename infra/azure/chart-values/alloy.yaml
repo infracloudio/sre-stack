@@ -1,6 +1,6 @@
 # Grafana Alloy values for STACK_MODE=aks only (specs/002-azure-observability-
 # stack). Chart: grafana/alloy pinned at 1.13.0 (research.md finding 13),
-# installed by the setup-log-shipper-aks makefile target. The old
+# installed by the setup-aks-log-shipper makefile target. The old
 # grafana-community/loki chart no longer bundles a log shipper, and the
 # standalone promtail chart is deprecated and frozen — Alloy is Grafana's own
 # actively-maintained successor.

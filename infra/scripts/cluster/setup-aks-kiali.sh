@@ -1,5 +1,5 @@
 #!/bin/bash
-# setup-kiali-aks.sh — install the service mesh dashboard on AKS
+# setup-aks-kiali.sh — install the service mesh dashboard on AKS
 # (specs/002-azure-observability-stack T011, FR-013, FR-018).
 #
 # A missing mesh never blocks the core stack (setup-aks-o11y): this script

@@ -23,11 +23,12 @@ help:
 	@echo ""
 	@echo "Azure (AKS) setup/cleanup commands:"
 	@echo "	setup                             - Setup empty AKS cluster (cluster only)"
+	@echo "	setup-aks                         - Deploy everything on AKS in one shot (cluster, mesh, observability, Kiali, apps, routing)"
 	@echo "	setup-aks-o11y                    - Setup monitoring/observability on AKS (Prometheus, Grafana, Loki, Alloy, routes)"
-	@echo "	setup-loki-aks                    - Setup Loki (AKS-specific chart and values)"
-	@echo "	setup-log-shipper-aks             - Setup the Grafana Alloy log shipper (AKS)"
+	@echo "	setup-aks-loki                    - Setup Loki (AKS-specific chart and values)"
+	@echo "	setup-aks-log-shipper             - Setup the Grafana Alloy log shipper (AKS)"
 	@echo "	setup-aks-o11y-routes             - Apply the observability routes and scrape configs (AKS)"
-	@echo "	setup-kiali-aks                   - Setup Kiali (AKS, refuses when the mesh is not running)"
+	@echo "	setup-aks-kiali                   - Setup Kiali (AKS, refuses when the mesh is not running)"
 	@echo "	setup-optional-otel               - Setup OpenTelemetry (works on AKS too)"
 	@echo "	cleanup                           - Cleanup AKS cluster"
 	@echo ""
@@ -183,23 +184,48 @@ endif
 # addons/ folder (that shared apply stays EKS/local's). This coupling is
 # recorded in docs/architectural-decisions.md (AD for story 002): a file
 # added to that folder later does not automatically reach AKS.
-setup-aks-o11y: setup-db-grafana-psql setup-kube-prometheus-stack setup-loki-aks setup-log-shipper-aks setup-aks-o11y-routes setup-dashboards
+setup-aks-o11y: setup-db-grafana-psql setup-kube-prometheus-stack setup-aks-loki setup-aks-log-shipper setup-aks-o11y-routes setup-dashboards
 
-setup-loki-aks:
+setup-aks-loki:
 	helm repo add grafana-community https://grafana-community.github.io/helm-charts
 	helm repo update
 	helm upgrade --install loki grafana-community/loki --version 18.13.7 --values ./infra/azure/chart-values/loki.yaml -n $(MONITORING_NS) --create-namespace
 
-setup-log-shipper-aks:
-	bash $(CLUSTER_SCRIPT_PATH)/setup-log-shipper-aks.sh
+setup-aks-log-shipper:
+	bash $(CLUSTER_SCRIPT_PATH)/setup-aks-log-shipper.sh
 
 setup-aks-o11y-routes:
 	bash $(CLUSTER_SCRIPT_PATH)/setup-aks-o11y-routes.sh
 
 # Separate from setup-aks-o11y on purpose (FR-013): it refuses when the mesh
 # is not actually running, instead of failing the core stack.
-setup-kiali-aks:
-	bash $(CLUSTER_SCRIPT_PATH)/setup-kiali-aks.sh
+setup-aks-kiali:
+	bash $(CLUSTER_SCRIPT_PATH)/setup-aks-kiali.sh
+
+# One-shot AKS deploy, same path as specs/002-azure-observability-stack/
+# instructions.md steps 2–7: cluster → mesh → observability → Kiali → apps →
+# routing → endpoints, then prints the optional load generator (step 6)
+# instead of starting it. Each step is its own make call so the order holds
+# even under `make -j`, and every later step reads the cluster the earlier
+# ones created. The observability stack goes before the apps because Robot
+# Shop's chart renders ServiceMonitors, whose CRDs kube-prometheus-stack
+# installs. Every step is safe to re-run, so a failed run can be restarted.
+setup-aks:
+ifneq ($(STACK_MODE),aks)
+	$(error setup-aks needs STACK_MODE=aks (currently '$(STACK_MODE)'))
+endif
+	$(MAKE) setup-cluster
+	$(MAKE) setup-istio
+	$(MAKE) setup-aks-o11y
+	$(MAKE) setup-aks-kiali
+	$(MAKE) setup-robot-shop
+	$(MAKE) setup-hotrod
+	$(MAKE) setup-gateway
+	$(MAKE) get-service-endpoints
+	@echo ""
+	@echo "Optional: start the load generator (the dashboards stay empty without traffic):"
+	@echo "  kubectl create ns loadgen --dry-run=client -o yaml | kubectl apply -f -"
+	@echo "  kubectl apply -f scenarios/load-gen/load.yaml"
 
 
 # AWS-specific (RDS); commented out for now, returns in a future PR

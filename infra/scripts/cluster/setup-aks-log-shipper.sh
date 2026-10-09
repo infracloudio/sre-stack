@@ -1,13 +1,13 @@
 #!/bin/bash
-# setup-log-shipper-aks.sh — install the AKS log shipper
+# setup-aks-log-shipper.sh — install the AKS log shipper
 # (specs/002-azure-observability-stack T007, FR-002).
 #
-# The grafana-community/loki chart (setup-loki-aks) bundles no log shipper,
+# The grafana-community/loki chart (setup-aks-loki) bundles no log shipper,
 # and the standalone promtail chart is deprecated — Grafana Alloy is the
 # actively-maintained successor (research.md finding 13). Installs chart
 # grafana/alloy pinned at 1.13.0 with infra/azure/chart-values/alloy.yaml:
 # a DaemonSet tolerating every taint, pushing to http://loki:3100 (the flat
-# Service name setup-loki-aks's values guarantee, finding 14).
+# Service name setup-aks-loki's values guarantee, finding 14).
 # helm upgrade --install is idempotent by construction.
 
 set -euo pipefail

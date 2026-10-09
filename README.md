@@ -137,11 +137,25 @@ make setup-cluster     # empty AKS cluster + node pools
 make setup-istio       # Istio mesh + ingress gateway
 make setup-gateway     # routing entry point (also needed before the URLs resolve)
 make setup-aks-o11y    # monitoring stack (Prometheus, Grafana, Loki, Alloy, routes, dashboards)
-make setup-kiali-aks   # Kiali, separately — it refuses when the mesh is not running
+make setup-aks-kiali   # Kiali, separately — it refuses when the mesh is not running
 ```
 
+Or deploy everything in one shot — cluster, mesh, monitoring stack, Kiali,
+both demo apps, routing, then the endpoint URLs:
+
+```
+make setup-aks
+```
+
+It runs `setup-cluster setup-istio setup-aks-o11y setup-aks-kiali
+setup-robot-shop setup-hotrod setup-gateway get-service-endpoints`, then
+prints the optional load-generator commands without running them — the same
+path as `specs/002-azure-observability-stack/instructions.md` (monitoring
+before the apps: Robot Shop's chart needs the ServiceMonitor CRDs). Every
+step is safe to re-run, so after a failure fix the cause and run it again.
+
 `make setup-aks-o11y` chains (in order) `setup-db-grafana-psql
-setup-kube-prometheus-stack setup-loki-aks setup-log-shipper-aks
+setup-kube-prometheus-stack setup-aks-loki setup-aks-log-shipper
 setup-aks-o11y-routes setup-dashboards`. It deliberately skips
 `setup-metric-server` — AKS's built-in metrics-server addon already serves
 the same API, and installing a second one collides (see
@@ -157,7 +171,7 @@ Differences from the EKS/local monitoring stack:
   untouched.
 - **The log shipper is Grafana Alloy**, not Promtail. The new Loki chart
   bundles no shipper at all, and the standalone Promtail chart is
-  deprecated; `make setup-log-shipper-aks` installs `grafana/alloy`
+  deprecated; `make setup-aks-log-shipper` installs `grafana/alloy`
   instead.
 - **Two per-machine helpers run on every node pool**: the Alloy DaemonSet
   and node-exporter tolerate every taint and carry no node filter, so
