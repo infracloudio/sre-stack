@@ -1,0 +1,27 @@
+# 3-node kind cluster, sized for a MacBook Air.
+# - 1 control plane + 2 workers so DaemonSet behavior is realistic
+# - extraMounts expose the host filesystem for /var/log/pods readability
+# - port mappings let us hit Grafana / OTLP on localhost without port-forwarding
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: otel-lab
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      - containerPort: 30080   # Grafana NodePort
+        hostPort: 3000
+        protocol: TCP
+      - containerPort: 30317   # OTLP gRPC (gateway NodePort)
+        hostPort: 4317
+        protocol: TCP
+      - containerPort: 30318   # OTLP HTTP (gateway NodePort)
+        hostPort: 4318
+        protocol: TCP
+  - role: worker
+  - role: worker

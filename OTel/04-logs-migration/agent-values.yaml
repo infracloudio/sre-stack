@@ -1,0 +1,64 @@
+# Agent values — step 04 adds filelogreceiver on each node.
+# Diff vs step 03: presets.logsCollection enabled.
+mode: daemonset
+fullnameOverride: otel-agent
+
+image:
+  repository: otel/opentelemetry-collector-contrib
+
+presets:
+  kubernetesAttributes:
+    enabled: true
+    extractAllPodLabels: true
+  # NEW: tail /var/log/pods/**/*.log, parse CRI format, attach pod metadata.
+  # The preset also mounts the host paths and adds the right RBAC.
+  logsCollection:
+    enabled: true
+    includeCollectorLogs: false   # avoid feedback loops
+    storeCheckpoints: true        # checkpoints survive restarts
+
+resources:
+  limits:
+    cpu: 256m
+    memory: 512Mi
+
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+    # filelog receiver is injected by the preset under the name `filelog`.
+
+  processors:
+    memory_limiter:
+      check_interval: 5s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+    batch:
+      send_batch_size: 1024
+      timeout: 5s
+
+  exporters:
+    otlp/gateway:
+      endpoint: otel-gateway.observability.svc:4317
+      tls:
+        insecure: true
+
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, k8sattributes, batch]
+        exporters: [otlp/gateway]
+      metrics:
+        receivers: [otlp]
+        processors: [memory_limiter, k8sattributes, batch]
+        exporters: [otlp/gateway]
+      logs:
+        # filelog from the preset + any OTLP-emitted application logs
+        receivers: [otlp, filelog]
+        processors: [memory_limiter, k8sattributes, batch]
+        exporters: [otlp/gateway]

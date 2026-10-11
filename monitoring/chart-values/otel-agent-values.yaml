@@ -1,0 +1,88 @@
+# OTel Collector — AGENT tier (DaemonSet, one pod per node)
+# Adapted for k3d sre-stack-local cluster, monitoring namespace.
+# Step 05: adds hostMetrics + kubeletMetrics presets on top of step 04.
+#
+# No nodeSelector — must run on ALL nodes to collect host signals.
+mode: daemonset
+fullnameOverride: otel-agent
+
+image:
+  repository: otel/opentelemetry-collector-contrib
+
+presets:
+  kubernetesAttributes:
+    enabled: true
+    extractAllPodLabels: true
+    extractAllPodAnnotations: false
+  logsCollection:
+    enabled: true
+    includeCollectorLogs: false
+    storeCheckpoints: true
+  # Node-level CPU/mem/disk/network metrics
+  hostMetrics:
+    enabled: true
+  # Pod/container resource usage from kubelet
+  kubeletMetrics:
+    enabled: true
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 400Mi
+  requests:
+    cpu: 50m
+    memory: 128Mi
+
+tolerations:
+  - operator: Exists
+    effect: NoSchedule
+
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+    # hostmetrics injected by preset
+    # Override kubeletstats: k3d kubelet cert has no IP SANs
+    kubeletstats:
+      collection_interval: 20s
+      auth_type: serviceAccount
+      endpoint: ${env:OTEL_K8S_NODE_IP}:10250
+      insecure_skip_verify: true
+      metric_groups:
+        - node
+        - pod
+        - container
+
+  processors:
+    memory_limiter:
+      check_interval: 5s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+    batch:
+      send_batch_size: 1024
+      timeout: 5s
+
+  exporters:
+    otlp/gateway:
+      endpoint: otel-gateway.monitoring.svc:4317
+      tls:
+        insecure: true
+
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, k8sattributes, batch]
+        exporters: [otlp/gateway]
+      metrics:
+        receivers: [otlp, hostmetrics, kubeletstats]
+        processors: [memory_limiter, k8sattributes, batch]
+        exporters: [otlp/gateway]
+      logs:
+        receivers: [otlp, filelog]
+        processors: [memory_limiter, k8sattributes, batch]
+        exporters: [otlp/gateway]

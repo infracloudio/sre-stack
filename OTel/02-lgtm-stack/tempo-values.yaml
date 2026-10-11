@@ -1,0 +1,22 @@
+# Tempo single-binary, OTLP receivers on. Grafana will discover traces here.
+tempo:
+  metricsGenerator:
+    enabled: true
+    remoteWriteUrl: http://kps-prometheus.observability.svc:9090/api/v1/write
+  storage:
+    trace:
+      backend: local
+      local:
+        path: /var/tempo/traces
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+
+persistence:
+  enabled: false  # ephemeral; OK for a lab
+
+# Service exposes 4317 (OTLP gRPC), 4318 (OTLP HTTP), 3100 (Tempo HTTP API)
+service:
+  type: ClusterIP

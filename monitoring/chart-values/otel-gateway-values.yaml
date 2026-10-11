@@ -1,0 +1,148 @@
+# OTel Collector — GATEWAY tier (Deployment, cluster-wide aggregation)
+# Adapted from OTel/05-metrics-migration/gateway-values.yaml
+# Namespace: monitoring (not observability)
+# Service endpoints adapted to sre-stack-local service names.
+mode: deployment
+replicaCount: 1
+fullnameOverride: otel-gateway
+
+image:
+  repository: otel/opentelemetry-collector-contrib
+
+presets:
+  # Enriches every span/metric/log with k8s.pod.name, k8s.namespace.name,
+  # k8s.node.name, plus all pod labels — THE key differentiator vs Promtail.
+  kubernetesAttributes:
+    enabled: true
+    extractAllPodLabels: true
+  # Kubernetes events ingested as log records → Loki
+  kubernetesEvents:
+    enabled: true
+  # k8s_cluster receiver: pod phases, deployment replicas, node conditions
+  # Replaces kube-state-metrics for cluster-state visibility.
+  clusterMetrics:
+    enabled: true
+
+service:
+  type: ClusterIP
+
+ports:
+  otlp:
+    enabled: true
+    containerPort: 4317
+    servicePort: 4317
+    protocol: TCP
+  otlp-http:
+    enabled: true
+    containerPort: 4318
+    servicePort: 4318
+    protocol: TCP
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 300m
+    memory: 512Mi
+
+nodeSelector:
+  workload: o11y
+
+tolerations:
+  - key: o11y
+    value: "true"
+    effect: NoSchedule
+
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+    # k8sobjects + k8s_cluster injected by presets above
+
+  processors:
+    memory_limiter:
+      check_interval: 5s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+    batch:
+      send_batch_size: 1024
+      timeout: 5s
+    # Synthesise an `app` resource attribute so Loki stream labels match the
+    # dashboard queries ({app="web"}, {app="ratings"}, etc.).
+    #
+    # Robot Shop pods use `service: web` (not `app`).  Other pods (HotROD,
+    # monitoring) use the conventional `app` pod label.  Strategy:
+    #   1. insert from k8s.pod.labels.service  — sets `app` for Robot Shop pods
+    #      (insert is a no-op when `app` already exists)
+    #   2. upsert from k8s.pod.labels.app      — overrides with the `app` pod
+    #      label when present (HotROD etc.); no-op when the attribute is absent
+    resource/app-label:
+      attributes:
+        - action: insert
+          key: app
+          from_attribute: k8s.pod.labels.service
+        - action: upsert
+          key: app
+          from_attribute: k8s.pod.labels.app
+    # Promote key OTel resource attributes → Loki stream labels.
+    # Without this Loki 3.x OTLP receives logs but has nothing to index on.
+    # `app` added here so {app="web"} queries in the Application Dashboard work.
+    resource/loki-labels:
+      attributes:
+        - action: insert
+          key: loki.resource.labels
+          value: service.name,k8s.namespace.name,k8s.pod.name,k8s.container.name,app
+
+  exporters:
+    # Traces → Tempo (OTLP gRPC)
+    otlp/tempo:
+      endpoint: tempo.monitoring.svc:4317
+      tls:
+        insecure: true
+    # Metrics → Prometheus (remote_write)
+    # resource_to_telemetry_conversion promotes OTel resource attrs to Prom labels
+    # so k8s.namespace.name, k8s.pod.name etc appear on every metric series.
+    prometheusremotewrite/prom:
+      endpoint: http://prometheus-stack-kube-prom-prometheus.monitoring.svc:9090/api/v1/write
+      tls:
+        insecure: true
+      resource_to_telemetry_conversion:
+        enabled: true
+    # Logs → Loki 3.x via OTLP HTTP (/otlp/v1/logs endpoint)
+    # Replaces the deprecated loki exporter and Promtail.
+    otlphttp/loki:
+      endpoint: http://loki.monitoring.svc:3100/otlp
+      tls:
+        insecure: true
+    debug:
+      verbosity: basic
+
+  service:
+    pipelines:
+      # App traces: OTel SDK → agent → gateway → Tempo
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, k8sattributes, batch]
+        exporters: [otlp/tempo]
+      # App metrics pushed via OTLP → gateway → Prometheus
+      metrics:
+        receivers: [otlp]
+        processors: [memory_limiter, k8sattributes, batch]
+        exporters: [prometheusremotewrite/prom]
+      # Cluster-state metrics from k8s_cluster receiver → Prometheus
+      # Replaces kube-state-metrics. Same Prometheus, same dashboards.
+      metrics/cluster:
+        receivers: [k8s_cluster]
+        processors: [memory_limiter, k8sattributes, batch]
+        exporters: [prometheusremotewrite/prom]
+      # Pod logs (via agents filelog) + k8s events → Loki
+      # resource/loki-labels runs before batch so labels are set before export.
+      logs:
+        receivers: [otlp, k8sobjects]
+        processors: [memory_limiter, k8sattributes, resource/app-label, resource/loki-labels, batch]
+        exporters: [otlphttp/loki, debug]
