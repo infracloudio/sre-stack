@@ -265,6 +265,20 @@ Small differences between tasks.md and what was done; none changes scope.
   added for SC-010 so a reviewer can build their own cluster and run the
   checks. Kept by the owner after convergence (2026-10-14, finding F3).
   Exact commands live in `quickstart.md`; if one changes, update the other.
+- **Beyla application lags the chart (review of bbe4244, 2026-10-14).**
+  Chart 1.16.11 is the latest Beyla chart and ships application 3.32.0;
+  the latest application release is v3.38.0 (2026-10-05). Accepted by the
+  owner: the gap is minor releases within 3.x. 3.32.0 ran clean on AKS 1.34
+  (about 6,390 requests counted, traces in Tempo). Overriding the image away
+  from the chart's tested pairing adds risk for no gain this story needs.
+  Bumping the image is left to a future chart release or a separate story.
+- **Live no-mesh proof moved to a follow-up story (review of bbe4244,
+  2026-10-14).** T016 clause (a) needs a cluster with `istio-system` absent,
+  which `make setup-aks` never produces. The owner cancelled it here. For
+  this story, FR-006 and SC-004 rest on the offline proof in
+  `check-o11y-routes-offline.sh` (missing VirtualService type and missing
+  namespace both skip; a kubectl failure fails). The live run on a cluster
+  without the mesh becomes its own story.
 
 ## Spot-mode tolerations (live finding, 2026-10-14)
 
