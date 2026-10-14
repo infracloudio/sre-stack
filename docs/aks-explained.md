@@ -528,13 +528,15 @@ avoids burning money on traffic when you only wanted to look around.
 
 ### Turning the dial
 
-The fault scenarios (section 8) change one setting while they run:
+Version 2 of the fault scenario (section 8) changes one setting while it
+runs. Version 1 does not touch it: it runs at normal traffic until you
+remove the fault.
 
 | Moment | `NUM_CLIENTS` |
 |---|---|
-| Normal day | 10 |
-| During a scenario | 5,000 |
-| After the scenario ends | back to 10 |
+| Normal day, and all of version 1 | 10 |
+| During version 2 | 5,000 |
+| After version 2 ends | back to 10 |
 
 Going from 10 to 5,000 shoppers is like a quiet shop suddenly filling
 with a holiday crowd. Small weaknesses that never matter on a quiet day
@@ -542,15 +544,18 @@ become very visible.
 
 ## 8. Breaking things on purpose (fault injection)
 
-**In short: one scenario runs on Azure today. It has two versions. Each
-one turns the pretend shoppers up to 5,000, breaks the ratings part in
-a specific way for 10 minutes, then puts everything back. Your job is
-to spot the problem on the dashboards and work out which part is to
-blame.**
+**In short: one scenario runs on Azure today. It has two versions, and
+both break the ratings part in a specific way. Version 1 stays broken
+until you run one command to fix it, at normal traffic. Version 2 turns
+the pretend shoppers up to 5,000, breaks ratings for 10 minutes, then
+puts everything back by itself. Your job is to spot the problem on the
+dashboards and work out which part is to blame.**
 
 ### How every scenario works
 
-Each run follows the same four steps, like a fire drill:
+Version 2 follows these four steps, like a fire drill. Version 1 is
+simpler: one command breaks ratings, another command fixes it, and
+nothing happens on a timer.
 
 ```mermaid
 flowchart LR
@@ -559,8 +564,9 @@ flowchart LR
     C --> D["4. Turn shoppers down<br/>and undo the break"]
 ```
 
-The undo is automatic. You do not have to remember to clean up. The
-10-minute length comes from `SCENARIO_01_TIMEOUT` in the `.env` file.
+In version 2 the undo is automatic. You do not have to remember to
+clean up. The 10-minute length comes from `SCENARIO_01_TIMEOUT` in the
+`.env` file. In version 1, you run the undo yourself.
 
 While it runs, open Grafana and Kiali (section 6) and try to answer
 three questions:
@@ -576,9 +582,11 @@ Try to answer before reading the "what you should see" lists below.
 **The story.** The ratings part depends on another service. That
 service has an outage, so every call to ratings now fails.
 
-**What the script actually does.** It tells the Istio sidecars (section
-5): "for every call to ratings, do not deliver it; answer at once with
-an error". The error is **HTTP 500**, the web's standard code for
+**What the command actually does.** `make aks-ratings-abort-start` adds
+one rule to ratings' routing rule, and it stays until you remove it with
+`make aks-ratings-abort-revert`. It does not change the number of
+shoppers. The rule tells the Istio sidecars (section 5): "for every call
+to ratings, do not deliver it; answer at once with an error". The error is **HTTP 500**, the web's standard code for
 "something went wrong on the server". Ratings itself is perfectly
 healthy. The failure happens in the post office, not in the department.
 This is Istio's fault-injection feature, and it is how teams rehearse
@@ -591,8 +599,10 @@ shop still works.
 
 | Where | What |
 |---|---|
-| Application Dashboard → **5xxs** and **Non-2xx Responses by Service** | A sudden climb, all of it from ratings. |
-| Application Dashboard → **Global Success Rate** | Drops below 100%. |
+| Application Dashboard → **5xxs** and **Non-2xx Responses by Service** (the `ratings ->` tile) | A sudden climb, all of it from ratings, within about 15 seconds. |
+| Application Dashboard → **Global Success Rate** | May show `NaN` rather than a drop. |
+| Application Dashboard → **Non-2xx Responses by Service**, the `user ->` tile | Always red, from normal `404` answers. Ignore it; it is not this fault. |
+| Istio Service Dashboard → **"Server …"** panels | Stay blank. The error is produced before ratings sees the call. |
 | Application Dashboard → **Ratings Service Error Logs** | Probably quiet. Ratings never received the calls, so it had nothing to complain about. That mismatch is itself a clue. |
 | Kiali graph | The line into ratings turns red. |
 | Tempo (traces) | Journeys that include ratings end in an error almost instantly. |
@@ -633,18 +643,27 @@ setting can quietly leave too few working copies to handle a crowd.
 
 ### How to start a scenario
 
-Run these from the `scenarios/scenario-01` folder, with `bash`
+Version 1 runs from the repository root. See
+[`infra/azure/scenario-01/README.md`](../infra/azure/scenario-01/README.md)
+for the full guide:
+
+```bash
+make aks-ratings-abort-start    # version 1: ratings errors, until reverted
+make aks-ratings-abort-status   # is the fault on?
+make aks-ratings-abort-revert   # version 1: remove the fault
+```
+
+Version 2 runs from the `scenarios/scenario-01` folder, with `bash`
 (not `sh`):
 
 ```bash
 cd scenarios/scenario-01
-bash ./scripts/inject-vs-fault.sh          # version 1: ratings errors
 bash ./scripts/mis-config-health-probs.sh  # version 2: slow readiness
 ```
 
-Each command runs for about 10 minutes and then undoes itself. Start
-the pretend shoppers first (section 7), or there is no one to notice
-the fault.
+Version 2 runs for about 10 minutes and then undoes itself. Start the
+pretend shoppers first (section 7) for either version, or there is no
+one to notice the fault.
 
 ### Other scenarios in the repository
 
@@ -746,13 +765,13 @@ used when `STACK_MODE=aks`.**
 | `makefile` | The shortcut commands (`make setup-aks`, `make cleanup`, …). Each one lists the steps it runs. |
 | `.env` | The settings file: cloud, region, names, scenario timings, shopper counts. |
 | `infra/scripts/cluster/` | The scripts that create and remove the cluster. The Azure ones have `aks` or `azure` in their names. |
-| `infra/azure/` | **Azure only.** Settings that differ from the other clouds: node-pool permits for spot machines, the Loki, Tempo, Beyla, Caretta, and Alloy settings, the Kiali install, the load generator copy. |
+| `infra/azure/` | **Azure only.** Settings that differ from the other clouds: node-pool permits for spot machines, the Loki, Tempo, Beyla, Caretta, and Alloy settings, the Kiali install, the load generator copy, and `scenario-01/`, the commands for the Azure version 1 fault. |
 | `app/robot-shop/` | Robot Shop's installation package (Helm chart) and its gateway rule. |
 | `app/hotrod/` | HotROD's installation files and its gateway rule. |
 | `monitoring/dashboards/` | The ready-made Grafana dashboards. |
 | `monitoring/istio-observability-addons/` | The routing rules for `/grafana`, `/prometheus`, `/kiali`, and the rules that tell Prometheus to collect Istio's numbers. |
 | `monitoring/chart-values/` | Settings for the watching tools shared with the other clouds. |
-| `scenarios/` | The fault scenarios. `scenario-01` runs on Azure; the others are for Amazon's cloud. |
+| `scenarios/` | The fault scenarios. `scenario-01` version 2 runs from here on Azure (version 1 uses `infra/azure/scenario-01/`); the others are for Amazon's cloud. |
 | `scenarios/load-gen/` | The load generator used on the other clouds. Azure uses its own copy in `infra/azure/load-gen/`. |
 | `docs/architectural-decisions.md` | Why things were built the way they were, one decision at a time. |
 | `specs/` | The written plans behind each piece of work, numbered in order. `001` to `005` cover the Azure path. |
