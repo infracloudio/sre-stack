@@ -14,6 +14,11 @@ Along with standard observability tooling such as:
 - [Grafana/Beyla](https://github.com/grafana/beyla)
 - [groundcover.com/Caretta](https://github.com/groundcover-com/caretta)
 
+New to Kubernetes or observability? Read
+[The SRE Stack on Azure, Explained](docs/aks-explained.md) first: a
+plain-language tour of the AKS path, its apps, the load generator, and
+the fault scenarios.
+
 ## Scenarios
 `sre-stack` contains carefully crafted fault injection scenarios to effectively disrupt operations of the demo-applications.
 Using this repo we create the following feedback-loop:
