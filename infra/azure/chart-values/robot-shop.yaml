@@ -1,0 +1,117 @@
+# robot-shop values overlay for STACK_MODE=aks only, passed after the chart's
+# own values.yaml by setup-robot-shop. Every AKS workload node carries
+# kubernetes.azure.com/scalesetpriority=spot:NoSchedule (docs/
+# architectural-decisions.md AD-003), so each workload tolerates it. Helm
+# replaces lists, so the persistent-pool workloads restate their persistent
+# toleration. EKS/local install the chart without this file.
+
+cart:
+  tolerations:
+    - key: "kubernetes.azure.com/scalesetpriority"
+      operator: "Equal"
+      value: "spot"
+      effect: "NoSchedule"
+
+catalogue:
+  tolerations:
+    - key: "kubernetes.azure.com/scalesetpriority"
+      operator: "Equal"
+      value: "spot"
+      effect: "NoSchedule"
+
+dispatch:
+  tolerations:
+    - key: "kubernetes.azure.com/scalesetpriority"
+      operator: "Equal"
+      value: "spot"
+      effect: "NoSchedule"
+
+payment:
+  tolerations:
+    - key: "kubernetes.azure.com/scalesetpriority"
+      operator: "Equal"
+      value: "spot"
+      effect: "NoSchedule"
+
+ratings:
+  tolerations:
+    - key: "kubernetes.azure.com/scalesetpriority"
+      operator: "Equal"
+      value: "spot"
+      effect: "NoSchedule"
+
+shipping:
+  tolerations:
+    - key: "kubernetes.azure.com/scalesetpriority"
+      operator: "Equal"
+      value: "spot"
+      effect: "NoSchedule"
+
+user:
+  tolerations:
+    - key: "kubernetes.azure.com/scalesetpriority"
+      operator: "Equal"
+      value: "spot"
+      effect: "NoSchedule"
+
+web:
+  tolerations:
+    - key: "kubernetes.azure.com/scalesetpriority"
+      operator: "Equal"
+      value: "spot"
+      effect: "NoSchedule"
+
+mongodb:
+  tolerations:
+    - key: "persistent"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+    - key: "kubernetes.azure.com/scalesetpriority"
+      operator: "Equal"
+      value: "spot"
+      effect: "NoSchedule"
+
+mysql:
+  tolerations:
+    - key: "persistent"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+    - key: "kubernetes.azure.com/scalesetpriority"
+      operator: "Equal"
+      value: "spot"
+      effect: "NoSchedule"
+
+rabbitmq:
+  tolerations:
+    - key: "persistent"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+    - key: "kubernetes.azure.com/scalesetpriority"
+      operator: "Equal"
+      value: "spot"
+      effect: "NoSchedule"
+
+redis:
+  tolerations:
+    - key: "persistent"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+    - key: "kubernetes.azure.com/scalesetpriority"
+      operator: "Equal"
+      value: "spot"
+      effect: "NoSchedule"
+
+mysqlseeder:
+  tolerations:
+    - key: "persistent"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+    - key: "kubernetes.azure.com/scalesetpriority"
+      operator: "Equal"
+      value: "spot"
+      effect: "NoSchedule"

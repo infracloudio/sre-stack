@@ -96,11 +96,18 @@ else
 	helm upgrade --install istio-ingressgateway istio/gateway -n istio-system --version 1.17.2 --wait --timeout 2m0s
 endif
 
+# AKS applies its own copies (spot toleration, AD-003); EKS/local the shared files.
+ifeq ($(STACK_MODE),aks)
+GRAFANA_PSQL_DIR := infra/azure/grafana-postgres
+else
+GRAFANA_PSQL_DIR := monitoring/grafana-postgres
+endif
+
 setup-db-grafana-psql:
 	kubectl create ns $(MONITORING_NS) --dry-run=client -o yaml | kubectl apply -f -
-	kubectl apply -f monitoring/grafana-postgres/statefulset.yaml
+	kubectl apply -f $(GRAFANA_PSQL_DIR)/statefulset.yaml
 	kubectl wait --for=condition=ready pod -l app=postgresql --timeout=300s -n $(MONITORING_NS)
-	kubectl apply -f monitoring/grafana-postgres/job.yaml
+	kubectl apply -f $(GRAFANA_PSQL_DIR)/job.yaml
 	kubectl wait --for=condition=complete  jobs create-grafana-database --timeout=300s -n $(MONITORING_NS)
 
 setup-kube-prometheus-stack:
@@ -176,20 +183,46 @@ endif
 # --- AKS observability (specs/002-azure-observability-stack) -------------------
 # setup-aks-o11y chains the core monitoring stack; no setup-metric-server
 # (AKS's built-in addon already serves the same API — installing a second one
-# collides on ClusterRole system:metrics-server), no Tempo/Beyla/Caretta
-# (out of scope). A missing mesh never blocks this chain (FR-013).
+# collides on ClusterRole system:metrics-server). Tempo, Beyla and Caretta
+# (specs/005) close the chain: Tempo first so Beyla's OTLP endpoint exists
+# when it starts. A missing mesh never blocks this chain (FR-013).
 #
 # setup-aks-o11y-routes applies only the four routing/scrape files the AKS
 # path needs, individually — NOT the whole monitoring/istio-observability-
 # addons/ folder (that shared apply stays EKS/local's). This coupling is
 # recorded in docs/architectural-decisions.md (AD for story 002): a file
 # added to that folder later does not automatically reach AKS.
-setup-aks-o11y: setup-db-grafana-psql setup-kube-prometheus-stack setup-aks-loki setup-aks-log-shipper setup-aks-o11y-routes setup-dashboards
+setup-aks-o11y: setup-db-grafana-psql setup-aks-prometheus-stack setup-aks-loki setup-aks-log-shipper setup-aks-o11y-routes setup-dashboards setup-aks-tempo setup-aks-beyla setup-aks-caretta
+
+# Same chart pin as setup-kube-prometheus-stack, plus the AKS-only overlay
+# (specs/005): it fixes the Tempo datasource URL (:3200) and adds the
+# caretta/beyla scrape jobs. The shared values file stays EKS/local's.
+setup-aks-prometheus-stack:
+	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+	helm repo update
+	helm upgrade --install prometheus-stack prometheus-community/kube-prometheus-stack --values ./monitoring/chart-values/prometheus-values.yaml --values ./infra/azure/chart-values/prometheus-stack.yaml -n $(MONITORING_NS) --create-namespace --version 52.0.0
 
 setup-aks-loki:
 	helm repo add grafana-community https://grafana-community.github.io/helm-charts
 	helm repo update
 	helm upgrade --install loki grafana-community/loki --version 18.13.7 --values ./infra/azure/chart-values/loki.yaml -n $(MONITORING_NS) --create-namespace
+
+# --timeout 10m is load-bearing: the first live install exceeded helm's default
+# and left no release (specs/005 research.md Finding 1). Never reduce it.
+setup-aks-tempo:
+	helm repo add grafana-community https://grafana-community.github.io/helm-charts
+	helm repo update
+	helm upgrade --install tempo grafana-community/tempo --version 3.1.0 --values ./infra/azure/chart-values/tempo.yaml -n $(MONITORING_NS) --create-namespace --timeout 10m
+
+setup-aks-beyla:
+	helm repo add grafana https://grafana.github.io/helm-charts
+	helm repo update
+	helm upgrade --install beyla grafana/beyla --version 1.16.11 --values ./infra/azure/chart-values/beyla.yaml -n $(MONITORING_NS) --create-namespace
+
+setup-aks-caretta:
+	helm repo add groundcover https://helm.groundcover.com/
+	helm repo update
+	helm upgrade --install caretta groundcover/caretta --version 0.0.16 --values ./infra/azure/chart-values/caretta.yaml -n $(MONITORING_NS) --create-namespace
 
 setup-aks-log-shipper:
 	bash $(CLUSTER_SCRIPT_PATH)/setup-aks-log-shipper.sh
@@ -225,7 +258,7 @@ endif
 	@echo ""
 	@echo "Optional: start the load generator (the dashboards stay empty without traffic):"
 	@echo "  kubectl create ns loadgen --dry-run=client -o yaml | kubectl apply -f -"
-	@echo "  kubectl apply -f scenarios/load-gen/load.yaml"
+	@echo "  kubectl apply -f infra/azure/load-gen/load.yaml"
 
 
 # AWS-specific (RDS); commented out for now, returns in a future PR
@@ -243,12 +276,18 @@ setup-robot-shop:
 	kubectl delete job mysql-seeder -n $(APP_NS) --ignore-not-found
 ifeq ($(STACK_MODE),eks)
 	helm upgrade --install $(APP_RELEASE_NAME) -n $(APP_NS) --create-namespace ./app/robot-shop/helm/ --set mysql_host=$(MYSQL_HOST) --set mysql_root_password=$(RDS_MYSQL_DB_MASTER_PASSWORD) --wait --timeout $(APP_SETUP_TIMEOUT)
+else ifeq ($(STACK_MODE),aks)
+	helm upgrade --install $(APP_RELEASE_NAME) -n $(APP_NS) --create-namespace ./app/robot-shop/helm/ --values ./infra/azure/chart-values/robot-shop.yaml --set stack_mode=$(STACK_MODE) --set mysql_root_password=$(RDS_MYSQL_DB_MASTER_PASSWORD) --wait --timeout $(LOCAL_APP_SETUP_TIMEOUT)
 else
 	helm upgrade --install $(APP_RELEASE_NAME) -n $(APP_NS) --create-namespace ./app/robot-shop/helm/ --set stack_mode=$(STACK_MODE) --set mysql_root_password=$(RDS_MYSQL_DB_MASTER_PASSWORD) --wait --timeout $(LOCAL_APP_SETUP_TIMEOUT)
 endif
 
 setup-hotrod: setup-optional-otel
+ifeq ($(STACK_MODE),aks)
+	kustomize build infra/azure/hotrod | kubectl apply -f -
+else
 	kustomize build app/hotrod | kubectl apply -f -
+endif
 
 setup-gateway:
 	kubectl create namespace robot-shop --dry-run=client -o yaml | kubectl apply -f -
@@ -380,6 +419,7 @@ lint:
 	@helm lint app/robot-shop/helm --strict
 	@bash agent/tests/azure/check-observability-placement.sh
 	@bash agent/tests/azure/check-verify-observability-offline.sh
+	@bash agent/tests/azure/check-o11y-routes-offline.sh
 	@bash agent/hooks/check-speckit-version.sh
 	@bash agent/tools/loom.sh --check
 

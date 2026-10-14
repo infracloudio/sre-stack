@@ -238,6 +238,11 @@ tolerations:
   - key: "o11y"
     value: "true"
     effect: "NoSchedule"
+  # Azure spot auto-taint (docs/architectural-decisions.md AD-003).
+  - key: "kubernetes.azure.com/scalesetpriority"
+    operator: "Equal"
+    value: "spot"
+    effect: "NoSchedule"
 
 affinity: {}
 topologySpreadConstraints: []

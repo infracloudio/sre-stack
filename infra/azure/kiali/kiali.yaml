@@ -161,6 +161,10 @@ data:
       - effect: NoSchedule
         key: o11y
         value: "true"
+      - effect: NoSchedule
+        key: kubernetes.azure.com/scalesetpriority
+        operator: Equal
+        value: spot
       topology_spread_constraints: []
       version_label: v2.32.0
       view_only_mode: false
@@ -529,6 +533,10 @@ spec:
       - effect: NoSchedule
         key: o11y
         value: "true"
+      - effect: NoSchedule
+        key: kubernetes.azure.com/scalesetpriority
+        operator: Equal
+        value: spot
       nodeSelector:
         workload: o11y
 ...

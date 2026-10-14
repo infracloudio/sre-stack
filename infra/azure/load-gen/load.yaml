@@ -1,0 +1,45 @@
+# AKS copy of scenarios/load-gen/load.yaml (EKS/local keep the shared file).
+# Only difference: the Azure spot toleration (docs/architectural-decisions.md
+# AD-003). Keep the two files in step.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    service: load
+  name: load
+  namespace: loadgen
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: load
+  template:
+    metadata:
+      labels:
+        service: load
+    spec:
+      containers:
+        - env:
+            - name: HOST
+              value: http://web.robot-shop.svc.cluster.local:8080
+            - name: NUM_CLIENTS
+              value: "10"
+            - name: RUN_TIME
+              value: 1h
+          image: 'robotshop/rs-load:2.1.0'
+          name: load
+          resources: {}
+      restartPolicy: Always
+      nodeSelector:
+        workload: loadgen
+      tolerations:
+        # Every AKS spot node carries the scalesetpriority taint (AD-003).
+        - key: "loadgen"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+        - key: "kubernetes.azure.com/scalesetpriority"
+          operator: "Equal"
+          value: "spot"
+          effect: "NoSchedule"

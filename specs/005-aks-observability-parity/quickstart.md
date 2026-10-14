@@ -57,14 +57,14 @@ loki, otel collector) on `o11y`-pool nodes only [FR-013].
 
 ## 3. Generate traffic and check the three results
 
-The bundled load generator tolerates the AKS spot taint as well as the
-loadgen taint (`scenarios/load-gen/load.yaml` — needed because every AKS
-node carries the spot taint; the change is harmless on EKS/local and keeps
-this one manifest shared). Start it and record the start time:
+Use the AKS copy of the load generator, `infra/azure/load-gen/load.yaml`:
+it tolerates the AKS spot taint as well as the loadgen taint (every AKS
+node carries the spot taint, AD-003); EKS/local keep
+`scenarios/load-gen/load.yaml`. Start it and record the start time:
 
 ```sh
 kubectl create ns loadgen --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply -f scenarios/load-gen/load.yaml
+kubectl apply -f infra/azure/load-gen/load.yaml
 date -u   # ← record this: __START__
 ```
 

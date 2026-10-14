@@ -1,0 +1,30 @@
+# Caretta values for STACK_MODE=aks only (specs/005-aks-observability-parity).
+# Chart: groundcover/caretta pinned at 0.0.16, installed by setup-aks-caretta.
+# The EKS/local monitoring/chart-values/caretta.yaml stays untouched (FR-007).
+# Feeds the Application Dashboard's Service Map panel via
+# caretta_links_observed; the shared Prometheus scrape job reads port 7117.
+
+prometheusPort: 7117
+
+# The chart default (300Mi) OOMKilled the whole fleet on AKS 1.34 (research.md
+# Finding 3); 512Mi ran stable on every node.
+resources:
+  limits:
+    memory: 512Mi
+
+# Use the stack's one Prometheus and one Grafana (principle III), not the
+# chart's bundled VictoriaMetrics and Grafana.
+victoria-metrics-single:
+  enabled: false
+grafana:
+  enabled: false
+# The chart still renders the ConfigMap caretta-grafana-dashboards: its
+# template (templates/grafana/dashboards.yaml in 0.0.16) has no condition and
+# no value turns it off. It is inert: it carries no grafana_dashboard=1 label,
+# so the stack Grafana's dashboard sidecar never loads it. Our Service Map
+# panel lives in the Application Dashboard instead.
+
+# One pod on every node of every pool, system pool and spot nodes included
+# (FR-013): tolerate every taint, and set no nodeSelector.
+tolerations:
+- operator: Exists

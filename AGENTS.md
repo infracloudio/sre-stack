@@ -34,13 +34,14 @@ AWS EKS or local k3d. Application code comes from upstream images.
   commands, does not run them), each step its own `$(MAKE)` call.
 - `make setup-aks-o11y`: AKS monitoring stack (Prometheus, Grafana,
   Loki, the Grafana Alloy log shipper via `setup-aks-log-shipper`,
-  routes, dashboards) after
+  routes, dashboards, then Tempo, Beyla and Caretta via
+  `setup-aks-tempo/beyla/caretta`, specs/005) after
   cluster → istio → gateway; `make setup-aks-kiali` installs Kiali
   separately and refuses when the mesh is not running. AKS skips
-  `setup-metric-server` (built-in addon) and does not install Tempo,
-  Beyla, or Caretta. The two per-machine helpers (Alloy,
-  node-exporter) run on every node pool; everything else lands on the
-  `workload=o11y` pool. Grafana's admin password:
+  `setup-metric-server` (built-in addon). The four per-machine helpers
+  (Alloy, Beyla, Caretta, node-exporter) run on every node pool;
+  everything else lands on the `workload=o11y` pool, and every AKS
+  workload on a tainted pool also tolerates the spot taint (AD-003). Grafana's admin password:
   `kubectl get secret prometheus-stack-grafana -n monitoring -o jsonpath='{.data.admin-password}' | base64 -d`.
   The optional `make setup-optional-otel` collector has an AKS branch that
   pins chart 0.81.2 + `infra/azure/chart-values/otel-collector.yaml` (the

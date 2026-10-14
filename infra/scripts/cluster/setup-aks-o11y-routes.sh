@@ -4,9 +4,13 @@
 #
 # Applies four unmodified files individually — the same files EKS/local
 # already use via setup-istio-o11y-addons — rather than that whole-folder
-# target (docs/architectural-decisions.md, story 002's ADR). These four need
-# only Istio's CRDs (already installed by setup-istio), not istiod actually
-# running, so they ride with the core stack, ungated by mesh readiness.
+# target (docs/architectural-decisions.md, story 002's ADR). The two routes
+# need Istio's VirtualService type and the two monitors live in the
+# istio-system namespace, so all four need the mesh installed (setup-istio),
+# though not istiod actually running. When the type or the namespace is
+# missing, none of the four is applied: the script says what is missing and
+# exits 0 so the rest of setup-aks-o11y still runs (specs/005, FR-006). When
+# kubectl itself fails, the script exits 1 rather than guess.
 # kubectl apply is idempotent by construction; safe to re-run.
 
 set -euo pipefail
@@ -33,6 +37,32 @@ _files=(
     "$(_file istio-podmonitor.yaml)"
     "$(_file istio-servicemonitor.yaml)"
 )
+
+# No mesh, no routes: skip all four together (the monitors only scrape mesh
+# components) and let the chain continue. --ignore-not-found makes "absent"
+# an empty answer, so any kubectl failure (wrong context, expired
+# credentials, API timeout) stops the script instead of passing for a
+# cluster without the mesh.
+_exists() {  # $1 kind, $2 name; prints the object name when it exists
+    if ! kubectl get "$1" "$2" --ignore-not-found -o name; then
+        echo "Could not check for $1 $2 (kubectl failed; see above). Check the current context and credentials, then re-run 'make setup-aks-o11y-routes'." >&2
+        exit 1
+    fi
+}
+_missing=""
+_crd=$(_exists crd virtualservices.networking.istio.io)
+if [ -z "${_crd}" ]; then
+    _missing="no Istio VirtualService type"
+else
+    _ns=$(_exists ns istio-system)
+    if [ -z "${_ns}" ]; then
+        _missing="no istio-system namespace"
+    fi
+fi
+if [ -n "${_missing}" ]; then
+    echo "The service mesh is not installed (${_missing}), so the Grafana/Prometheus routes and the mesh scrape configs were skipped. Run 'make setup-istio', then 'make setup-aks-o11y-routes'."
+    exit 0
+fi
 
 echo "Applying the AKS observability routes and scrape configs (the files carry their own namespaces: monitoring, istio-system)..."
 
