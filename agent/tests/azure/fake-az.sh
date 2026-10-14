@@ -20,7 +20,10 @@
 #                                     --include-inherited, an unrelated one
 #                                     never appears
 #   RBAC_MG_ID / RBAC_MG_ROLE         that management group and its role
-#   LOCATIONS="eastus2 centralindia"  az account list-locations answers
+#   LOCATIONS="southindia centralindia"  az account list-locations answers
+#                                     (default: the location .env
+#                                     configures, FAKE_LOCATION, plus
+#                                     centralindia)
 #   SIZES="…"                         az rest resource-skus answers
 #   SPOT_LIMIT/DSV5_LIMIT/FSV2_LIMIT  az vm list-usage limits
 #   SPOT_CURRENT/DSV5_CURRENT/FSV2_CURRENT
@@ -86,7 +89,7 @@ SIGNED_IN="${SIGNED_IN:-1}"
 FAKE_USER="${FAKE_USER:-someone@contoso.com}"
 FAKE_SUB="${FAKE_SUB:-00000000-0000-0000-0000-000000000000}"
 RBAC_ROLE="${RBAC_ROLE:-Contributor}"
-LOCATIONS="${LOCATIONS:-eastus2 centralindia}"
+LOCATIONS="${LOCATIONS:-${FAKE_LOCATION:-southindia} centralindia}"
 SIZES="${SIZES:-Standard_D2s_v5 Standard_D4s_v5 Standard_F4s_v2}"
 SPOT_LIMIT="${SPOT_LIMIT:-0}"
 DSV5_LIMIT="${DSV5_LIMIT:-50}"

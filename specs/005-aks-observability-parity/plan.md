@@ -143,10 +143,88 @@ infra/azure/chart-values/tempo.yaml                            # NEW — Tempo 3
 infra/azure/chart-values/beyla.yaml                            # NEW — Beyla 1.16.11 values (tolerations+spot, /sys/fs/bpf hostPath, otel→tempo:4318)
 infra/azure/chart-values/caretta.yaml                          # NEW — Caretta 0.0.16 values (memory 512Mi, deps disabled, tolerations+spot)
 infra/azure/chart-values/prometheus-stack.yaml                 # NEW — overlay: Tempo datasource :3200 + caretta/beyla scrape jobs
+infra/scripts/cluster/setup-aks-o11y-routes.sh                 # AMENDED — skip all four files, exit 0, when the mesh is absent (see "No-mesh routes step")
+agent/tests/azure/check-o11y-routes-offline.sh                 # NEW — offline test of that skip (fake kubectl), called from make lint
+infra/scripts/cluster/azure-common.sh                          # AMENDED — default location eastus2 → southindia (see "Default Azure location")
+agent/tests/azure/{fake-az.sh,run-offline-tests.sh,scenarios/bad-location.sh}  # AMENDED — fake az lists the configured location; bad-location uses made-up names
+specs/002-azure-observability-stack/instructions.md            # AMENDED — "leave empty for southindia"
 scenarios/load-gen/load.yaml                                   # AMENDED at analysis run — spot-taint toleration added so the traffic generator schedules on AKS (finding I4); harmless on EKS/local
 monitoring/dashboards/application.yaml                         # UNTOUCHED
 monitoring/chart-values/prometheus-values.yaml                 # UNTOUCHED (shared — FR-007/FR-008)
 ```
+
+## No-mesh routes step (review of 97f95fa, 2026-10-14)
+
+**Problem.** FR-006, SC-004 and EC-002 require `make setup-aks-o11y` to
+succeed with no service mesh installed, and T016 clause (a) proves it on a
+cluster where `kubectl get ns istio-system` is empty. The chain cannot pass
+that today. Its routes step, `setup-aks-o11y-routes`
+(`infra/scripts/cluster/setup-aks-o11y-routes.sh`, from story 002), applies
+four files and exits 1 if any fails, which stops the chain before
+`setup-dashboards`:
+
+| File | Kind | Namespace | Fails on a no-mesh cluster because |
+|---|---|---|---|
+| `grafana-vs.yaml` | VirtualService | monitoring | the Istio VirtualService type does not exist ("no matches for kind") |
+| `prometheus-vs.yaml` | VirtualService | monitoring | same |
+| `istio-podmonitor.yaml` | PodMonitor | istio-system | the `istio-system` namespace does not exist |
+| `istio-servicemonitor.yaml` | ServiceMonitor | istio-system | same |
+
+The review named the first two; the last two fail too (their types come
+from kube-prometheus-stack, but their namespace comes from the mesh). Story
+002 never hit this because its no-mesh check ran on a cluster that still had
+Istio's types and namespace, with only `istiod` missing.
+
+**Decision.** Keep FR-006/SC-004/EC-002 as written (no mesh at all) and
+make the routes step mesh-aware, the same way `get-service-endpoints`
+already handles missing routing (story 002, T025):
+
+- Before applying, the script checks two things: the Istio VirtualService
+  type exists (`kubectl get crd virtualservices.networking.istio.io`), and
+  the `istio-system` namespace exists.
+- If either is missing, it applies **none** of the four files, prints a
+  plain message naming what is missing and the fix (run `make setup-istio`,
+  then `make setup-aks-o11y-routes`), and exits 0. The rest of the chain
+  continues.
+- If both exist, it applies all four exactly as today, and still exits 1 if
+  any apply fails.
+- All four are skipped together rather than per file: the two monitors only
+  scrape mesh components, so they are useless without the mesh, and one
+  rule is easier to read and test.
+
+Rejected: narrowing FR-006/SC-004/EC-002 to "control plane down, types
+present". It weakens a requirement to fit the code, and T016 clause (a)'s
+empty-`istio-system` proof would still fail.
+
+This changes a story-002 script, but only on the AKS path (FR-008); EKS and
+local never call it (FR-007). On the full `setup-aks` path nothing changes:
+`setup-istio` runs before `setup-aks-o11y`, so the routes apply as before.
+Task T018 makes the change and adds its offline test.
+
+## Default Azure location (review of 97f95fa, 2026-10-14)
+
+The research cluster's location (`southindia`) was committed to the shared
+`.env`, which made every Azure offline test scenario refuse ("location
+'southindia' is not a real Azure location for this account"), because the
+test stand-in for `az` listed only `eastus2` and `centralindia`.
+
+**Decision (developer, 2026-10-14):** keep `southindia`, as the built-in
+default rather than a `.env` value. `.env` keeps `AZURE_LOCATION=` empty
+(principle III: this story still adds and sets no `.env` values), and the
+empty-value fallback in `infra/scripts/cluster/azure-common.sh` moves from
+`eastus2` to `southindia`. The offline-test stand-in now lists whichever
+location is configured (`FAKE_LOCATION`, read from `.env`, falling back to
+`southindia`), and the bad-location case uses made-up names that no setting
+can match, so the suite passes for any configured location. Verified: the
+offline suite passes with `.env` empty (214 checks, 0 failed) and with
+`AZURE_LOCATION=eastus2` (214, 0).
+
+**Side effect to note in the PR:** the generated resource-group and cluster
+names include the location. Anyone who created a cluster with an empty
+`AZURE_LOCATION` before this change (an `eastus2` cluster) now gets
+different names, so `make cleanup` no longer finds that cluster. They
+should set `AZURE_LOCATION=eastus2` to clean it up, or delete it in the
+portal.
 
 ## Verification Strategy
 
@@ -169,6 +247,11 @@ monitoring/chart-values/prometheus-values.yaml                 # UNTOUCHED (shar
    research.md copied into the PR description with verification dates.
 7. **PR limitation note**: chart-CDN flakiness fallback (vendored tarball)
    named in the pull request, per research.md Finding 3.
+8. **No mesh** [FR-006/SC-004/EC-002]: offline, `make lint` runs
+   `check-o11y-routes-offline.sh` (skip with no VirtualService type, skip
+   with no `istio-system`, apply all four when both exist). Live, T016
+   clause (a): empty `kubectl get ns istio-system`, then a successful
+   `make setup-aks-o11y` whose output contains the routes-skipped message.
 
 ## Complexity Tracking
 

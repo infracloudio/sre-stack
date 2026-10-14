@@ -43,7 +43,7 @@ In `.env` (already tracked; only these three lines matter for AKS):
 |---|---|
 | `STACK_MODE` | `aks` (already the default) |
 | `AZURE_SUBSCRIPTION_ID` | your subscription ID, or leave empty to use the one `az` is signed in to |
-| `AZURE_LOCATION` | leave empty for `eastus2` |
+| `AZURE_LOCATION` | leave empty for `southindia` |
 
 ## One shot (steps 2–5 and 7)
 
