@@ -67,7 +67,9 @@ itself fails on codes 1–3.
 ## Timing
 
 Each command finishes in under 30 seconds, including its check (SC-005). The
-check is retried for up to about 20 seconds after a change.
+check is retried after a change; no new check starts after 15 seconds, and
+each check is cut off after 8 seconds (data-model §4), so this holds even when
+ratings hangs.
 
 ## Guarantees
 

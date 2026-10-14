@@ -31,7 +31,9 @@ Rules:
 ## 2. The test-request check — what the commands observe
 
 One `kubectl exec` into the `web` pod (container `web`) sends 10 requests to
-`http://ratings/_health`, each limited to 3 seconds (Finding 3). Each answer is
+`http://ratings/_health`, each limited to 2 seconds (Finding 3). The check stops
+at the first request that gets no answer, and the whole `kubectl exec` is cut
+off after 8 seconds, so one check never takes longer than that. Each answer is
 recorded as a status code plus, for failures, the answer body.
 
 | Answer kind | What it looks like | Meaning |
@@ -54,8 +56,9 @@ Combining the rule (section 1) with the check (section 2):
 | 4 | yes | any other | **fault set but not taking effect** — plus what was seen | non-zero |
 | 5 | different `fault` content | not checked | **ratings rule holds a fault this command did not set** — left unchanged | non-zero |
 
-State 1 can hide a real ratings outage (Finding 4, case C); revert exposes it
-through its own check.
+State 1 can hide a real ratings outage (Finding 4, case C): while the fault is
+set, no request reaches ratings. Spec FR-013 limits its "say so" clause to when
+the fault is not set; revert exposes such an outage through its own check.
 
 ## 4. State changes — start and revert
 
@@ -74,9 +77,12 @@ through its own check.
 | revert | not active (state 2 or 3) | none | 10 of 10 healthy | "fault was not active" | stop, print the answers seen |
 | start / revert | state 5 | none | — | — | stop, rule unchanged |
 
-Waiting: after a change, the check is retried until it passes or about 20 s
-have gone by, so the command stays under SC-005's 30 s (the change took effect
-within 5 s in Findings 1–3).
+Waiting: after a change, the check is retried every ~3 s until it passes; no
+new check starts once 15 s have gone by. With each check capped at 8 s, the
+wait ends within about 23 s even when ratings hangs, and every `kubectl` call
+in the pre-checks uses `--request-timeout=5s`, so the command stays under
+SC-005's 30 s on the slow path too (the change took effect within 5 s in
+Findings 1–3).
 
 ## 5. Pre-checks — when the commands refuse (FR-006, EC-005)
 
@@ -90,7 +96,7 @@ stops the command with a message naming what is missing and changes nothing.
 | 3 | Cluster is an AKS cluster | nodes carry the label `kubernetes.azure.com/cluster` | "The current cluster is not an Azure (AKS) cluster." |
 | 4 | Mesh running | deployment `istiod` in `istio-system` has a ready copy | "The service mesh (istiod) is not running; run 'make setup-istio'." |
 | 5 | Shop installed | namespace `APP_NS` and rule `ratings` exist | "The demo shop is not installed; run 'make setup-robot-shop'." |
-| 6 | Shop joined to the mesh | the `web` pod is running with an `istio-proxy` container | "The shop's web pod is not in the mesh, so the check would be meaningless." |
+| 6 | Shop joined to the mesh | the `web` pod (label `service=web`) is `Running` and has a container named `istio-proxy` in `.spec.initContainers` **or** `.spec.containers` — on this cluster Istio injects it as a native sidecar (an init container with `restartPolicy: Always`), so a check of `.spec.containers` alone would refuse every command (research, Pre-check note) | "The shop's web pod is not in the mesh, so the check would be meaningless." |
 | 7 | Check tool present | `curl` runs inside the `web` container | "The web container has no curl; cannot check the result." |
 
 Seen on the live cluster during planning: node label

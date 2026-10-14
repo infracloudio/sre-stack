@@ -35,13 +35,14 @@ spec item it proves.
 
 | # | Do | Expect | Proves |
 |---|---|---|---|
-| 1 | Wait 5 minutes with traffic, then look at "Non-2xx Responses by Service" | no `ratings ->` tile, or `0`; "5xxs" near zero | SC-009, FR-010 |
+| 1 | Wait 5 minutes with traffic, then look at "Non-2xx Responses by Service" | no `ratings ->` tile, or `0`, over the whole 5 minutes; "5xxs" is context only | SC-009, FR-010 |
 | 2 | `make aks-ratings-abort-status` | `RESULT: fault not active`, exit 0 | FR-013 |
 | 3 | `time make aks-ratings-abort-start` | `RESULT: fault active`, 10 × `500`, exit 0, under 30 s | FR-001, FR-012, SC-005 |
 | 4 | Note the time; watch the dashboard | `ratings ->` tile turns red and "5xxs" rises within 60 s | SC-001, FR-007 |
 | 5 | `make aks-ratings-abort-start` again | same `RESULT: fault active`, exit 0, rule unchanged | FR-004, SC-007 |
-| 6 | From the web pod, 10 requests to ratings and to each other web service (command below) | ratings 10 × `500`; cart, catalogue, user, payment, shipping 10 × `200` each | SC-002, FR-005 |
+| 6 | From the web pod, 10 requests to ratings and to each other web service (command below) | ratings 10 × `500`; web, cart, catalogue, user, payment, shipping 10 × `200` each | SC-002, FR-005 |
 | 7 | `make aks-ratings-abort-status` | `RESULT: fault active`, exit 0 | FR-013 |
+| 7a | `kubectl rollout restart deploy/ratings -n robot-shop && kubectl rollout status deploy/ratings -n robot-shop --timeout=180s`, then `make aks-ratings-abort-status` | rollout finishes; still `RESULT: fault active`, exit 0 | EC-004, FR-003 |
 | 8 | `make setup-robot-shop`, then `make aks-ratings-abort-status` | still `fault active` (research Finding 2) | EC-002 |
 | 9 | `time make aks-ratings-abort-revert` | `RESULT:` fault removed, 10 × `200`, exit 0, under 30 s; 200s within 10 s | FR-002, SC-003, SC-005 |
 | 10 | Watch the dashboard | ratings errors falling within 60 s, gone within 2 min | SC-003 |
@@ -57,7 +58,7 @@ Step 6 command (read-only):
 
 ```bash
 kubectl exec -n robot-shop deploy/web -c web -- sh -c '
-for u in http://ratings/_health http://cart:8080/health http://catalogue:8080/health \
+for u in http://ratings/_health http://web:8080/ http://cart:8080/health http://catalogue:8080/health \
          http://user:8080/health http://payment:8080/health http://shipping:8080/health; do
   printf "%-32s" "$u"
   for i in 1 2 3 4 5 6 7 8 9 10; do curl -s -o /dev/null -m 3 -w "%{http_code} " "$u"; done
@@ -66,7 +67,8 @@ done'
 ```
 
 The health addresses were checked live during planning: cart, catalogue, user,
-payment answered `200`; ratings `200` (fault off); shipping `503` while its
+payment answered `200`; web (`http://web:8080/`) answered `200` during
+`/speckit-analyze`; ratings `200` (fault off); shipping `503` while its
 pod was not Ready (see prerequisite 2).
 
 ## Guides (FR-008, FR-011, SC-006)

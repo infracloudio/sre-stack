@@ -789,3 +789,28 @@ http://shipping:8080/health   200 200 200 200 200 200 200 200 200 200
 **Limits**: both fixes live only in this cluster. A fresh `make setup-aks`
 installs shipping with 200m again (`app/robot-shop/helm/values.yaml:199-207`)
 and runs the same loading job. Candidates for a follow-up story, not this one.
+
+## Pre-check note — the `web` sidecar is an init container (data-model §5 #6)
+
+**Question** (raised by `/speckit-analyze`, 2026-10-14): pre-check 6 asks
+whether the `web` pod is in the mesh by looking for an `istio-proxy`
+container. Where does that container appear in the pod spec on this cluster?
+
+### What was run
+
+2026-10-14 18:18:09 IST, cluster `sre-stack-452138`:
+
+```text
+$ kubectl get pod -n robot-shop -l service=web -o jsonpath='{range .items[*]}{.metadata.name} phase={.status.phase} containers={.spec.containers[*].name} init={.spec.initContainers[*].name} proxyRestart={.spec.initContainers[?(@.name=="istio-proxy")].restartPolicy} ready={.status.initContainerStatuses[?(@.name=="istio-proxy")].ready}{"\n"}{end}'
+web-755f4b88b8-h75tr phase=Running containers=web init=istio-init istio-proxy proxyRestart=Always ready=true
+```
+
+**Decision**: pre-check 6 looks for a container named `istio-proxy` in
+`.spec.initContainers` or `.spec.containers`. Istio injects the sidecar here
+as a *native sidecar*: an init container with `restartPolicy: Always`, which
+keeps running beside the app. `.spec.containers` holds only `web`, so a check
+of that list alone would refuse every command (exit 3).
+
+**Rationale**: checking both lists works with either injection mode, so the
+check does not depend on how a given Istio install is configured. `kubectl get
+pods` still shows `2/2` because the native sidecar is counted as ready.

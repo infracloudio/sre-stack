@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-14
 
-**Status**: Draft — all six sections approved during authoring (constitution principle IX); specification quality validation passed; formal spec gate (`gate:spec-approved`) pending.
+**Status**: Approved — all six sections approved during authoring (constitution principle IX); specification quality validation passed; `gate:spec-approved` granted on PR #117. Edited after the gate during `/speckit-analyze` (FR-013 narrowed; EC-001 and EC-002 settled from planning research); these edits need the Architect's re-approval.
 
 **Input**: [Issue #113](https://github.com/infracloudio/sre-stack/issues/113) — "Trigger an HTTP abort fault on robot-shop on AKS with one command"
 
@@ -62,8 +62,8 @@ As a person new to the project, I want the scenarios guide to explain how to sta
 
 ### Edge Cases
 
-- **EC-001 — No shop traffic**: With no traffic, the dashboards show no errors even though the fault is active, so an empty dashboard does not prove the fault failed. The project's load generator stops on its own after one hour of running, so traffic can vanish mid-session. The guide tells the presenter how to confirm traffic is flowing and how to start the load generator. This follows FR-008 and SC-001.
-- **EC-002 — Shop deployment re-run while the fault is active**: Re-running the demo shop's normal deployment touches the same ratings routing that the fault changes. **Open**: whether the fault survives or is silently removed is checked on the live cluster, and the guide states the observed result. Either way, running the start command again restores the fault (FR-004). This follows FR-008 and FR-010.
+- **EC-001 — No shop traffic**: With no traffic, the dashboards show no errors even though the fault is active, so an empty dashboard does not prove the fault failed. The project's load generator ends each run after one hour and is then started again automatically, so traffic can pause briefly mid-session. The guide tells the presenter how to confirm traffic is flowing and how to start the load generator. This follows FR-008 and SC-001.
+- **EC-002 — Shop deployment re-run while the fault is active**: Re-running the demo shop's normal deployment touches the same ratings routing that the fault changes. Checked on the live cluster during planning: the fault survives the re-run as long as the shop's own ratings routing is unchanged, and the guide says so. If it is ever removed, running the start command again restores it (FR-004). This follows FR-008 and FR-010.
 - **EC-003 — Presenter disconnects after starting**: The fault stays active until someone runs the revert command (FR-003). Anyone with access to the cluster can run it; nothing ties the fault to the person who started it. The status command tells anyone whether the fault is currently active (FR-013).
 - **EC-004 — Ratings restarts while the fault is active**: The fault belongs to the ratings routing, not to a running copy of ratings, so it stays active when ratings is restarted, rescheduled or moved to another machine. This follows FR-003.
 - **EC-005 — Wrong or incomplete cluster**: When the person is connected to a non-Azure cluster, to an Azure cluster without the shop, or the mesh is not running or the shop is not joined to it, the start, revert and status commands stop and change nothing (FR-006).
@@ -85,7 +85,7 @@ As a person new to the project, I want the scenarios guide to explain how to sta
 - **FR-010**: Setting up Azure and deploying the demo shop MUST behave as today when the fault has not been started.
 - **FR-011**: The project's plain-language Azure guide MUST describe the new start, status and revert commands for this fault in place of its current, timed scenario 01 instructions, so the two guides do not give conflicting steps.
 - **FR-012**: After making its change, the start and revert commands MUST each send a few test requests to the ratings service and report success only when they show the expected result: server errors after start, normal answers after revert. If the result does not appear, the command MUST stop with a message saying what it saw.
-- **FR-013**: A person MUST be able to run one documented status command that changes nothing and reports whether the fault is active, using the same test-request check as FR-012. If ratings is failing for a reason other than this fault, the status command MUST say so instead of reporting the fault as active.
+- **FR-013**: A person MUST be able to run one documented status command that changes nothing and reports whether the fault is active, using the same test-request check as FR-012. If this fault is not set and ratings is failing for another reason, the status command MUST say so instead of reporting the fault as active. While the fault is set, every request is stopped before it reaches ratings, so status cannot tell whether ratings itself is healthy; the revert command's own check (FR-012) shows that.
 
 ## Success Criteria *(mandatory)*
 
