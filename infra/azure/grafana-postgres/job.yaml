@@ -1,0 +1,28 @@
+# AKS copy of monitoring/grafana-postgres/job.yaml (EKS/local keep the shared
+# file). Only difference: the Azure spot toleration (AD-003). Keep in step.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-grafana-database
+  namespace: monitoring
+spec:
+  template:
+    metadata:
+      name: create-grafana-database
+    spec:
+      containers:
+        - name: create-grafana-database
+          image: postgres:16.1-bullseye # Use the same PostgreSQL image
+          command: ["/bin/bash", "-c", "PGPASSWORD=postgres psql -h postgres -U postgres -c 'CREATE DATABASE grafana;'"]
+      restartPolicy: Never
+      tolerations:
+        - key: "o11y"
+          value: "true"
+          effect: "NoSchedule"
+        # Azure auto-taints every spot node (docs/architectural-decisions.md AD-003)
+        - key: "kubernetes.azure.com/scalesetpriority"
+          operator: "Equal"
+          value: "spot"
+          effect: "NoSchedule"
+      nodeSelector:
+        workload: "o11y"

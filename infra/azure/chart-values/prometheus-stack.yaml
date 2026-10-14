@@ -1,0 +1,126 @@
+# kube-prometheus-stack overlay for STACK_MODE=aks only (specs/005).
+# Installed by setup-aks-prometheus-stack as the SECOND values file, after the
+# shared monitoring/chart-values/prometheus-values.yaml, which stays untouched
+# (FR-007/FR-008). Helm merges maps but REPLACES lists, so each list below
+# restates the whole list it overrides.
+
+# Spot mode (docs/architectural-decisions.md AD-003): Azure taints every
+# spot node kubernetes.azure.com/scalesetpriority=spot:NoSchedule, so each
+# o11y-pinned component restates its toleration list with that entry added
+# (lists replace, see above). node-exporter keeps the chart's tolerate-all.
+
+alertmanager:
+  alertmanagerSpec:
+    tolerations:
+    - key: o11y
+      value: "true"
+      effect: NoSchedule
+    - key: kubernetes.azure.com/scalesetpriority
+      operator: Equal
+      value: spot
+      effect: NoSchedule
+
+prometheusOperator:
+  tolerations:
+  - key: o11y
+    value: "true"
+    effect: NoSchedule
+  - key: kubernetes.azure.com/scalesetpriority
+    operator: Equal
+    value: spot
+    effect: NoSchedule
+
+kube-state-metrics:
+  tolerations:
+  - key: o11y
+    value: "true"
+    effect: NoSchedule
+  - key: kubernetes.azure.com/scalesetpriority
+    operator: Equal
+    value: spot
+    effect: NoSchedule
+
+grafana:
+  tolerations:
+  - key: o11y
+    value: "true"
+    effect: NoSchedule
+  - key: kubernetes.azure.com/scalesetpriority
+    operator: Equal
+    value: spot
+    effect: NoSchedule
+  # Complete replacement of the shared list: keeps the Loki datasource (the
+  # error-log panels read it) and fixes Tempo, whose shared URL uses :3100
+  # where nothing listens. Tempo 3.x serves HTTP on :3200 (research.md
+  # Finding 1). The uid stays EbPG8fYoz: dashboard panels reference it.
+  additionalDataSources:
+  - name: loki
+    access: proxy
+    orgId: 1
+    type: loki
+    url: http://loki:3100
+    version: 1
+  - name: Tempo
+    type: tempo
+    uid: EbPG8fYoz
+    url: http://tempo.monitoring:3200
+    access: proxy
+    basicAuth: false
+
+prometheus:
+  prometheusSpec:
+    tolerations:
+    - key: o11y
+      value: "true"
+      effect: NoSchedule
+    - key: kubernetes.azure.com/scalesetpriority
+      operator: Equal
+      value: spot
+      effect: NoSchedule
+    # Complete replacement of the shared list (lists are replaced, not merged).
+    additionalScrapeConfigs:
+    # Same job as the shared file, with the pod-label regex spelled correctly
+    # (the shared copy has a typo, left alone: it is EKS/local's file).
+    - job_name: 'caretta'
+      metrics_path: /metrics
+      scrape_interval: 5s
+      kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          own_namespace: true
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        separator: ;
+        regex: caretta
+        replacement: $1
+        action: keep
+      - action: labelmap
+        regex: __meta_kubernetes_pod_label_(.+)
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: caretta_pod
+      - source_labels: [__meta_kubernetes_pod_node_name]
+        action: replace
+        target_label: caretta_node
+    # Beyla runs hostNetwork with no Service (research.md Finding 2), so its
+    # metrics endpoint is the node IP, port 9090: select the beyla pods and
+    # point each target at that pod's IP, which is the node IP.
+    - job_name: 'beyla'
+      metrics_path: /metrics
+      scrape_interval: 15s
+      kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          own_namespace: true
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+        regex: beyla
+        action: keep
+      - source_labels: [__meta_kubernetes_pod_ip]
+        regex: (.+)
+        replacement: $1:9090
+        target_label: __address__
+        action: replace
+      - source_labels: [__meta_kubernetes_pod_node_name]
+        action: replace
+        target_label: beyla_node

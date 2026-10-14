@@ -1,0 +1,64 @@
+# AKS copy of monitoring/grafana-postgres/statefulset.yaml (EKS/local keep the
+# shared file). Only difference: the Azure spot toleration, because every
+# AKS workload node carries kubernetes.azure.com/scalesetpriority=spot:NoSchedule
+# (docs/architectural-decisions.md AD-003). Keep the two files in step.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: monitoring
+spec:
+  selector:
+    app: postgresql
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgresql-psql
+  namespace: monitoring
+spec:
+  serviceName: "postgresql"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgresql
+  template:
+    metadata:
+      labels:
+        app: postgresql
+    spec:
+      containers:
+        - name: postgresql
+          image: postgres:16.1-bullseye
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: "postgres" # Username
+            - name: POSTGRES_PASSWORD
+              value: "postgres" # Password
+      tolerations:
+        - key: "o11y"
+          value: "true"
+          effect: "NoSchedule"
+        # Azure auto-taints every spot node (docs/architectural-decisions.md AD-003)
+        - key: "kubernetes.azure.com/scalesetpriority"
+          operator: "Equal"
+          value: "spot"
+          effect: "NoSchedule"
+      nodeSelector:
+        workload: "o11y"
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: "gp2"
+        resources:
+          requests:
+            storage: 1Gi

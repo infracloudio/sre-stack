@@ -84,7 +84,6 @@ ignore: |
   monitoring/istio-observability-addons/istio-podmonitor.yaml
   monitoring/istio-observability-addons/istio-servicemonitor.yaml
   monitoring/istio-observability-addons/kiali.yaml
-  scenarios/load-gen/load.yaml
   scenarios/scenario-01/ratings-probe.yaml
   scenarios/scenario-01/virtual-service-fault.yaml
   scenarios/scenario-04/rabbitmq-load.yaml

@@ -59,10 +59,15 @@ export AZURE_POLL_INTERVAL=0
 # the verifier expects; a scenario may override FAKE_CONTEXT to prove the
 # wrong-context check (T055).
 _shape_version=$(grep -m1 '^CLUSTER_SHAPE_VERSION=' "${_repo_root}/infra/scripts/cluster/azure-common.sh" | cut -d'"' -f2)
-_azure_name_input=$(bash -c 'source "$1/.env"; printf "%s:%s" "${AZURE_SUBSCRIPTION_ID:-}" "${AZURE_LOCATION:-eastus2}"' _ "${_repo_root}")
+_azure_name_input=$(bash -c 'source "$1/.env"; printf "%s:%s" "${AZURE_SUBSCRIPTION_ID:-}" "${AZURE_LOCATION:-southindia}"' _ "${_repo_root}")
 FAKE_CONTEXT="sre-stack-$(printf '%s' "${_azure_name_input}:${_shape_version}" \
     | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-6)"
 export FAKE_CONTEXT
+
+# The location .env configures (southindia when empty) is the one the fake `az`
+# lists as real, so the suite passes whichever location a developer sets.
+FAKE_LOCATION=$(bash -c 'source "$1/.env"; printf "%s" "${AZURE_LOCATION:-southindia}"' _ "${_repo_root}")
+export FAKE_LOCATION
 
 run_setup() {  # $1 <case-id>; sets RC and ERR for the case to assert on
     local _case="$1"

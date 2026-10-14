@@ -1,0 +1,33 @@
+# Beyla values for STACK_MODE=aks only (specs/005-aks-observability-parity).
+# Chart: grafana/beyla pinned at 1.16.11, installed by setup-aks-beyla. The
+# EKS/local raw manifests in monitoring/beyla stay untouched (FR-007).
+# Beyla is an eBPF (kernel-side) collector: it sends request traces to Tempo
+# and exposes automatic application metrics on :9090 of each node, which the
+# Prometheus overlay scrapes.
+
+config:
+  # Merged into the chart's default config.data, which keeps the Kubernetes
+  # attributes and prometheus_export (port 9090, path /metrics).
+  data:
+    otel_traces_export:
+      endpoint: http://tempo.monitoring:4318
+
+# No Service: the chart's default DaemonSet is hostNetwork (context
+# propagation is on by default), so metrics are scraped on node IPs.
+service:
+  enabled: false
+
+# One pod on every node of every pool, system pool and spot nodes included
+# (FR-013): tolerate every taint, and set no nodeSelector.
+tolerations:
+- operator: Exists
+
+# bpffs is not mounted in the pod by default; without it Beyla disables its
+# pinned-map features (research.md Finding 2).
+volumes:
+- name: bpf-fs
+  hostPath:
+    path: /sys/fs/bpf
+volumeMounts:
+- name: bpf-fs
+  mountPath: /sys/fs/bpf

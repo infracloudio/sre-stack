@@ -8,9 +8,10 @@
 # line per check:
 #
 #   1. Every monitoring/Kiali workload's actual node — each lands on an
-#      `o11y` node, except the two per-machine helpers (the Alloy DaemonSet
-#      and node-exporter), which the report instead checks for coverage of
-#      every node pool (system, app, persistent, o11y, loadgen).
+#      `o11y` node, except the four per-machine helpers (the Alloy, Beyla and
+#      Caretta DaemonSets and node-exporter), which the report instead checks
+#      for coverage of every node pool (system, app, persistent, o11y,
+#      loadgen).
 #   2. Both Grafana datasources' actual health
 #      (/api/datasources/<id>/health for the Prometheus and Loki IDs).
 #
@@ -76,7 +77,8 @@ for node in nodes:
 pools = sorted(set(pool_of.values()))
 
 # Per-machine helpers run on every pool (spec Clarification 2026-10-05):
-# match by owner DaemonSet name (Alloy) or the node-exporter label.
+# four helpers: Alloy, Beyla, Caretta and node-exporter (specs/005 added Beyla
+# and Caretta), matched by owner DaemonSet name.
 def daemonset_name(pod):
     for owner in ((pod.get("metadata") or {}).get("ownerReferences") or []):
         if owner.get("kind") == "DaemonSet":
@@ -93,7 +95,7 @@ for pod in pods:
     pool = pool_of.get(nodename)
     ds = daemonset_name(pod)
     labels = meta.get("labels") or {}
-    if ds == "alloy" or "node-exporter" in ds:
+    if ds in ("alloy", "beyla", "caretta") or "node-exporter" in ds:
         key = ds or "per-machine helper"
         helpers.setdefault(key, set())
         helpers[key].add(pool)
@@ -121,7 +123,7 @@ if placed == 0:
     sys.exit(1)
 
 # A helper with no pods at all is missing, not merely short of a pool.
-for expected in ("alloy", "node-exporter"):
+for expected in ("alloy", "beyla", "caretta", "node-exporter"):
     if not any(expected in ds for ds in helpers):
         print(f"FAIL per-machine helper {expected}: no pods found", file=sys.stderr)
         failed += 1

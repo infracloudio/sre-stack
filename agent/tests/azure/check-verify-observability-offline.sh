@@ -7,10 +7,11 @@
 # Each case puts a fake `kubectl` and a fake `curl` first on PATH, feeds the
 # real verifier made-up pods and nodes, and asserts on its exit code and
 # report:
-#   - ok:            every pod on o11y, both helpers on every pool -> exit 0
+#   - ok:            every pod on o11y, all four helpers on every pool -> exit 0
 #   - misplaced:     a Grafana pod on the app pool                 -> exit 1
 #   - helper-gap:    Alloy missing from the app pool               -> exit 1
 #   - helper-absent: no node-exporter pods at all                  -> exit 1
+#   - beyla-gap:     Beyla missing from the app pool               -> exit 1
 #
 # No cluster or network needed. Prints one PASS/FAIL line per check; exits
 # non-zero when any check fails.
@@ -97,6 +98,8 @@ _ne="prometheus-stack-prometheus-node-exporter"
 _helpers_all=(
     "alloy:alloy-a=sys-0" "alloy:alloy-b=app-0" "alloy:alloy-c=o11y-0"
     "${_ne}:ne-a=sys-0" "${_ne}:ne-b=app-0" "${_ne}:ne-c=o11y-0"
+    "beyla:beyla-a=sys-0" "beyla:beyla-b=app-0" "beyla:beyla-c=o11y-0"
+    "caretta:caretta-a=sys-0" "caretta:caretta-b=app-0" "caretta:caretta-c=o11y-0"
 )
 
 run_case() {  # run_case <case>; sets RC, OUT, ERR
@@ -128,7 +131,9 @@ check "misplaced:1 failure" "$(grep -q '1 failure(s)' "${OUT}" && echo 1 || echo
 echo "case helper-gap:"
 make_pods helper-gap "grafana-0=o11y-0" \
     "alloy:alloy-a=sys-0" "alloy:alloy-c=o11y-0" \
-    "${_ne}:ne-a=sys-0" "${_ne}:ne-b=app-0" "${_ne}:ne-c=o11y-0"
+    "${_ne}:ne-a=sys-0" "${_ne}:ne-b=app-0" "${_ne}:ne-c=o11y-0" \
+    "beyla:beyla-a=sys-0" "beyla:beyla-b=app-0" "beyla:beyla-c=o11y-0" \
+    "caretta:caretta-a=sys-0" "caretta:caretta-b=app-0" "caretta:caretta-c=o11y-0"
 run_case helper-gap
 check "helper-gap:exit-nonzero" "$([ "${RC}" != "0" ] && echo 1 || echo 0)" "rc=${RC}"
 check "helper-gap:names the pool" "$(grep -q 'FAIL per-machine helper alloy: not running on every node pool (missing: app)' "${ERR}" && echo 1 || echo 0)" "$(cat "${ERR}")"
@@ -136,10 +141,24 @@ check "helper-gap:names the pool" "$(grep -q 'FAIL per-machine helper alloy: not
 # --- helper-absent --------------------------------------------------------------
 echo "case helper-absent:"
 make_pods helper-absent "grafana-0=o11y-0" \
-    "alloy:alloy-a=sys-0" "alloy:alloy-b=app-0" "alloy:alloy-c=o11y-0"
+    "alloy:alloy-a=sys-0" "alloy:alloy-b=app-0" "alloy:alloy-c=o11y-0" \
+    "beyla:beyla-a=sys-0" "beyla:beyla-b=app-0" "beyla:beyla-c=o11y-0" \
+    "caretta:caretta-a=sys-0" "caretta:caretta-b=app-0" "caretta:caretta-c=o11y-0"
 run_case helper-absent
 check "helper-absent:exit-nonzero" "$([ "${RC}" != "0" ] && echo 1 || echo 0)" "rc=${RC}"
 check "helper-absent:names the helper" "$(grep -q 'FAIL per-machine helper node-exporter: no pods found' "${ERR}" && echo 1 || echo 0)" "$(cat "${ERR}")"
+
+# --- beyla-gap ------------------------------------------------------------------
+# Beyla is enforced for coverage, not merely allowed off the o11y pool.
+echo "case beyla-gap:"
+make_pods beyla-gap "grafana-0=o11y-0" \
+    "alloy:alloy-a=sys-0" "alloy:alloy-b=app-0" "alloy:alloy-c=o11y-0" \
+    "${_ne}:ne-a=sys-0" "${_ne}:ne-b=app-0" "${_ne}:ne-c=o11y-0" \
+    "beyla:beyla-a=sys-0" "beyla:beyla-c=o11y-0" \
+    "caretta:caretta-a=sys-0" "caretta:caretta-b=app-0" "caretta:caretta-c=o11y-0"
+run_case beyla-gap
+check "beyla-gap:exit-nonzero" "$([ "${RC}" != "0" ] && echo 1 || echo 0)" "rc=${RC}"
+check "beyla-gap:names the pool" "$(grep -q 'FAIL per-machine helper beyla: not running on every node pool (missing: app)' "${ERR}" && echo 1 || echo 0)" "$(cat "${ERR}")"
 
 echo ""
 echo "verify-observability offline tests: ${total} checks, ${failed} failed"

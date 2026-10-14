@@ -136,7 +136,7 @@ With `STACK_MODE=aks`, the monitoring stack has its own commands — the
 make setup-cluster     # empty AKS cluster + node pools
 make setup-istio       # Istio mesh + ingress gateway
 make setup-gateway     # routing entry point (also needed before the URLs resolve)
-make setup-aks-o11y    # monitoring stack (Prometheus, Grafana, Loki, Alloy, routes, dashboards)
+make setup-aks-o11y    # monitoring stack (Prometheus, Grafana, Loki, Alloy, routes, dashboards, Tempo, Beyla, Caretta)
 make setup-aks-kiali   # Kiali, separately — it refuses when the mesh is not running
 ```
 
@@ -155,12 +155,25 @@ before the apps: Robot Shop's chart needs the ServiceMonitor CRDs). Every
 step is safe to re-run, so after a failure fix the cause and run it again.
 
 `make setup-aks-o11y` chains (in order) `setup-db-grafana-psql
-setup-kube-prometheus-stack setup-aks-loki setup-aks-log-shipper
-setup-aks-o11y-routes setup-dashboards`. It deliberately skips
-`setup-metric-server` — AKS's built-in metrics-server addon already serves
-the same API, and installing a second one collides (see
-`docs/architectural-decisions.md`). It also leaves out Tempo, Beyla, and
-Caretta, which are out of scope on AKS.
+setup-aks-prometheus-stack setup-aks-loki setup-aks-log-shipper
+setup-aks-o11y-routes setup-dashboards setup-aks-tempo setup-aks-beyla
+setup-aks-caretta`. It deliberately skips `setup-metric-server` — AKS's
+built-in metrics-server addon already serves the same API, and installing a
+second one collides (see `docs/architectural-decisions.md`).
+
+The same chain also installs the application observability trio, with no
+extra steps: **Tempo** (stores request traces), **Beyla** (watches requests
+without changing the apps and sends traces to Tempo plus automatic
+application measurements to Prometheus) and **Caretta** (draws the service
+connections for the Application Dashboard's Service Map). Re-running
+`make setup-aks-o11y` or `make setup-aks` with unchanged settings is safe:
+every install is a pinned `helm upgrade --install`, so nothing is duplicated.
+The routes step skips itself with a plain message when no service mesh is
+installed; run `make setup-istio` and then `make setup-aks-o11y-routes`.
+
+To confirm the three results, generate demo-shop traffic and follow
+`specs/005-aks-observability-parity/quickstart.md`: step 3a (service-map
+links), 3b (an openable trace) and 3c (automatic measurements).
 
 Differences from the EKS/local monitoring stack:
 
@@ -173,9 +186,9 @@ Differences from the EKS/local monitoring stack:
   bundles no shipper at all, and the standalone Promtail chart is
   deprecated; `make setup-aks-log-shipper` installs `grafana/alloy`
   instead.
-- **Two per-machine helpers run on every node pool**: the Alloy DaemonSet
-  and node-exporter tolerate every taint and carry no node filter, so
-  each runs on all five pools (system, app, persistent, o11y, loadgen).
+- **Four per-machine helpers run on every node pool**: the Alloy, Beyla and
+  Caretta DaemonSets and node-exporter tolerate every taint and carry no
+  node filter, so each runs on all five pools (system, app, persistent, o11y, loadgen).
   Every other monitoring workload runs only on the `workload=o11y` pool.
 - **`make get-service-endpoints`** under `STACK_MODE=aks` prints the
   Grafana, Prometheus, and Kiali URLs — or, if the routing step

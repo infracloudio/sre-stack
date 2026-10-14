@@ -1,0 +1,23 @@
+# Tempo values for STACK_MODE=aks only (specs/005-aks-observability-parity).
+# Chart: grafana-community/tempo pinned at 3.1.0 (the grafana/tempo chart is
+# deprecated, research.md Finding 1), installed by setup-aks-tempo. Fresh
+# settings on purpose: monitoring/chart-values/tempo.yaml pins a dev-build
+# image and stays EKS/local's (FR-007/FR-008).
+#
+# Single binary (the chart default, replicas: 1). OTLP receivers (4317 gRPC,
+# 4318 HTTP) and ephemeral storage stay at chart defaults: demo shape, no new
+# StorageClass (principle V).
+
+# This chart takes top-level placement keys (unlike loki's singleBinary.*).
+# Every AKS node carries the spot taint, so both taints are tolerated.
+nodeSelector:
+  workload: o11y
+tolerations:
+- key: o11y
+  operator: Equal
+  value: "true"
+  effect: NoSchedule
+- key: kubernetes.azure.com/scalesetpriority
+  operator: Equal
+  value: spot
+  effect: NoSchedule

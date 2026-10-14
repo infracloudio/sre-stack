@@ -13,7 +13,7 @@
 # create-time probes, and refusals say "Nothing was deleted".
 #
 # Exports for callers after success:
-#   AZURE_LOCATION         resolved location (setting or the eastus2 fallback)
+#   AZURE_LOCATION         resolved location (setting or the southindia fallback)
 #   AZURE_RESOURCE_GROUP   generated resource group name <name>-aks-<code>
 #   AZURE_CLUSTER_NAME     generated cluster name sre-stack-<code>
 #   AZURE_POOL_MODE        workload-pool mode the allowance check chose:
@@ -113,7 +113,7 @@ fi
 # --- location fallback + generated names (data-model §2) ------------------------
 # Computed before the create-time probes (they use the location) and early for
 # cleanup mode, which only needs the sign-in and the names.
-AZURE_LOCATION="${AZURE_LOCATION:-eastus2}"
+AZURE_LOCATION="${AZURE_LOCATION:-southindia}"
 _azure_name=$(printf '%s' "${_azure_user}" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9' '-')
 _azure_code=$(printf '%s' "${AZURE_SUBSCRIPTION_ID:-}:${AZURE_LOCATION}:${CLUSTER_SHAPE_VERSION}" \
     | { sha256sum 2>/dev/null || shasum -a 256; } \
