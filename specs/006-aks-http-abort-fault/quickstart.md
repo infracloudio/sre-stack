@@ -73,8 +73,8 @@ pod was not Ready (see prerequisite 2).
 
 ## Guides (FR-008, FR-011, SC-006)
 
-A person new to the project follows only the scenarios guide for one start →
-status → revert cycle on the running cluster, without help. The guide must
+The owner follows only the scenarios guide for one start → status → revert
+cycle on the running cluster, without help. The guide must
 name the dashboard panels above and warn that the Istio Service Dashboard's
 "Server" panels and the ratings logs stay blank, and that the `user ->` tile
 is red from normal `404` answers (research Finding 5).

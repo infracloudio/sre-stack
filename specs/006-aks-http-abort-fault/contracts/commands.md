@@ -61,8 +61,10 @@ RESULT: ratings still failing after the fault was removed — not caused by this
 | 3 | A pre-check failed; nothing was read or changed beyond the check itself | data-model §5 |
 
 Status exits 0 for both "fault active" and "fault not active" — both are
-normal answers. A `make` target passes the script's code through, so `make`
-itself fails on codes 1–3.
+normal answers. Run through `make`, any failed command makes `make` itself exit
+2 and print `Error <n>` with the script's own code (for example `Error 3`);
+the codes above are the script's own, seen when it is run with `bash`
+directly.
 
 ## Timing
 

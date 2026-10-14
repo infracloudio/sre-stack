@@ -157,8 +157,8 @@ What the builder runs, and what goes into the PR as evidence
 | 2 | Live run of [quickstart.md](quickstart.md) steps 1–14 (with 7a) on a fresh `make setup-aks` with every shop pod Ready and the load generator running | once, after implementation | FR-001–FR-013 (FR-006 for "cluster not reachable" only), SC-001–SC-009, EC-001, EC-002, EC-004 (step 7a), EC-005 (one case) | terminal output of each step, `time` lines for SC-005, the clock times of steps 4 and 10 |
 | 3 | Grafana screenshots: Application Dashboard with the fault on (ratings tile red, "5xxs" up) and 2 min after revert (tile gone / 0) | during step 2 | FR-007, SC-001, SC-003, SC-004 | two screenshots |
 | 4 | `git diff --stat main -- scenarios/scenario-01 scenarios/scenario-02 scenarios/scenario-04` empty; `git diff main -- makefile .env scenarios/README.md` shows added lines only | before opening the PR | FR-009, SC-008 | both outputs |
-| 5 | A person new to the project follows only `infra/azure/scenario-01/README.md` for one start → status → revert cycle | once, before review | SC-006, FR-008 | their name and a one-line note in the PR |
-| 6 | Read-through of `docs/aks-explained.md` "Scenario 01, version 1" and "How to start a scenario" against the new guide | before review | FR-011 (no conflicting steps) | reviewer tick |
+| 5 | The owner follows only `infra/azure/scenario-01/README.md` for one start → status → revert cycle | once, before review | SC-006, FR-008 | a one-line note in the PR |
+| 6 | Read-through of `docs/aks-explained.md` "Scenario 01, version 1" and "How to start a scenario" against the new guide | before review | FR-011 (no conflicting steps) | the owner's note in the PR |
 
 **Not proven by running** (named in the PR, per Project Structure): the six
 pre-check refusals other than "cluster not reachable", and status states 4

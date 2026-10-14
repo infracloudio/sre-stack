@@ -96,7 +96,7 @@ As a person new to the project, I want the scenarios guide to explain how to sta
 - **SC-003**: Within 10 seconds of running the revert command, 10 out of 10 requests sent to the ratings service succeed; within 60 seconds the dashboards show the ratings error count falling, and within 2 minutes it is back to zero.
 - **SC-004**: A presenter can start the fault, point to the errors on the dashboards, revert it, and point to the recovery, all within one 2-minute demo.
 - **SC-005**: Each command, including its own check of the result (FR-012), finishes in under 30 seconds.
-- **SC-006**: A person new to the project, using only the scenarios guide, completes one full start-and-revert cycle on a running Azure demo shop on the first attempt without asking for help.
+- **SC-006**: Following only the scenarios guide, the owner completes one full start-and-revert cycle on a running Azure demo shop on the first attempt without needing anything outside the guide.
 - **SC-007**: Running the start command twice in a row, or the revert command twice in a row, ends without errors and leaves the shop in the same state as running it once.
 - **SC-008**: Zero lines change in the files of the EKS scenarios 01, 02 and 04; in files shared with EKS, every existing line stays unchanged and only Azure-only lines are added.
 - **SC-009**: After a normal Azure setup in which the fault was never started, the ratings service shows zero server errors over 5 minutes of shop traffic.
