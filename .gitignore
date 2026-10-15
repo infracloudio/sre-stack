@@ -24,3 +24,6 @@ kubeconfig*
 
 # NOTE: .env is deliberately tracked with demo-only values (AGENTS.md).
 # Do not add it here.
+
+# Playwright MCP browser artefacts (screenshots, snapshots, console logs)
+.playwright-mcp/

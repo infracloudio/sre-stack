@@ -80,7 +80,6 @@ ignore: |
   monitoring/dashboards/rabbitmq.yaml
   monitoring/dashboards/rds.yaml
   monitoring/grafana-postgres/job.yaml
-  monitoring/grafana-postgres/statefulset.yaml
   monitoring/istio-observability-addons/istio-podmonitor.yaml
   monitoring/istio-observability-addons/istio-servicemonitor.yaml
   monitoring/istio-observability-addons/kiali.yaml

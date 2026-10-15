@@ -29,6 +29,9 @@ help:
 	@echo "	setup-aks-log-shipper             - Setup the Grafana Alloy log shipper (AKS)"
 	@echo "	setup-aks-o11y-routes             - Apply the observability routes and scrape configs (AKS)"
 	@echo "	setup-aks-kiali                   - Setup Kiali (AKS, refuses when the mesh is not running)"
+	@echo "	aks-ratings-abort-start           - Start scenario 01 on AKS: ratings answers every request with error 500"
+	@echo "	aks-ratings-abort-status          - Report whether the scenario 01 ratings fault is active (AKS, changes nothing)"
+	@echo "	aks-ratings-abort-revert          - Remove the scenario 01 ratings fault (AKS)"
 	@echo "	setup-optional-otel               - Setup OpenTelemetry (works on AKS too)"
 	@echo "	cleanup                           - Cleanup AKS cluster"
 	@echo ""
@@ -234,6 +237,19 @@ setup-aks-o11y-routes:
 # is not actually running, instead of failing the core stack.
 setup-aks-kiali:
 	bash $(CLUSTER_SCRIPT_PATH)/setup-aks-kiali.sh
+
+# Scenario 01 on AKS (specs/006-aks-http-abort-fault): add, report and remove
+# the HTTP 500 fault on the ratings routing rule. No STACK_MODE gate here; the
+# script refuses with exit 3 itself; on any failure make prints `Error <n>` and
+# exits 2.
+aks-ratings-abort-start:
+	bash infra/azure/scenario-01/ratings-abort.sh start
+
+aks-ratings-abort-status:
+	bash infra/azure/scenario-01/ratings-abort.sh status
+
+aks-ratings-abort-revert:
+	bash infra/azure/scenario-01/ratings-abort.sh revert
 
 # One-shot AKS deploy, same path as specs/002-azure-observability-stack/
 # instructions.md steps 2–7: cluster → mesh → observability → Kiali → apps →

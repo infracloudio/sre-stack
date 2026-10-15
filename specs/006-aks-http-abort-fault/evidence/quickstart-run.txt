@@ -1,0 +1,123 @@
+## step 1 baseline ratings 500 increase[5m]=0, user 404=160 (query at 20:25:28)
+## step 2
+bash infra/azure/scenario-01/ratings-abort.sh status
+Checking: 10 test requests from the web pod to ratings...
+  200 200 200 200 200 200 200 200 200 200
+RESULT: fault not active (10 of 10 requests to ratings answered normally)
+exit=0
+## step 3 start at 20:25:31
+bash infra/azure/scenario-01/ratings-abort.sh start
+Adding the fault to the ratings routing rule (every request answered with error 500)...
+virtualservice.networking.istio.io/ratings patched
+Checking: 10 test requests from the web pod to ratings...
+  500 500 500 500 500 500 500 500 500 500
+RESULT: fault active
+make aks-ratings-abort-start  0.77s user 0.24s system 40% cpu 2.486 total
+exit=0
+## step 3 done at 20:25:33
+## step 4 first ratings 500 seen in Prometheus:
+20:25:40 rate=0.6666666666666666
+## step 5
+bash infra/azure/scenario-01/ratings-abort.sh start
+The fault is already in the ratings rule.
+Checking: 10 test requests from the web pod to ratings...
+  500 500 500 500 500 500 500 500 500 500
+RESULT: fault already active
+exit=0
+## step 6
+http://ratings/_health          500 500 500 500 500 500 500 500 500 500 
+http://web:8080/                200 200 200 200 200 200 200 200 200 200 
+http://cart:8080/health         200 200 200 200 200 200 200 200 200 200 
+http://catalogue:8080/health    200 200 200 200 200 200 200 200 200 200 
+http://user:8080/health         200 200 200 200 200 200 200 200 200 200 
+http://payment:8080/health      200 200 200 200 200 200 200 200 200 200 
+http://shipping:8080/health     200 200 200 200 200 200 200 200 200 200 
+## step 7
+bash infra/azure/scenario-01/ratings-abort.sh status
+Checking: 10 test requests from the web pod to ratings...
+  500 500 500 500 500 500 500 500 500 500
+RESULT: fault active (10 of 10 requests to ratings answered with error 500)
+exit=0
+## step 7a at 20:27:06
+deployment.apps/ratings restarted
+Waiting for deployment "ratings" rollout to finish: 0 out of 1 new replicas have been updated...
+Waiting for deployment "ratings" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "ratings" rollout to finish: 1 old replicas are pending termination...
+deployment "ratings" successfully rolled out
+bash infra/azure/scenario-01/ratings-abort.sh status
+Checking: 10 test requests from the web pod to ratings...
+  500 500 500 500 500 500 500 500 500 500
+RESULT: fault active (10 of 10 requests to ratings answered with error 500)
+exit=0
+## step 8 at 20:27:36
+namespace/robot-shop configured
+kubectl label namespace robot-shop istio-injection=enabled
+namespace/robot-shop not labeled
+kubectl delete job mysql-seeder -n robot-shop --ignore-not-found
+helm upgrade --install roboshop -n robot-shop --create-namespace ./app/robot-shop/helm/ --values ./infra/azure/chart-values/robot-shop.yaml --set stack_mode=aks --set mysql_root_password=<REDACTED> --wait --timeout 10m0s
+Release "roboshop" has been upgraded. Happy Helming!
+NAME: roboshop
+LAST DEPLOYED: Wed Oct 14 20:27:37 2026
+NAMESPACE: robot-shop
+STATUS: deployed
+REVISION: 3
+TEST SUITE: None
+bash infra/azure/scenario-01/ratings-abort.sh status
+Checking: 10 test requests from the web pod to ratings...
+  500 500 500 500 500 500 500 500 500 500
+RESULT: fault active (10 of 10 requests to ratings answered with error 500)
+exit=0
+## step 9 revert start at 20:30:11
+bash infra/azure/scenario-01/ratings-abort.sh revert
+Removing the fault from the ratings routing rule...
+virtualservice.networking.istio.io/ratings patched
+Checking: 10 test requests from the web pod to ratings...
+  200 200 200 200 200 200 200 200 200 200
+RESULT: fault removed
+make aks-ratings-abort-revert  0.78s user 0.22s system 38% cpu 2.597 total
+exit=0
+## step 9 done at 20:30:14
+## step 11
+bash infra/azure/scenario-01/ratings-abort.sh revert
+The fault is not in the ratings rule.
+Checking: 10 test requests from the web pod to ratings...
+  200 200 200 200 200 200 200 200 200 200
+RESULT: fault was not active
+exit=0
+## step 12
+bash infra/azure/scenario-01/ratings-abort.sh status
+Checking: 10 test requests from the web pod to ratings...
+  200 200 200 200 200 200 200 200 200 200
+RESULT: fault not active (10 of 10 requests to ratings answered normally)
+exit=0
+## step 13
+bash infra/azure/scenario-01/ratings-abort.sh status
+Could not reach the cluster in the current kubectl context.
+Nothing was changed.
+make: *** [makefile:248: aks-ratings-abort-status] Error 3
+exit=2
+## step 14
+(first: nothing above)
+(second: no removed lines above)
+## step 10 polling ratings 500 irate[1m] / increase[1m] (revert at 20:30:11)
+20:30:28 rate=1.6 increase=94.66666666666666
+20:30:37 rate=0 increase=66.66666666666666
+20:30:46 rate=0 increase=66.66666666666666
+20:30:54 rate=0 increase=32
+20:31:03 rate=0 increase=32
+20:31:12 rate=0 increase=0
+20:31:21 rate=0 increase=0
+20:31:30 rate=0 increase=0
+20:31:38 rate=0 increase=0
+20:31:47 rate=0 increase=0
+20:31:56 rate=0 increase=0
+20:32:04 rate=0 increase=0
+20:32:13 rate=0 increase=0
+## cleanup at 20:32:50
+bash infra/azure/scenario-01/ratings-abort.sh revert
+The fault is not in the ratings rule.
+Checking: 10 test requests from the web pod to ratings...
+  200 200 200 200 200 200 200 200 200 200
+RESULT: fault was not active
+exit=0
+deployment.apps "load" deleted
