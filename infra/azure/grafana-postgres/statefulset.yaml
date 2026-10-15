@@ -42,6 +42,12 @@ spec:
               value: "postgres" # Username
             - name: POSTGRES_PASSWORD
               value: "postgres" # Password
+            # Subdir: a fresh disk has lost+found at its root and initdb refuses a non-empty dir.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
       tolerations:
         - key: "o11y"
           value: "true"

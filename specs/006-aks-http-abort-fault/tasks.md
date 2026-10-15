@@ -115,3 +115,9 @@ Story order: US1 → US2 → US3. US2 is not independent of US1 in code (shared 
 ## Phase 8: Convergence
 
 - [X] T015 In `makefile` correct the comment above `aks-ratings-abort-start` (`makefile:241-243`, an Azure-only line added by T005): make does not pass the script's code through — on any failure it prints `Error <n>` and itself exits 2 — matching the wording T012 put in `infra/azure/scenario-01/README.md` §7 and `contracts/commands.md`; change only lines this story added, per FR-008 and SC-008 (contradicts)
+
+---
+
+## Phase 9: Found during the live run
+
+- [X] T016 Mount the `data` volume claim into the Grafana Postgres container in `monitoring/grafana-postgres/statefulset.yaml` and `infra/azure/grafana-postgres/statefulset.yaml` (`volumeMounts` at `/var/lib/postgresql/data`, `PGDATA` set to a `pgdata` subdirectory so a fresh disk's `lost+found` does not stop `initdb`). Without it the PVC binds but is unused, Postgres writes to the container's own disk, and the `grafana` database is lost whenever the pod is recreated (seen after `az aks stop` / `start`: Grafana crash-looped on `database "grafana" does not exist`). Apply on the cluster, re-run `make setup-db-grafana-psql`, delete the pod, and confirm the `grafana` database and Grafana survive. Outside the ratings fault itself; found while bringing the cluster back up after T010 (not in the spec's FRs)
