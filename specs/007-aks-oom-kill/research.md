@@ -199,6 +199,28 @@ What a new panel must handle — all seen in this run:
    "prometheus", uid: "prometheus"}`, so the new panels need no new data
    source — the same instance Prometheus already plug into every panel there.
 
+**The two queries as written into the dashboard** (story task T006, panels
+"Cart restarts" and "Cart killed for running out of memory" in the new
+"Restarts" row of the Application Dashboard):
+
+```
+sum(kube_pod_container_status_restarts_total{namespace="robot-shop",container="cart"}) or vector(0)
+sum(kube_pod_container_status_last_terminated_reason{namespace="robot-shop",container="cart",reason="OOMKilled"}) or vector(0)
+```
+
+**Addendum 2026-10-21 (task T012): every pod, 5-minute window.** The two cart-only queries above were replaced so any pod shows. `kube_pod_container_status_last_terminated_reason` is a gauge that stays at 1 after a pod recovers ([Elastic](https://www.elastic.co/observability-labs/blog/promql-kubernetes-oomkilled-crashloopbackoff)), so the stat only counts a pod whose last kill was `OOMKilled` and that also restarted in the last 5 minutes. The kubelet backs off at most 5 minutes between restarts, so a pod that is still failing shows at least one restart in most 5-minute windows; one that has stopped clears within 5 minutes. The queries now in the dashboard:
+
+```
+sum by (namespace, pod) (increase(kube_pod_container_status_restarts_total[5m])) > 0
+count((max by (namespace, pod, container) (kube_pod_container_status_last_terminated_reason{reason="OOMKilled"}) == 1) and on (namespace, pod, container) (sum by (namespace, pod, container) (increase(kube_pod_container_status_restarts_total[5m])) > 0)) or vector(0)
+```
+
+The table's two queries are the per-container forms of these.
+
+`or vector(0)` turns the absent series of point 1 into `0`; `sum` gives one
+number while a rollout leaves two cart pods (point 2). The label filters in
+these panels get their first run in the live evidence run (task T010).
+
 **Answer.** No dashboard the setup installs can show this fault today, on EKS
 or Azure. A panel added to an existing dashboard can show it with the two
 queries above, against the datasource every shop panel already uses.

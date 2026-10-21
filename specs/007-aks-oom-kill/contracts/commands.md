@@ -26,8 +26,8 @@ and three lines in the `help` target under the existing Azure help lines
 (`makefile:32–34`), same shape:
 
 ```makefile
-@echo "	aks-cart-oom-start                - Start Azure scenario 02 on AKS: cart is killed for running out of memory"
-@echo "	aks-cart-oom-status               - Report whether the Azure scenario 02 cart fault is active (AKS, changes nothing)"
+@echo "	aks-cart-oom-start                - Start Azure scenario 02 on AKS: cart killed for running out of memory"
+@echo "	aks-cart-oom-status               - Report whether the Azure scenario 02 cart fault is active (AKS, read-only)"
 @echo "	aks-cart-oom-revert               - Remove the Azure scenario 02 cart fault (AKS)"
 ```
 

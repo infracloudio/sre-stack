@@ -32,6 +32,9 @@ help:
 	@echo "	aks-ratings-abort-start           - Start scenario 01 on AKS: ratings answers every request with error 500"
 	@echo "	aks-ratings-abort-status          - Report whether the scenario 01 ratings fault is active (AKS, changes nothing)"
 	@echo "	aks-ratings-abort-revert          - Remove the scenario 01 ratings fault (AKS)"
+	@echo "	aks-cart-oom-start                - Start Azure scenario 02 on AKS: cart killed for running out of memory"
+	@echo "	aks-cart-oom-status               - Report whether the Azure scenario 02 cart fault is active (AKS, read-only)"
+	@echo "	aks-cart-oom-revert               - Remove the Azure scenario 02 cart fault (AKS)"
 	@echo "	setup-optional-otel               - Setup OpenTelemetry (works on AKS too)"
 	@echo "	cleanup                           - Cleanup AKS cluster"
 	@echo ""
@@ -250,6 +253,19 @@ aks-ratings-abort-status:
 
 aks-ratings-abort-revert:
 	bash infra/azure/scenario-01/ratings-abort.sh revert
+
+# Scenario 02 on AKS (specs/007-aks-oom-kill): lower, report and restore the
+# cart memory allowance so the cluster kills the cart pod for running out of
+# memory. No STACK_MODE gate here; the script refuses with exit 3 itself; on
+# any failure make prints `Error <n>` and exits 2.
+aks-cart-oom-start:
+	bash infra/azure/scenario-02/cart-oom-kill.sh start
+
+aks-cart-oom-status:
+	bash infra/azure/scenario-02/cart-oom-kill.sh status
+
+aks-cart-oom-revert:
+	bash infra/azure/scenario-02/cart-oom-kill.sh revert
 
 # One-shot AKS deploy, same path as specs/002-azure-observability-stack/
 # instructions.md steps 2–7: cluster → mesh → observability → Kiali → apps →

@@ -49,7 +49,7 @@ in [research.md](research.md).
    ```
 6. **The dashboard section shows it** (FR-011 as clarified, SC-001): open the
    Application Dashboard in Grafana, the new **Restarts** section: the cart
-   counter's line climbs and the out-of-memory flag line reads 1. Screenshot
+   line in "Pod restarts" climbs, the out-of-memory stat reads 1 and the table names the cart pod. Screenshot
    this and the recovery one in step 10 — FR-011's two proofs.
 7. **Status mid-fault, and idempotent re-start** (FR-005/SC-008, the
    2026-10-21 clarification while a back-off is under way):
