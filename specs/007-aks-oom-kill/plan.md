@@ -141,7 +141,7 @@ specs/007-aks-oom-kill/
 ├── contracts/
 │   └── commands.md      # Phase 1: targets, RESULT lines, exit codes, budgets
 ├── quickstart.md        # Phase 1: live validation run steps 1–14
-├── tasks.md             # Phase 2: tasks T001–T011 and the deviations table
+├── tasks.md             # Phase 2: tasks T001–T014 and the deviations table
 └── evidence/            # T010/T011: run output, screenshots, PR entries (as story 006)
 ```
 
@@ -156,6 +156,8 @@ makefile                                 # ADD only: 3 targets after aks-ratings
 monitoring/dashboards/application.yaml   # EDIT only: new "Restarts" section (FR-011 as clarified)
 scenarios/README.md                      # ADD only: one Azure line (sibling of the 006 line)
 docs/aks-explained.md                    # EDIT: cart-OOM section, dictionary rows, stale "3 copies" line fixed (task T008)
+.yamllint.yaml                           # EDIT: one ignore line removed for application.yaml (D17, the lint ratchet)
+agent/policies/allowed-mcp-servers.md    # PROTECTED, one row added by the developer, commit 15fdc74 (D11)
 ```
 
 | File | Change | Why | Spec |
@@ -164,6 +166,7 @@ docs/aks-explained.md                    # EDIT: cart-OOM section, dictionary ro
 | `infra/azure/scenario-02/README.md` | new | the guide: what must be running (shop pods Ready, loadgen), the three commands, what each RESULT line means, the restart counter resetting to 0 on revert, the growing back-off windows (EC-007), traffic requirements (EC-001), that re-deploying the shop clears the fault (EC-002), that a genuine cart failure at its own allowance is not this fault (EC-006), and that EKS `scenarios/scenario-01|02|04/` are the EKS way, not this (EC-009) | FR-012, EC-001, EC-002, EC-006, EC-007, EC-009 |
 | `makefile` | add 3 targets + 3 help lines | the documented one-line commands; wording copied from `contracts/commands.md` §1 | FR-001–FR-003, FR-013, SC-008 |
 | `monitoring/dashboards/application.yaml` | edit: one new section | the Restarts section proving FR-011 for every pod: a restarts-per-pod line (`increase(kube_pod_container_status_restarts_total[5m])` by namespace and pod), a stat counting pods whose last kill was `OOMKilled` and that restarted in the last 5 minutes, and a table naming them. All on the `prometheus` datasource. The 5-minute window is what makes the stat clear again, because `last_terminated_reason` stays 1 after a pod recovers (Finding 2, addendum). No memory-usage panel | FR-011, SC-004, SC-011 |
+| `.yamllint.yaml` | edit: one line removed | the repo's lint ratchet requires a touched legacy file to leave the ignore list; the whole dashboard block of `application.yaml` is re-indented to make that possible (D17, review with `git diff -w`) | FR-013 (wording), SC-009 (exception recorded) |
 | `docs/aks-explained.md` | edit | the Azure explainer page gains the cart-OOM scenario and the dictionary rows, and line 206 ("each runs as 3 copies") is corrected because every service runs one copy on this cluster; added at the developer's request, spec FR-012 widened to name it | FR-012 |
 | `scenarios/README.md` | add one line | so someone browsing the scenarios README finds the Azure cart-OOM guide next to 006's line; unchanged lines stay (SC-009) | FR-012, SC-009 |
 
@@ -186,8 +189,8 @@ finding behind it.
 |---|---|---|---|---|
 | 1 | `make lint` | every commit | shell lint of the new script, YAML lint of the dashboard section and guidance, no protected path touched, Spec Kit and loom unchanged | full output |
 | 2 | Live run of [quickstart.md](quickstart.md) steps 1–14 on the AKS cluster, shop pods `2/2 Ready`, loadgen running (Part A), refusals shown with `KUBECONFIG=/dev/null` and a scratch repo copy with `STACK_MODE=eks` (step 11; only `sre-stack-452138` is used), redeploy tolerance (step 12), the never-faulted window (step 13), owner passthrough (step 14) | once, after implementation | FR-001–FR-014 (FR-007's one exercised refusal: not-AKS cluster), SC-001–SC-009, SC-010, EC-001, EC-002, EC-004, EC-007, EC-009 | verbatim output of each step, `time` lines for SC-005, both `RESULT:` lines for run-twice checks |
-| 3 | Grafana screenshots: the Restarts section with the fault on (counter climbing, OOM flag 1) and ~2 min after revert (flag gone / 0) | during step 2, Part A | FR-011 as clarified, SC-003, SC-004 | two screenshots |
-| 3b | The Restarts section with a pod other than cart restarting and being killed for running out of memory (a throwaway pod in a scratch namespace, deleted afterwards, developer's approval needed), and the three queries returning that pod | after T012 | FR-011 (every pod), SC-011 | a screenshot and the query output |
+| 3 | Grafana screenshots of the Restarts section: healthy baseline, fault on (cart in the table, stat 1) and after revert and the 5-minute window (stat 0, table empty) | during step 2, Part A | FR-011 as clarified, SC-003, SC-004 | `01-baseline.png`, `02-fault-on.png`, `03-after-revert.png` |
+| 3b | The Restarts section with a pod other than cart restarting and being killed for running out of memory (throwaway pods `oom-proof` and `crash-proof` in a scratch namespace, deleted afterwards; done 2026-10-21 with the developer's approval, `04-other-pods.png`), and the three queries returning that pod | after T012 | FR-011 (every pod), SC-011 | a screenshot and the query output |
 | 4 | `git diff --stat main -- scenarios/scenario-01 scenarios/scenario-02 scenarios/scenario-04` empty; `git diff main -- makefile .env scenarios/README.md monitoring/dashboards/application.yaml` adds lines only (none removed), except the whitespace re-indent of `application.yaml` forced by the yamllint ratchet (tasks.md D17, review with `git diff -w`); `git diff main -- docs/aks-explained.md` removes only the lines tasks T008 names | before opening the PR | FR-013, SC-009, SC-010 untouched | all outputs |
 | 5 | The owner follows only `infra/azure/scenario-02/README.md` for one start → status → revert cycle (the SC-007 test, from a shop the story does not set up) | once, before review | SC-007, FR-012 | a one-line note in the PR |
 
@@ -199,7 +202,7 @@ cluster and `STACK_MODE=eks` refusals are run), and EC-006's genuine
 same single read-through 006 named for review. **Known cluster conditions** that
 can fail check 2 for reasons outside the story (research.md steps 189–190:
 fresh-setup `shipping` stalls, the seeder job): quickstart prerequisite 1
-catches both before the run begins.
+catches both before the run begins. Also not proven by running: quickstart step 12 (redeploy the shop while the fault is on) was denied twice by the permission check and is covered by reading the script and research Findings 3 and 4 until the developer runs it (tasks T014, deviation D18); step 14 (the owner's walkthrough) is the developer's; extra check (a) is a comparison with the Helm release taken after the run, not a before/after diff.
 
 ## Complexity Tracking
 

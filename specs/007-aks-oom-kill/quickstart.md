@@ -49,7 +49,11 @@ in [research.md](research.md).
    ```
 6. **The dashboard section shows it** (FR-011 as clarified, SC-001): open the
    Application Dashboard in Grafana, the new **Restarts** section: the cart
-   line in "Pod restarts" climbs, the out-of-memory stat reads 1 and the table names the cart pod. Screenshot
+   line in "Pod restarts" climbs, the out-of-memory stat reads 1 and the table names the cart pod.
+   The row covers every pod in every namespace over the last 5 minutes
+   (FR-011, SC-011): to see that, run a throwaway pod with a tiny memory limit in
+   a scratch namespace (developer's approval, delete it afterwards) and check the
+   table names it too (`04-other-pods.png`). Screenshot
    this and the recovery one in step 10 — FR-011's two proofs.
 7. **Status mid-fault, and idempotent re-start** (FR-005/SC-008, the
    2026-10-21 clarification while a back-off is under way):
@@ -77,8 +81,8 @@ in [research.md](research.md).
    ```
    Exiting `0` twice and not touching the object is the whole SC-008 check.
 10. **The dashboard recovery** (SC-003, SC-004): within 2 min of step 8 the new
-    section shows the out-of-memory flag line drop back to 0 and no further
-    climbing for the cart row. Screenshot: same section as step 6, later.
+    section shows the out-of-memory stat drop back to 0; the table clears about
+    5 minutes after the last restart (the window). Screenshot: same section as step 6, later.
     **Extra checks** (added after `/speckit-analyze`): (a) save every other
     Deployment's resources before step 4 and after step 9 and diff them: empty
     diff (FR-006); (b) time one whole cycle, start to recovery on the
@@ -126,7 +130,7 @@ in [research.md](research.md).
 ## Evidence collected in the PR
 
 1. Verbatim terminal output of steps 3–14 (all `time` lines, all `RESULT:` lines, exit codes).
-2. The two Grafana screenshots (step 6 and step 10).
+2. The Grafana screenshots: baseline before the fault, step 6, step 10, and the other-pods one.
 3. `make lint` output.
 4. `git diff --stat main` showing: changes only under
    `infra/azure/scenario-02/`, `monitoring/dashboards/application.yaml` and

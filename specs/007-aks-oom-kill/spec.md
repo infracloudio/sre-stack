@@ -125,7 +125,7 @@ As a person new to the project, I want the scenarios guide to explain how to sta
 - **SC-006**: The status command gives the correct answer in both states, 10 times out of 10, in under 10 seconds each time, and never changes anything.
 - **SC-007**: Following only the scenarios guide, the owner completes one full start, check and revert cycle on a running Azure demo shop on the first attempt without needing anything outside the guide.
 - **SC-008**: Running the start command twice in a row, or the revert command twice in a row, ends without errors and leaves the shop in the same state as running it once.
-- **SC-009**: Zero lines change in the files of the EKS scenarios 01, 02 and 04; in files shared with EKS, every existing line stays unchanged and only Azure-only lines are added.
+- **SC-009**: Zero lines change in the files of the EKS scenarios 01, 02 and 04; in files shared with EKS, every existing line stays unchanged and only Azure-only lines are added. One recorded exception: `monitoring/dashboards/application.yaml` is re-indented (whitespace only) and `.yamllint.yaml` loses one line, because the lint ratchet requires it for a touched legacy file (tasks.md D17); the parsed dashboard data is unchanged.
 - **SC-010**: After a normal Azure setup in which the fault was never started, zero shop pods show the `OOMKilled` status over 5 minutes of shop traffic.
 - **SC-011**: With any pod other than cart restarting or being killed for running out of memory, the Restarts section on the Application Dashboard shows that pod by name within 2 minutes, and shows nothing for pods that have not restarted in the last 5 minutes.
 
@@ -139,7 +139,7 @@ As a person new to the project, I want the scenarios guide to explain how to sta
 - The cart service runs as a single pod on Azure, because the shop's definition fixes it at one copy for every target other than the EKS setup.
 - The cluster starts a stopped container again on its own, without anyone running a command: the shop's other services say so explicitly, and cart leaves it at the cluster's default, which is to always restart. Checked by reading the shop's deployment definitions; the default itself is a documented cluster behaviour.
 - Checked on the live cluster during planning (research.md Finding 1): cart idles well below its allowance, and a small enough allowance kills it within seconds, repeatedly, always showing the out-of-memory status. The exact numbers are in research.md. This is what SC-001 and SC-002 depend on.
-- Checked on the live cluster during planning (research.md Finding 2): no dashboard the monitoring setup installs — on this cluster or on EKS — shows a pod's restart count or its out-of-memory kills. As clarified, FR-011 now allows a section to be added to an existing dashboard, and the two numbers a presenter points at were confirmed to move on the live cluster while the fault ran and while it was reverted.
+- Checked on the live cluster during planning (research.md Finding 2): no dashboard the monitoring setup installs — on this cluster or on EKS — shows a pod's restart count or its out-of-memory kills. As clarified, FR-011 now allows a section to be added to an existing dashboard, and the two numbers a presenter points at were confirmed to move on the live cluster while the fault ran and while it was reverted. After the 2026-10-21 clarification the section shows every pod, so those two numbers became a restarts-per-pod line, a count of pods killed for running out of memory in the last 5 minutes, and a table naming each pod (research.md Finding 2, addendum).
 - Checked on the live cluster during planning (research.md Finding 3): deploying the shop again while the fault is active clears the fault, which FR-008 is written to tolerate.
 - One presenter uses the fault at a time; two people starting and reverting it at once on the same cluster is not handled (chosen default).
 - Verification happens on a live Azure cluster only; EKS and local clusters are not tested (out of scope per the issue).
@@ -157,7 +157,7 @@ From the issue:
 
 Decided while writing this specification:
 
-- Making any shop pod other than cart run out of memory, or hitting more than one pod at a time.
+- Making any shop pod other than cart run out of memory (the dashboard row shows any pod's failure, FR-011; the fault still only touches cart), or hitting more than one pod at a time.
 - Making a whole machine run out of memory, or evicting pods for node-level memory pressure. This story changes one container's allowance only.
 - Changing the shop's traffic, including starting or stopping the load generator as part of the commands.
 - Choosing or tuning the shop's memory allowances for real workloads. The original allowance is restored; it is not re-designed.
@@ -166,3 +166,11 @@ Decided while writing this specification:
 - Coordinating two presenters using the fault at the same time on one cluster.
 - Fixing scenario 01's EKS commands, their timer, or their shell problems (FR-013).
 - Scenario 02's hardcoded database credentials; scenario 02 intentionally degrades the database and is not repaired here.
+
+Done during implementation although first out of scope, each decided by the developer on 2026-10-21 and recorded in tasks.md (Deviations table):
+
+- The Restarts section covers every pod in every namespace, not cart alone (D16; FR-011 and SC-011 as clarified).
+- Throwaway pods in a scratch namespace were made to restart and run out of memory once, to prove the section shows a pod other than cart (D19). The "any pod other than cart" line above still holds for the fault itself: the start command only touches cart. The scratch namespace was deleted afterwards.
+- The Azure explainer page `docs/aks-explained.md` was edited, including its wrong "3 copies" line (D7; FR-012).
+- The Playwright MCP server was allowed for loopback Grafana checks in `agent/policies/allowed-mcp-servers.md` (D11).
+- `monitoring/dashboards/application.yaml` was re-indented and `.yamllint.yaml` lost one ignore line, because the repo's lint ratchet requires a touched legacy file to be fixed (D17). No dashboard data changed.
