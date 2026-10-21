@@ -63,3 +63,10 @@ Evidence for the pull request. Terminal output is in `quickstart-run.txt` in thi
 - Ran live. The redeploy timed out on the pre-existing unready `shipping` pod, leaving Helm release `roboshop` in status `failed` (revision 6). The first script refused status and revert in that state. Fixed (D20): `failed` is accepted. After the fix status and revert printed the two lines the quickstart expects and the marker was cleared.
 - Left on the cluster: release `roboshop` still `failed`. Pods run normally. A later `make setup-robot-shop` will fail the same way until `shipping` is Ready.
 - Step 14 (the owner follows only the guide): waived by the developer 2026-10-21 ("just approve step 14, I don't have time for it"). SC-007 is not proven by a first-time reader.
+
+## Shipping and seed fix (T015, deviation D21)
+
+- Why shipping never showed on the Restarts row: its Java process ran out of heap inside the process (`GC overhead limit exceeded`) and kept running, so Kubernetes never killed it: restarts 0, no `OOMKilled`. It was only 1/2 Ready, which no panel watches.
+- Step 12 left the database half-loaded (`codes` 9 rows, `ratings` empty) because the redeploy re-ran the seed job, which stalled. Repairing the data by hand was denied by the permission check; the planned fix is a new `make setup-robot-shop`, which re-seeds with the new bounded job (T015, not yet run).
+- Left in `mysql-0:/tmp` by my attempt: `10-cities.sql` and `20-ratings.sql` (copied intact, checksums match; about 64 MB). Harmless; remove with `kubectl exec mysql-0 -n robot-shop -c mysql -- rm /tmp/10-cities.sql /tmp/20-ratings.sql`.
+- Helm release `roboshop` is `failed` (revision 6) until a successful redeploy.

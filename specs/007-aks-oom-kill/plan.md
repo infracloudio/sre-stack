@@ -156,6 +156,8 @@ makefile                                 # ADD only: 3 targets after aks-ratings
 monitoring/dashboards/application.yaml   # EDIT only: new "Restarts" section (FR-011 as clarified)
 scenarios/README.md                      # ADD only: one Azure line (sibling of the 006 line)
 docs/aks-explained.md                    # EDIT: cart-OOM section, dictionary rows, stale "3 copies" line fixed (task T008)
+infra/azure/chart-values/robot-shop.yaml # EDIT: shipping CPU, seeder CPU and fileTimeoutSeconds (D21, T015)
+app/robot-shop/helm/templates/mysql-seeed-job.yaml  # EDIT: optional bounded-and-retried seed import (D21, T015); EKS render unchanged
 .yamllint.yaml                           # EDIT: one ignore line removed for application.yaml (D17, the lint ratchet)
 agent/policies/allowed-mcp-servers.md    # PROTECTED, one row added by the developer, commit 15fdc74 (D11)
 ```
@@ -166,6 +168,7 @@ agent/policies/allowed-mcp-servers.md    # PROTECTED, one row added by the devel
 | `infra/azure/scenario-02/README.md` | new | the guide: what must be running (shop pods Ready, loadgen), the three commands, what each RESULT line means, the restart counter resetting to 0 on revert, the growing back-off windows (EC-007), traffic requirements (EC-001), that re-deploying the shop clears the fault (EC-002), that a genuine cart failure at its own allowance is not this fault (EC-006), and that EKS `scenarios/scenario-01|02|04/` are the EKS way, not this (EC-009) | FR-012, EC-001, EC-002, EC-006, EC-007, EC-009 |
 | `makefile` | add 3 targets + 3 help lines | the documented one-line commands; wording copied from `contracts/commands.md` §1 | FR-001–FR-003, FR-013, SC-008 |
 | `monitoring/dashboards/application.yaml` | edit: one new section | the Restarts section proving FR-011 for every pod: a restarts-per-pod line (`increase(kube_pod_container_status_restarts_total[5m])` by namespace and pod), a stat counting pods whose last kill was `OOMKilled` and that restarted in the last 5 minutes, and a table naming them. All on the `prometheus` datasource. The 5-minute window is what makes the stat clear again, because `last_terminated_reason` stays 1 after a pod recovers (Finding 2, addendum). No memory-usage panel | FR-011, SC-004, SC-011 |
+| `infra/azure/chart-values/robot-shop.yaml`, `mysql-seeed-job.yaml` | edit | shipping starved at 200m CPU (JVM `GC overhead limit exceeded`, 1/2 Ready, `helm --wait` timeout) and a seed import that stalled; permanent fix gated to Azure by values (D21). Not in the first plan | FR-014 (setup behaves as today when the fault was never started), FR-013 |
 | `.yamllint.yaml` | edit: one line removed | the repo's lint ratchet requires a touched legacy file to leave the ignore list; the whole dashboard block of `application.yaml` is re-indented to make that possible (D17, review with `git diff -w`) | FR-013 (wording), SC-009 (exception recorded) |
 | `docs/aks-explained.md` | edit | the Azure explainer page gains the cart-OOM scenario and the dictionary rows, and line 206 ("each runs as 3 copies") is corrected because every service runs one copy on this cluster; added at the developer's request, spec FR-012 widened to name it | FR-012 |
 | `scenarios/README.md` | add one line | so someone browsing the scenarios README finds the Azure cart-OOM guide next to 006's line; unchanged lines stay (SC-009) | FR-012, SC-009 |

@@ -22,7 +22,20 @@ spec:
         args:
           - /bin/bash
           - -c
+{{- if .Values.mysqlseeder.fileTimeoutSeconds }}
+          # Bounded import: a stalled mysql client is killed after
+          # fileTimeoutSeconds, the container fails and the Job retries
+          # (the seed files drop and recreate their tables, so a rerun is safe).
+          - |
+            /wait || exit 1
+            for f in /opt/seeds/*.sql; do
+              echo "Adding file: $f"
+              MYSQL_PWD="$MYSQL_PASSWORD" timeout {{ .Values.mysqlseeder.fileTimeoutSeconds }} \
+                mysql -h "$MYSQL_HOST" -u "$MYSQL_USER" < "$f" || exit 1
+            done
+{{- else }}
           - /wait && /opt/seeds/seeder.sh
+{{- end }}
         env:
           - name: MYSQL_HOST
             value: {{ .Values.mysql_host }}

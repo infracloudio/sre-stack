@@ -41,6 +41,16 @@ ratings:
       effect: "NoSchedule"
 
 shipping:
+  # The chart's 200m CPU limit starves the Java service: garbage collection
+  # cannot keep up ("GC overhead limit exceeded") and the readiness probe
+  # fails, leaving the pod 1/2 Ready (specs/006 research, specs/007 tasks D21).
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
   tolerations:
     - key: "kubernetes.azure.com/scalesetpriority"
       operator: "Equal"
@@ -106,6 +116,18 @@ redis:
       effect: "NoSchedule"
 
 mysqlseeder:
+  # Seed load: the chart's 200m CPU limit lets the 64 MB import stall (story 006
+  # found the client idle with no MySQL session). More CPU makes a stall rare, and
+  # fileTimeoutSeconds bounds each file so a stalled import is killed and retried
+  # by the Job (specs/007 tasks D21).
+  fileTimeoutSeconds: 420
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 500Mi
   tolerations:
     - key: "persistent"
       operator: "Equal"
