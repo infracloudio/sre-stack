@@ -202,7 +202,7 @@ cluster and `STACK_MODE=eks` refusals are run), and EC-006's genuine
 same single read-through 006 named for review. **Known cluster conditions** that
 can fail check 2 for reasons outside the story (research.md steps 189–190:
 fresh-setup `shipping` stalls, the seeder job): quickstart prerequisite 1
-catches both before the run begins. Quickstart step 12 (redeploy the shop while the fault is on) was run live on the third ask and found one gap, a failed Helm release, now fixed (tasks D20). Also not proven by running: step 14 (the owner's walkthrough) is the developer's; extra check (a) is a comparison with the Helm release taken after the run, not a before/after diff.
+catches both before the run begins. Quickstart step 12 (redeploy the shop while the fault is on) was run live on the third ask and found one gap, a failed Helm release, now fixed (tasks D20). Also not proven by running: step 14 (waived by the developer 2026-10-21, deviation D18) (the owner's walkthrough) is the developer's; extra check (a) is a comparison with the Helm release taken after the run, not a before/after diff.
 
 ## Complexity Tracking
 

@@ -62,4 +62,4 @@ Evidence for the pull request. Terminal output is in `quickstart-run.txt` in thi
 
 - Ran live. The redeploy timed out on the pre-existing unready `shipping` pod, leaving Helm release `roboshop` in status `failed` (revision 6). The first script refused status and revert in that state. Fixed (D20): `failed` is accepted. After the fix status and revert printed the two lines the quickstart expects and the marker was cleared.
 - Left on the cluster: release `roboshop` still `failed`. Pods run normally. A later `make setup-robot-shop` will fail the same way until `shipping` is Ready.
-- Still open: step 14 (the owner follows only the guide).
+- Step 14 (the owner follows only the guide): waived by the developer 2026-10-21 ("just approve step 14, I don't have time for it"). SC-007 is not proven by a first-time reader.
