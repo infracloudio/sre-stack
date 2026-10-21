@@ -26,7 +26,7 @@ in [research.md](research.md).
 
 ## The run
 
-### Part A — the fault, from start to clean kernel
+### Part A — the fault, from start to clean recovery
 
 3. **Status before anything** (FR-003 base case; SC-006):
    ```
@@ -79,22 +79,25 @@ in [research.md](research.md).
 10. **The dashboard recovery** (SC-003, SC-004): within 2 min of step 8 the new
     section shows the out-of-memory flag line drop back to 0 and no further
     climbing for the cart row. Screenshot: same section as step 6, later.
+    **Extra checks** (added after `/speckit-analyze`): (a) save every other
+    Deployment's resources before step 4 and after step 9 and diff them: empty
+    diff (FR-006); (b) time one whole cycle, start to recovery on the
+    dashboard, with a stopwatch: at most 2 minutes (SC-004); (c) with the fault
+    on, delete the cart pod and confirm the replacement is killed again and
+    status still says active (EC-004), and that status still says active 5
+    minutes later (FR-004).
 
 ### Part B — the refusals and the redeploy tolerance, without shop time lost
 
-11. **Not an Azure cluster** (FR-007, EC-005, one of the two live refusals):
-    switch kubectl context to a non-AKS cluster (for development,
-    `kubectl config use-context <name>`), run `make aks-cart-oom-status`, and
-    confirm it refuses — same convention as 006: the refusal message and
-    `Nothing was changed.` go to stderr, exit code `3`, and no `RESULT:` line
-    is printed:
-    ```
-    This command is for Azure (STACK_MODE=aks); .env says '<value>'. (or the
-    non-AKS cluster refusal for a wrong context)
-    Nothing was changed.
-    ```
-    Switch back to the AKS context. (Start/revert share the same pre-checks and
-    are not re-refused here — nothing would make them behave differently.)
+11. **Refusals** (FR-007, EC-005). Only the cluster `sre-stack-452138` is used
+    (developer's decision 2026-10-21), so no other context is switched to. Run
+    `KUBECONFIG=/dev/null make aks-cart-oom-status` → "Could not reach the
+    cluster…", exit `3`. Then run the script from a scratch copy of the repo
+    whose `.env` says `STACK_MODE=eks` → "This command is for Azure…", exit
+    `3`. Same convention as 006: the refusal message and `Nothing was changed.`
+    go to stderr and no `RESULT:` line is printed. The "not an AKS cluster"
+    node-label check is checked by reading the script. (Start/revert share the
+    same pre-checks.)
 12. **Shop redeployed while the fault is active** (EC-002, FR-008's "shop was
     deployed again" case): set the fault active again with step 4, then run
     `make setup-robot-shop` and check:
@@ -106,13 +109,10 @@ in [research.md](research.md).
     ```
     This is research.md Finding 3 plus Finding 4 as a demonstration, not a new
     run.
-13. **The cluster with the fault never started** (SC-010, FR-014): on a
-    fresh-or-just-Redeployed cluster, all pods at the chart's allowances, with
-    the loadgen on and off, walk 10 minutes of looking at the dashboards —
-    nothing showing the `OOMKilled` flag for any shop pod. The repo's live
-    state did this already for two weeks of Azure runs before this story;
-    the change left an audit trail behind: it says the changed files must hold
-    it.
+13. **The cluster with the fault never started** (SC-010, FR-014): with the
+    fault reverted, all pods at the chart's allowances and the load generator
+    running, watch for 5 minutes in a timed loop: no shop pod shows
+    `OOMKilled` and the Restarts section stays at 0.
 
 ### Part C — the owner's read-only guide passthrough (SC-007)
 
@@ -129,17 +129,19 @@ in [research.md](research.md).
 2. The two Grafana screenshots (step 6 and step 10).
 3. `make lint` output.
 4. `git diff --stat main` showing: changes only under
-   `infra/azure/scenario-02/` and `monitoring/dashboards/application.yaml`,
-   plus the Azure-only lines added to `makefile` and `scenarios/README.md`, and
+   `infra/azure/scenario-02/`, `monitoring/dashboards/application.yaml` and
+   `docs/aks-explained.md`, plus the Azure-only lines added to `makefile` and
+   `scenarios/README.md`, and
    **zero lines** changing `scenarios/scenario-01/`, `scenario-02/` (the EKS
    one), `scenario-04/` (FR-013/SC-009).
 
 ## What this run deliberately does NOT exercise live
 
 Name for the Architect at the plan gate (and in the PR, as story 006's plan
-did): the live run exercises pre-checks only through "not an Azure cluster"
-(step 11); unreadable `.env`, wrong `STACK_MODE`, missing/unready shop
-Deployment, missing Helm release are checked by reading the script alone. The
+did): the live run exercises two refusals (unreachable cluster, and
+`STACK_MODE=eks` from a scratch repo copy; step 11); unreadable `.env`,
+missing/unready shop Deployment, missing Helm release and the "not an AKS
+cluster" node-label check are checked by reading the script alone. The
 remaining EC-006 "cart is failing for its own reasons at its own allowance" is
 verifiable only by a genuine production fault and is left to reading — its
 status behaviour (the "but cart is failing for another reason — this fault is

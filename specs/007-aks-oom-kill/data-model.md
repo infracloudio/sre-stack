@@ -68,6 +68,8 @@ briefly exist simultaneously**, the new one coming up while the old one may
 still serve (every command must handle more than one pod — Finding 1). Pod
 fields the commands use:
 
+- Start's wait counts only pods of the Deployment's newest ReplicaSet; a pod left
+  over from an older rollout may carry a stale kill and is ignored.
 - `status.containerStatuses[name=cart].state` — running / waiting / terminated
   as the container is being killed or waiting to restart.
 - `status.containerStatuses[name=cart].lastState.terminated.reason` —

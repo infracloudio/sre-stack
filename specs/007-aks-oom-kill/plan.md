@@ -2,9 +2,7 @@
 
 **Branch**: `007-aks-oom-kill` | **Date**: 2026-10-21 | **Spec**: [spec.md](spec.md)
 
-**Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
-
-**Note**: This template is filled in by the `/speckit-plan` command; its definition describes the execution workflow.
+**Input**: Feature specification from [spec.md](spec.md)
 
 ## Summary
 
@@ -37,12 +35,6 @@ scenario folders are untouched.
 
 ## Technical Context
 
-<!--
-  ACTION REQUIRED: Replace the content in this section with the technical details
-  for the project. The structure here is presented in advisory capacity to guide
-  the iteration process.
--->
-
 **Language/Version**: Bash 5 scripts (`GNU bash, version 5.2.21(1)-release`) called from GNU make targets. No application code changes; the shop runs upstream images.
 
 **Primary Dependencies**:
@@ -55,7 +47,7 @@ scenario folders are untouched.
 **Storage**: None. Whether the fault is on is held only by the cart Deployment in the cluster; no local state file, so anyone can run status or revert (EC-003).
 
 **Testing**:
-- No offline (fake-`kubectl`) tests — following the developer's decision on story 006 (2026-10-14), to be re-confirmed in this session.
+- No offline (fake-`kubectl`) tests — following the developer's decision on story 006 (2026-10-14), re-confirmed for this story on 2026-10-21.
 - Live: start → status → revert → status on `sre-stack-452138` with the load generator running, timed against SC-001, SC-002, SC-003, SC-005, SC-006; output pasted into the PR.
 - `make lint` for every change.
 
@@ -74,7 +66,7 @@ scenario folders are untouched.
 
 **Scale/Scope**: One Deployment, one namespace, one presenter at a time.
 
-**Open until Phase 0 settles them on `sre-stack-452138`** — each is a question the plan cannot answer from files:
+**Questions Phase 0 settled on `sre-stack-452138`** (all five answered in `research.md` Findings 1–5; kept as the record of what the plan could not answer from files):
 1. cart's real memory use against its `100Mi` allowance, and how far the allowance must be lowered to kill it within 60 s but not so far that it dies before the shop is usable at all (SC-001, SC-002, and the spec's "Not yet checked" assumption).
 2. Whether the installed dashboards show a pod's `OOMKilled` reason and rising restart count, or only one of the two (FR-011; the spec allows the Architect a different panel if not).
 3. Whether `make setup-robot-shop` during an active fault restores the chart's allowance and so clears the fault, which EC-002 expects and FR-008 must tolerate.
@@ -102,7 +94,7 @@ they changed.
 | VII. Plain language | Plan, research and the guide explain terms on first use — "allowance", "out-of-memory kill", "restart count" — with the cart pod as the worked example. | Pass |
 | VIII. Try it before you plan it | Completed against the live `sre-stack-452138`: six findings, every output block verbatim from the terminal — including failures and the three transcription slips caught and rewritten in place. No substitute was requested and none was granted; at no point did planning run on remembered output. The five open questions in Technical Context are all answered in `research.md` Findings 1–5 (Finding 6 is a file-check). | Pass |
 | IX. Author in steps | Technical Context proposed, corrected on the developer's reading, approved; FR-011 amended on the developer's instruction; each Phase 0 finding and each Phase 1 artifact proposed, approved, then moved past. Nothing in any artifact was written "for context" ahead of approval. | Pass |
-| X. Converge to agreed scope | Ten FRs, ten SCs and nine ECs are covered by quickstart steps that name them, or explicitly named as not live-exercisable (Part C note and the missing-refusals list); nothing beyond the agreement was added. No offline tests — the developer's 2026-10-14 decision on story 006 carries, and what that leaves unproven is named in the named-for list. | Pass |
+| X. Converge to agreed scope | Fourteen FRs, ten SCs and nine ECs are covered by quickstart steps that name them, or explicitly named as not live-exercisable (Part C note and the missing-refusals list); nothing beyond the agreement was added. No offline tests — the developer's 2026-10-14 decision on story 006 carries, and what that leaves unproven is named in the named-for list. | Pass |
 
 **Verification and evidence**: `make lint` for every change; the quickstart live
 run (Parts A, B, C) timed against SC-001, SC-002, SC-003, SC-005, SC-006, SC-008
@@ -128,11 +120,11 @@ No hook, policy, workflow or generated adapter file changes.
    keeps its own. The paths never overlap; the new README says once which EKS
    folder it is not, and the makefile help lines read as its siblings.
 3. **What the live run cannot prove** (named, not hidden): the quickstart
-   exercises the refusal path through "not an Azure cluster" (step 11) only;
-   the unreadable-`.env`, wrong-`STACK_MODE`, missing-shop and
-   missing-release refusals, the row-4 status truth table case after a
-   hand-cleared allowance, and EC-006's genuine "cart failing on its own
-   characteristics" case are checked by reading the script — 006 named the
+   runs two refusals live (unreachable cluster, and `STACK_MODE=eks` from a
+   scratch repo copy; step 11); the unreadable-`.env`, missing-shop,
+   missing-release and "not an AKS cluster" node-label refusals, and EC-006's
+   genuine "cart failing on its own characteristics" case are checked by
+   reading the script (status rows 2 and 4 are run live by hand in T004) — 006 named the
    same gap, and it costs the same single read-through in review.
 
 ## Project Structure
@@ -148,7 +140,8 @@ specs/007-aks-oom-kill/
 ├── contracts/
 │   └── commands.md      # Phase 1: targets, RESULT lines, exit codes, budgets
 ├── quickstart.md        # Phase 1: live validation run steps 1–14
-└── tasks.md             # Phase 2 (/speckit-tasks, not created here)
+├── tasks.md             # Phase 2: tasks T001–T011 and the deviations table
+└── evidence/            # T010/T011: run output, screenshots, PR entries (as story 006)
 ```
 
 ### Source Code (repository root)
@@ -161,6 +154,7 @@ infra/azure/scenario-02/                 # NEW folder (Azure numbering; NOT the 
 makefile                                 # ADD only: 3 targets after aks-ratings-abort-revert, 3 help lines after the 006 block (:24–35)
 monitoring/dashboards/application.yaml   # EDIT only: new "Restarts" section (FR-011 as clarified)
 scenarios/README.md                      # ADD only: one Azure line (sibling of the 006 line)
+docs/aks-explained.md                    # EDIT: cart-OOM section, dictionary rows, stale "3 copies" line fixed (task T008)
 ```
 
 | File | Change | Why | Spec |
@@ -169,6 +163,7 @@ scenarios/README.md                      # ADD only: one Azure line (sibling of 
 | `infra/azure/scenario-02/README.md` | new | the guide: what must be running (shop pods Ready, loadgen), the three commands, what each RESULT line means, the restart counter resetting to 0 on revert, the growing back-off windows (EC-007), traffic requirements (EC-001), that re-deploying the shop clears the fault (EC-002), that a genuine cart failure at its own allowance is not this fault (EC-006), and that EKS `scenarios/scenario-01|02|04/` are the EKS way, not this (EC-009) | FR-012, EC-001, EC-002, EC-006, EC-007, EC-009 |
 | `makefile` | add 3 targets + 3 help lines | the documented one-line commands; wording copied from `contracts/commands.md` §1 | FR-001–FR-003, FR-013, SC-008 |
 | `monitoring/dashboards/application.yaml` | edit: one new section | the Restarts section proving FR-011: a restart-count line and the out-of-memory flag line, both on the `prometheus` datasource the dashboard's panels already use, using the two live-proven queries of research Finding 2, with `or vector(0)` so a healthy pod reads 0 rather than "No data" | FR-011, SC-004 |
+| `docs/aks-explained.md` | edit | the Azure explainer page gains the cart-OOM scenario and the dictionary rows, and line 206 ("each runs as 3 copies") is corrected because every service runs one copy on this cluster; added at the developer's request, spec FR-012 widened to name it | FR-012 |
 | `scenarios/README.md` | add one line | so someone browsing the scenarios README finds the Azure cart-OOM guide next to 006's line; unchanged lines stay (SC-009) | FR-012, SC-009 |
 
 **Not changed**: anything under `scenarios/scenario-01/`, `scenario-02/`, `scenario-04/` (FR-013, SC-009); `.env` (no new setting — data-model §6); the shop's Helm chart including `cart-deployment.yaml` and `infra/azure/chart-values/robot-shop.yaml` (the allowance the shop is installed with is left exactly as shipped, which is what FR-008's revert reads); the monitoring chart values; every protected path.
@@ -189,15 +184,15 @@ finding behind it.
 | # | Check | When | Proves | Evidence in PR |
 |---|---|---|---|---|
 | 1 | `make lint` | every commit | shell lint of the new script, YAML lint of the dashboard section and guidance, no protected path touched, Spec Kit and loom unchanged | full output |
-| 2 | Live run of [quickstart.md](quickstart.md) steps 1–14 on the AKS cluster, shop pods `2/2 Ready`, loadgen running (Part A), non-AKS context swap (step 11), redeploy tolerance (step 12), the never-faulted window (step 13), owner passthrough (step 14) | once, after implementation | FR-001–FR-014 (FR-007's one exercised refusal: not-AKS cluster), SC-001–SC-009, SC-010, EC-001, EC-002, EC-004, EC-007, EC-009 | verbatim output of each step, `time` lines for SC-005, both `RESULT:` lines for run-twice checks |
+| 2 | Live run of [quickstart.md](quickstart.md) steps 1–14 on the AKS cluster, shop pods `2/2 Ready`, loadgen running (Part A), refusals shown with `KUBECONFIG=/dev/null` and a scratch repo copy with `STACK_MODE=eks` (step 11; only `sre-stack-452138` is used), redeploy tolerance (step 12), the never-faulted window (step 13), owner passthrough (step 14) | once, after implementation | FR-001–FR-014 (FR-007's one exercised refusal: not-AKS cluster), SC-001–SC-009, SC-010, EC-001, EC-002, EC-004, EC-007, EC-009 | verbatim output of each step, `time` lines for SC-005, both `RESULT:` lines for run-twice checks |
 | 3 | Grafana screenshots: the Restarts section with the fault on (counter climbing, OOM flag 1) and ~2 min after revert (flag gone / 0) | during step 2, Part A | FR-011 as clarified, SC-003, SC-004 | two screenshots |
-| 4 | `git diff --stat main -- scenarios/scenario-01 scenarios/scenario-02 scenarios/scenario-04` empty; `git diff main -- makefile .env scenarios/README.md monitoring/dashboards/application.yaml` adds lines only (none removed) | before opening the PR | FR-013, SC-009, SC-010 untouched | both outputs |
+| 4 | `git diff --stat main -- scenarios/scenario-01 scenarios/scenario-02 scenarios/scenario-04` empty; `git diff main -- makefile .env scenarios/README.md monitoring/dashboards/application.yaml` adds lines only (none removed); `git diff main -- docs/aks-explained.md` removes only the lines tasks T008 names | before opening the PR | FR-013, SC-009, SC-010 untouched | all outputs |
 | 5 | The owner follows only `infra/azure/scenario-02/README.md` for one start → status → revert cycle (the SC-007 test, from a shop the story does not set up) | once, before review | SC-007, FR-012 | a one-line note in the PR |
 
 **Not proven by running** (named in the PR, per the Constitution Check):
-the five refusals other than "not an Azure cluster" (unreadable `.env`, wrong
-`STACK_MODE`, missing cart Deployment, missing Helm release), data-model §3's
-row-4 status case after a hand-cleared allowance, and EC-006's genuine
+the refusals not run live (unreadable `.env`, missing cart Deployment, missing
+Helm release, and the "not an AKS cluster" node-label check; the unreachable
+cluster and `STACK_MODE=eks` refusals are run), and EC-006's genuine
 "cart failing on its own" status suffix — checked by reading the script, the
 same single read-through 006 named for review. **Known cluster conditions** that
 can fail check 2 for reasons outside the story (research.md steps 189–190:

@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-21
 
-**Status**: Draft — all six sections approved during authoring (constitution principle IX); clarified 2026-10-21 (two answers); quality validation passed; awaiting the Architect's `gate:spec-approved`. Story acceptance was confirmed by the developer in session on 2026-10-21; the `intent:accepted` label is still to be added to [issue #114](https://github.com/infracloudio/sre-stack/issues/114).
+**Status**: Draft — all six sections approved during authoring (constitution principle IX); clarified 2026-10-21 (two answers); quality validation passed; amended 2026-10-21 after `/speckit-analyze` (Out of Scope, FR-002, FR-010, FR-012 and Assumptions reworded; developer approved the edits while the Architect was unavailable); awaiting the Architect's `gate:spec-approved`, who should confirm those amendments. Story acceptance was confirmed by the developer in session on 2026-10-21; the `intent:accepted` label is still to be added to [issue #114](https://github.com/infracloudio/sre-stack/issues/114).
 
 **Input**: [Issue #114](https://github.com/infracloudio/sre-stack/issues/114) — "Trigger an OOM kill of a robot-shop pod on AKS with one command"
 
@@ -98,7 +98,7 @@ As a person new to the project, I want the scenarios guide to explain how to sta
 ### Functional Requirements
 
 - **FR-001**: On a running Azure demo shop, a person MUST be able to start the fault with one documented command; once started, the cart pod MUST be killed for using more memory than its allowance, MUST show the `OOMKilled` status, and MUST start again after each kill.
-- **FR-002**: A person MUST be able to revert the fault with one documented command; once reverted, the cart pod MUST hold its original memory allowance again, MUST stay running without further out-of-memory kills, and its restart count MUST stop climbing.
+- **FR-002**: A person MUST be able to revert the fault with one documented command; once reverted, the cart pod MUST hold its original memory allowance again, MUST stay running without further out-of-memory kills, and its restart count MUST stop climbing (the replacement pod may start counting again from zero).
 - **FR-003**: A person MUST be able to run one documented status command that changes nothing and reports whether the fault is active.
 - **FR-004**: Once started, the fault MUST stay active until someone runs the revert command; it MUST NOT remove itself after a set time.
 - **FR-005**: Running the start command while the fault is active, or the revert command while no fault is active, MUST succeed and leave the shop in the same state.
@@ -106,9 +106,9 @@ As a person new to the project, I want the scenarios guide to explain how to sta
 - **FR-007**: If the person's environment is not connected to an Azure cluster running the demo shop, or the cart service is not deployed, the start, status and revert commands MUST stop with a message saying what is missing, and MUST change nothing.
 - **FR-008**: The revert command MUST leave the cart pod at the memory allowance the shop is installed with at the moment it runs, whether or not the fault is still active — including when the shop was deployed again while the fault was active, when the fault was never started, and when a person changed the allowance by hand. It MUST NOT replay an allowance recorded when the fault was started.
 - **FR-009**: After making its change, the start and revert commands MUST each wait until they see the expected result before reporting success: an out-of-memory kill after start, a running pod with no further kills after revert. If the result does not appear, the command MUST stop with a message saying what it saw.
-- **FR-010**: The status command MUST report the fault as active only when the cart pod is being killed because of this fault. If cart is being killed for another reason, status MUST say so instead of reporting the fault as active. While the fault is active but the pod is waiting between restarts, status MUST still report the fault as active: that wait is normal and the lowered allowance is still in place.
+- **FR-010**: The status command MUST report the fault as active only when this fault is in place on the cart pod (a kill may still be pending just after start). If cart is being killed for another reason, status MUST say so instead of reporting the fault as active. While the fault is active but the pod is waiting between restarts, status MUST still report the fault as active: that wait is normal and the lowered allowance is still in place.
 - **FR-011**: The out-of-memory kills and restarts MUST be visible on a dashboard that the Azure monitoring setup already installs and that the demo already opens. Showing them may mean adding a section to a dashboard it installs today; creating a new dashboard is out of scope.
-- **FR-012**: The scenarios guide MUST explain, for Azure: what must already be running, the start command, the status command, what to look for on the dashboards, and the revert command.
+- **FR-012**: The scenarios guide MUST explain, for Azure: what must already be running, the start command, the status command, what to look for on the dashboards, and the revert command. The project's Azure explainer page MUST also describe the fault and correct any statement the fault shows to be wrong for Azure.
 - **FR-013**: The files of the EKS scenarios 01, 02 and 04 MUST NOT change. Where Azure needs behavior different from EKS, it MUST be provided separately. Files shared with EKS (the project's settings file and top-level commands) MAY gain Azure-only additions, but their existing settings and commands MUST stay as they are.
 - **FR-014**: Setting up Azure and deploying the demo shop MUST behave as today when the fault has never been started.
 
@@ -133,12 +133,12 @@ As a person new to the project, I want the scenarios guide to explain how to sta
 - The shop runs in the namespace named by the project's shared settings file, and the person running the commands can manage the Azure cluster from their machine and uses that file unchanged.
 - The shop is installed with its own default memory allowances, and the person has not changed them by hand. "Original allowance" in this spec means the allowance the shop is installed with.
 - The shop receives traffic during the demo: from the project's optional load generator, which the Azure setup prints how to start but does not start, or from a person using the shop. Triggering the fault does not change the amount of traffic.
-- The load generator sends its traffic to the shop's front end, and the front end passes shopping visits on to the cart service, so cart is in use while the demo runs. **Not yet checked**: whether that path reaches cart often enough for the dashboards to show it. To be confirmed on a live cluster during planning.
+- The load generator sends its traffic to the shop's front end, and the front end passes shopping visits on to the cart service, so cart is in use while the demo runs. Checked on the live cluster during planning (research.md Finding 5): the load generator's traffic reaches cart often enough to trigger the kill.
 - The cart service runs as a single pod on Azure, because the shop's definition fixes it at one copy for every target other than the EKS setup.
 - The cluster starts a stopped container again on its own, without anyone running a command: the shop's other services say so explicitly, and cart leaves it at the cluster's default, which is to always restart. Checked by reading the shop's deployment definitions; the default itself is a documented cluster behaviour.
-- Checked on the live cluster during planning (research.md Finding 1): cart idles at 31–33Mi against its 100Mi allowance, and lowering the allowance to 24Mi killed it within 15 seconds, three times in 44 seconds, always showing the out-of-memory status. This is what SC-001 and SC-002 depend on.
+- Checked on the live cluster during planning (research.md Finding 1): cart idles well below its allowance, and a small enough allowance kills it within seconds, repeatedly, always showing the out-of-memory status. The exact numbers are in research.md. This is what SC-001 and SC-002 depend on.
 - Checked on the live cluster during planning (research.md Finding 2): no dashboard the monitoring setup installs — on this cluster or on EKS — shows a pod's restart count or its out-of-memory kills. As clarified, FR-011 now allows a section to be added to an existing dashboard, and the two numbers a presenter points at were confirmed to move on the live cluster while the fault ran and while it was reverted.
-- **Not yet checked**: that deploying the shop again while the fault is active clears the fault, which FR-008 is written to tolerate. To be confirmed during planning.
+- Checked on the live cluster during planning (research.md Finding 3): deploying the shop again while the fault is active clears the fault, which FR-008 is written to tolerate.
 - One presenter uses the fault at a time; two people starting and reverting it at once on the same cluster is not handled (chosen default).
 - Verification happens on a live Azure cluster only; EKS and local clusters are not tested (out of scope per the issue).
 - Scenario 01's existing EKS commands, including their known faults, are left as they are (FR-013); fixing them for EKS is a separate story. Scenario 04's unfinished mitigation is likewise not repaired here.
@@ -159,7 +159,7 @@ Decided while writing this specification:
 - Making a whole machine run out of memory, or evicting pods for node-level memory pressure. This story changes one container's allowance only.
 - Changing the shop's traffic, including starting or stopping the load generator as part of the commands.
 - Choosing or tuning the shop's memory allowances for real workloads. The original allowance is restored; it is not re-designed.
-- New dashboards, panels, alerts or recording rules (FR-011).
+- New dashboards, alerts or recording rules. One added section on a dashboard the monitoring setup already installs is in scope (FR-011 as clarified).
 - A history of who started the fault or when, or any automatic removal after a set time or after a disconnect (FR-004).
 - Coordinating two presenters using the fault at the same time on one cluster.
 - Fixing scenario 01's EKS commands, their timer, or their shell problems (FR-013).

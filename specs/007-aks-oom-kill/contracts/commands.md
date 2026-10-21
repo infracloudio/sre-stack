@@ -26,9 +26,9 @@ and three lines in the `help` target under the existing Azure help lines
 (`makefile:32–34`), same shape:
 
 ```makefile
-@echo "	aks-cart-oom-start             - Start the cart out-of-memory fault on AKS: cart's memory allowance is lowered until reverted"
-@echo "	aks-cart-oom-status            - Report whether the cart out-of-memory fault is active (AKS, changes nothing)"
-@echo "	aks-cart-oom-revert            - Remove the cart out-of-memory fault (AKS)"
+@echo "	aks-cart-oom-start                - Start Azure scenario 02 on AKS: cart is killed for running out of memory"
+@echo "	aks-cart-oom-status               - Report whether the Azure scenario 02 cart fault is active (AKS, changes nothing)"
+@echo "	aks-cart-oom-revert               - Remove the Azure scenario 02 cart fault (AKS)"
 ```
 
 Script path `infra/azure/scenario-02/cart-oom-kill.sh`, the numbering
@@ -46,7 +46,7 @@ and refusals follow 006's script exactly:
 | Code | Meaning |
 |---|---|
 | `0` | done, and the command's own check agreed with what it observes |
-| `1` | done, but the check disagrees — the allowance is lowered and this fault did not set it, or the state never became what the command waited for |
+| `1` | done, but the check disagrees — the state never became what the command waited for, or (status only) the allowance is lowered and this fault did not set it (row 2). Status exits `0` for rows 1, 3 and 4 |
 | `2` | usage error (unknown verb) |
 | `3` | a pre-check refused; nothing was changed |
 
@@ -74,9 +74,9 @@ Always read-only. Prints one of:
 
 | State | `RESULT:` line |
 |---|---|
-| Row 3 (active) | `RESULT: fault active (cart allowance 24Mi, restarts currently climbing OR waiting for the next restart)` |
+| Row 3 (active) | `RESULT: fault active (cart allowance 24Mi, restarts currently climbing / waiting for the next restart)` — "active" means the fault is in place; the first kill may still be pending just after start |
 | Row 1 | `RESULT: fault not active (cart runs at the chart's allowance, no out-of-memory kills recorded)`; if the container is nonetheless `OOMKilled`/`CrashLoopBackOff` at that allowance, the line ends `… but cart is failing for another reason — this fault is not active` (EC-006) |
-| Row 2 | `RESULT: the cart allowance (24Mi) was not set by this fault — it is not active` (EC-008, 006's "rule holds a fault this command did not set" wording family) |
+| Row 2 | `RESULT: the cart allowance (<live value>) was not set by this fault — it is not active` (the live value is read from the Deployment, e.g. `80Mi`; EC-008, 006's "rule holds a fault this command did not set" wording family) |
 | Row 4 | `RESULT: fault not active (the shop's allowance is correct); a leftover marker can be cleared with the revert command` |
 
 ### `revert`
@@ -88,7 +88,11 @@ Always read-only. Prints one of:
 | Row 2 lowered, no marker | restores the allowance (FR-008 covers this state) | `RESULT: fault reverted (cart allowance restored to the shop's installed values)` |
 | Row 4 marker only | removes the marker, touches no allowance | `RESULT: fault not active; nothing changed (leftover marker cleared)` |
 
+Revert whose wait runs out: `RESULT: the allowance was restored but cart is not running cleanly within 60s; state when last seen: <pod fields>`, exit `1`.
+
 Notes both start and revert obey (FR-009):
+
+- Start's wait looks only at pods of the Deployment's newest ReplicaSet, so a kill left on an older pod cannot satisfy it.
 
 - The wait loop checks the pod's actual state through the fields in
   `data-model.md` §4 — never a fixed sleep — and prints what it saw when the
