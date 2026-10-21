@@ -14,7 +14,7 @@ spec:
   template:
     metadata:
       annotations:
-        sidecar.istio.io/inject: "false"
+        sidecar.istio.io/inject: {{ .Values.mysqlseeder.injectSidecar | default false | quote }}
     spec:
       containers:
       - name: mysql-seeder
@@ -23,15 +23,35 @@ spec:
           - /bin/bash
           - -c
 {{- if .Values.mysqlseeder.fileTimeoutSeconds }}
-          # Bounded import: a stalled mysql client is killed after
-          # fileTimeoutSeconds, the container fails and the Job retries
-          # (the seed files drop and recreate their tables, so a rerun is safe).
+          # Bounded import. The mysql client can hang after the server has
+          # finished (its connection is gone, the client never learns), so each
+          # file ends with a marker table and the client is killed after
+          # fileTimeoutSeconds. A fresh connection then checks the marker: present
+          # means the file loaded, absent means fail and let the Job retry (the
+          # seed files drop and recreate their tables, so a rerun is safe).
           - |
             /wait || exit 1
+            sql() { MYSQL_PWD="$MYSQL_PASSWORD" mysql -h "$MYSQL_HOST" -u "$MYSQL_USER" "$@"; }
+            # /wait only proves a TCP connection opens; the mesh sidecar accepts
+            # that before MySQL is ready, so wait for a real answer.
+            n=0
+            until timeout 15 mysql -h "$MYSQL_HOST" -u "$MYSQL_USER" -e "SELECT 1" >/dev/null 2>&1; do
+              n=$((n + 1)); [ "$n" -ge 40 ] && { echo "MySQL did not answer"; exit 1; }
+              sleep 5
+            done
+            sql -e "CREATE DATABASE IF NOT EXISTS seed_state" || exit 1
             for f in /opt/seeds/*.sql; do
+              m="done_$(basename "$f" .sql | tr -c 'a-zA-Z0-9' '_')"
               echo "Adding file: $f"
-              MYSQL_PWD="$MYSQL_PASSWORD" timeout {{ .Values.mysqlseeder.fileTimeoutSeconds }} \
-                mysql -h "$MYSQL_HOST" -u "$MYSQL_USER" < "$f" || exit 1
+              sql -e "DROP TABLE IF EXISTS seed_state.$m" || exit 1
+              { cat "$f"; echo "CREATE TABLE seed_state.$m (x INT);"; } | \
+                MYSQL_PWD="$MYSQL_PASSWORD" timeout {{ .Values.mysqlseeder.fileTimeoutSeconds }} \
+                mysql -h "$MYSQL_HOST" -u "$MYSQL_USER"
+              if [ "$(sql -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='seed_state' AND table_name='$m'")" = "1" ]; then
+                echo "Loaded: $f"
+              else
+                echo "Not loaded (marker missing): $f"; exit 1
+              fi
             done
 {{- else }}
           - /wait && /opt/seeds/seeder.sh

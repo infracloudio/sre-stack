@@ -116,11 +116,17 @@ redis:
       effect: "NoSchedule"
 
 mysqlseeder:
+  # Outside the mesh the seed job's plaintext connection hangs at MySQL's
+  # server-first handshake (the sidecar waits for the client to speak). Inside
+  # the mesh it reaches MySQL the way shipping does. Native sidecars let the Job
+  # still complete. Excluding MySQL's port from its sidecar instead breaks the
+  # mesh clients (automatic mTLS), so do not (specs/007 tasks D21).
+  injectSidecar: true
   # Seed load: the chart's 200m CPU limit lets the 64 MB import stall (story 006
   # found the client idle with no MySQL session). More CPU makes a stall rare, and
-  # fileTimeoutSeconds bounds each file so a stalled import is killed and retried
-  # by the Job (specs/007 tasks D21).
-  fileTimeoutSeconds: 420
+  # fileTimeoutSeconds bounds each file; a marker table tells a hung client
+  # from a failed import, and a failed one is retried by the Job (specs/007 tasks D21).
+  fileTimeoutSeconds: 150
   resources:
     limits:
       cpu: 1000m

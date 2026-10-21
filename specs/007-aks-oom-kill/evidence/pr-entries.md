@@ -70,3 +70,13 @@ Evidence for the pull request. Terminal output is in `quickstart-run.txt` in thi
 - Step 12 left the database half-loaded (`codes` 9 rows, `ratings` empty) because the redeploy re-ran the seed job, which stalled. Repairing the data by hand was denied by the permission check; the planned fix is a new `make setup-robot-shop`, which re-seeds with the new bounded job (T015, not yet run).
 - Left in `mysql-0:/tmp` by my attempt: `10-cities.sql` and `20-ratings.sql` (copied intact, checksums match; about 64 MB). Harmless; remove with `kubectl exec mysql-0 -n robot-shop -c mysql -- rm /tmp/10-cities.sql /tmp/20-ratings.sql`.
 - Helm release `roboshop` is `failed` (revision 6) until a successful redeploy.
+
+## Handoff, 2026-10-21 evening (cluster stopped overnight)
+
+State when stopped:
+- Seed job (T015, D21) is still unfinished. Findings: the seed client hangs when it connects from outside the mesh (MySQL speaks first, the sidecar waits). Excluding MySQL's port from its sidecar was tried and is WRONG: it breaks shipping and ratings (automatic mTLS). The repo now puts the seed job in the mesh (`mysqlseeder.injectSidecar: true`, Azure overlay) and waits for a real MySQL answer before importing. That last change was rendered and shellchecked but NOT yet deployed or proven live.
+- After the next `make setup-robot-shop`, expect the seeder Job to complete, then `kubectl rollout restart deployment/shipping deployment/ratings -n robot-shop` if either is slow or not Ready after a MySQL restart. `cities.codes` should have 25 rows; `ratings.ratings` starts empty by design.
+- The ratings abort fault (scenario 01) was already ON when the day started and is probably still on (a VirtualService, survives a cluster stop). Revert with `make aks-ratings-abort-revert`.
+- The cart out-of-memory fault was ended by the last redeploy.
+- Helm release `roboshop` status after the last redeploy: check with `helm status roboshop -n robot-shop`.
+- Not pushed: the commits after `828ca87` and today's last uncommitted work (committed locally as WIP).

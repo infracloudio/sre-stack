@@ -173,5 +173,7 @@ Done during implementation although first out of scope, each decided by the deve
 - Throwaway pods in a scratch namespace were made to restart and run out of memory once, to prove the section shows a pod other than cart (D19). The "any pod other than cart" line above still holds for the fault itself: the start command only touches cart. The scratch namespace was deleted afterwards.
 - The Azure explainer page `docs/aks-explained.md` was edited, including its wrong "3 copies" line (D7; FR-012).
 - The Playwright MCP server was allowed for loopback Grafana checks in `agent/policies/allowed-mcp-servers.md` (D11).
+- The shop on cluster `sre-stack-452138` was repaired after the redeploy check left it damaged (D21, T015): a redeploy with `make setup-robot-shop` to reload the half-loaded database, heal the failed Helm release and bring `shipping` to 2/2 Ready, and a `shipping` rollout restart to show the fix survives one. Only this cluster; the commands are the project's own.
+- The Service Map panel on the Application Dashboard colours a node red when its service is down (D22).
 - Shipping's CPU limit and the database seed job were fixed in the Azure chart values and the seeder job template (D21), after the redeploy check showed a 1/2 Ready `shipping` and a stalled seed. EKS renders unchanged.
 - `monitoring/dashboards/application.yaml` was re-indented and `.yamllint.yaml` lost one ignore line, because the repo's lint ratchet requires a touched legacy file to be fixed (D17). No dashboard data changed.
