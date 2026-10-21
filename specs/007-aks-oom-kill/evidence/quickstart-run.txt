@@ -145,3 +145,24 @@ Baseline screenshot 01-baseline.png: healthy shop, taken just before this cycle 
 == Step 12 (redeploy while the fault is on): NOT RUN ==
 Asked a second time; the permission check denied "make setup-robot-shop" again as a change to shared resources. Not retried.
 Covered only by reading the script and research Findings 3 and 4.
+
+== Step 12: shop redeployed while the fault is on (2026-10-21, developer asked for it; permission granted on the third try) ==
+$ make aks-cart-oom-start
+RESULT: fault active (cart container was killed for running out of memory within 60s)
+$ make setup-robot-shop
+helm upgrade --install roboshop ... --wait --timeout 10m0s
+Error: UPGRADE FAILED: context deadline exceeded     (shipping stays 1/2 Ready, as before this story; helm --wait never completes)
+helm status: STATUS: failed, REVISION 6 (revision 5 was deployed)
+Cart after the redeploy: limits 100Mi / requests 50Mi (the chart's allowance was applied), marker still "active".
+$ make aks-cart-oom-status   (first version of the script)
+The Helm release 'roboshop' is not deployed in 'robot-shop'; run 'make setup-robot-shop'.   exit 3   <- gap found
+Fix (deviation D20): the pre-check accepts a release whose last revision is `failed` as well as `deployed`.
+$ make aks-cart-oom-status
+RESULT: fault not active (the shop's allowance is correct); a leftover marker can be cleared with the revert command
+$ make aks-cart-oom-revert
+Only the leftover marker remains; removing it...
+RESULT: fault not active; nothing changed (leftover marker cleared)
+$ make aks-cart-oom-status
+RESULT: fault not active (cart runs at the chart's allowance, no out-of-memory kills recorded)
+marker annotation after: absent. Shellcheck clean.
+Side effect left on the cluster: Helm release roboshop is in status "failed" (revision 6), caused by the redeploy timing out on the pre-existing unready shipping pod. Pods keep running.

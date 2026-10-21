@@ -168,7 +168,7 @@ clears in about 2 minutes.
 - The commands refuse and change nothing when they are not on Azure
   (`STACK_MODE` is not `aks`), the cluster cannot be reached, the cluster is
   not an Azure (AKS) cluster, the shop's cart is not installed, or the shop's
-  Helm release is missing.
+  Helm release is missing. A release whose last redeploy failed (Helm status `failed`, for example when the redeploy times out waiting for a pod that was already not ready) still works: its last revision says what the shop is installed with.
 - When you run a command through `make`, any failure makes `make` itself exit
   with code 2 and print `Error <n>`, where `<n>` is the script's own code. The
   script's codes, which you see if you run

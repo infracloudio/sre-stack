@@ -59,8 +59,8 @@ precheck() {
         refuse "The demo shop is not installed (no cart Deployment in '${_app_ns}'); run 'make setup-robot-shop'."
     fi
 
-    if [ -z "$(timeout 10 helm list -n "${_app_ns}" --deployed --filter "^${_release}\$" -q 2>/dev/null || true)" ]; then
-        refuse "The Helm release '${_release}' is not deployed in '${_app_ns}'; run 'make setup-robot-shop'."
+    if [ -z "$(timeout 10 helm list -n "${_app_ns}" --deployed --failed --filter "^${_release}\$" -q 2>/dev/null || true)" ]; then
+        refuse "The Helm release '${_release}' has no deployed or failed revision in '${_app_ns}'; run 'make setup-robot-shop'."
     fi
 }
 

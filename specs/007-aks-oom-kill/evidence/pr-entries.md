@@ -50,10 +50,16 @@ Evidence for the pull request. Terminal output is in `quickstart-run.txt` in thi
 ## Final update (2026-10-21)
 
 - Stopwatch cycle done: 70 s from start to dashboard recovery (SC-004 pass). `01-baseline.png` taken before it.
-- Step 12 asked twice, denied twice by the permission check. Not run. It stays the developer's to run or to accept as read-only evidence.
+- Step 12: denied twice, then run on the third ask (see the section below).
 - T010 stays open only for step 12.
 - Step 14 (owner follows only the guide): developer's.
 
 ## Whitespace re-indent of application.yaml (deviation D17)
 
 - The pre-commit ratchet forced a yamllint fix on `monitoring/dashboards/application.yaml`, so its dashboard block is re-indented by 2 spaces and `.yamllint.yaml` lost one ignore line. Review with `git diff -w`: only this story's panel additions remain. Parsed data identical; cluster ConfigMap reported unchanged.
+
+## Step 12 done (T014 (a), 2026-10-21)
+
+- Ran live. The redeploy timed out on the pre-existing unready `shipping` pod, leaving Helm release `roboshop` in status `failed` (revision 6). The first script refused status and revert in that state. Fixed (D20): `failed` is accepted. After the fix status and revert printed the two lines the quickstart expects and the marker was cleared.
+- Left on the cluster: release `roboshop` still `failed`. Pods run normally. A later `make setup-robot-shop` will fail the same way until `shipping` is Ready.
+- Still open: step 14 (the owner follows only the guide).

@@ -105,7 +105,7 @@ order given, against the live cluster, wherever marked ✔:
    not a naming guess.
 4. Namespace `APP_NS` holds a `cart` Deployment ✔ (every finding up to Finding 4
    read it live).
-5. Helm release `roboshop` exists and is `deployed` ✔ (Finding 3: the redeploy
+5. Helm release `roboshop` exists and is `deployed` or `failed` ✔ (a failed last redeploy still holds the allowance the shop was installed with; found by the live redeploy check, tasks D20) (Finding 3: the redeploy
    itself printed "Release has been upgraded", `REVISION: 4`; Finding 4: the
    release manifest was read as the revert source). A missing release also
    means there is no "allowance the shop is installed with" for FR-008 to
