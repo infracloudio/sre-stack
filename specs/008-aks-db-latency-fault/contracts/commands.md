@@ -59,8 +59,8 @@ State names are from `data-model.md`. Each run prints one `RESULT:` line when it
 | start | On | `RESULT: fault already active` | 0 |
 | start, lookups not slow | any | `RESULT: the fault is set but the lookups were not slow: shipping <n.n>s, ratings <n.n>s` | 1 |
 | revert | On or Partial | `RESULT: fault removed (shipping lookup <n.n>s, ratings lookup <n.n>s)` | 0 |
-| revert | Off or Not installed | `RESULT: fault not active, nothing changed` | 0 |
-| revert, lookups still slow | any | `RESULT: the fault is removed but the lookups are still slow: shipping <n.n>s, ratings <n.n>s` | 1 |
+| revert | Off or Not installed, lookups normal | `RESULT: fault not active, nothing changed` | 0 |
+| revert, lookups still slow | any (revert always sends the test requests, even when it changed nothing) | `RESULT: the fault is removed but the lookups are still slow: shipping <n.n>s, ratings <n.n>s` | 1 |
 | status | On | `RESULT: fault active (shipping lookup <n.n>s, ratings lookup <n.n>s)` | 0 |
 | status | Off or Not installed, normal speed | `RESULT: fault not active` | 0 |
 | status | Off or Not installed, slow | `RESULT: fault not active, but the lookups are slow for another reason: shipping <n.n>s, ratings <n.n>s` | 1 |

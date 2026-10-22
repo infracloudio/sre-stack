@@ -10,18 +10,18 @@
 
 ## Clarifications
 
-### Session 2026-10-22
+### Session 1 (2026-10-22)
 
 - Q: If the cluster restarts the database partway through a demo, must the slowness still be on afterwards? → A: Yes; the fault must survive a database restart, and the tests restart the database to prove it. **Superseded in session 2.**
 
-### Session 2026-10-22 (after hands-on research on the live cluster)
+### Session 2 (2026-10-22, after hands-on research on the live cluster)
 
 - Q: Must the slowness survive a database restart? → A: No. Making it survive would mean restarting the database itself, which takes the shop's ratings and shipping down on every start and every revert. After a restart the fault is gone, the status command says so, and the start command can be run again.
 - Q: Which shop request shows the slowness? → A: The shipping cost lookup. **Superseded in session 3**: ratings is included again.
 - Q: How slow is "slow"? → A: The shipping cost lookup takes longer than 2 seconds. There is no upper limit, as long as the request still answers. **Refined in session 3**: shipping measured about 0.2 to 0.3 seconds normally in the latest test, and ratings is slow above 0.5 seconds.
 - Q: Can there be a panel on the Database dashboard? → A: Yes, one new panel showing the average time a database query takes. A panel showing the time within which nine in ten queries finish is not possible, because this database version does not report it.
 
-### Session 2026-10-22 (after a different way to slow the database was found)
+### Session 3 (2026-10-22 to 2026-10-23, after a different way to slow the database was found)
 
 - Q: Which shop requests show the slowness? → A: Both the shipping cost lookup and the ratings lookup. The database now makes each of those two lookups wait a fixed short time before answering, so each can be set to a useful speed on its own and the answers stay identical.
 - Q: How slow is "slow" for each? → A: The shipping cost lookup takes longer than 2 seconds and the ratings lookup longer than 0.5 seconds (ratings normally takes about 0.02 seconds). Neither has an upper limit, as long as the request still answers.

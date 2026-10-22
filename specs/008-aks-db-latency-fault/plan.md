@@ -1,16 +1,12 @@
-# Implementation Plan: [FEATURE]
+# Implementation Plan: Slow Database Fault for the Demo Shop on Azure
 
 **Branch**: `008-aks-db-latency-fault` | **Date**: 2026-10-22 | **Spec**: [spec.md](spec.md)
 
 **Input**: Feature specification from `/specs/008-aks-db-latency-fault/spec.md`
 
-**Note**: This template is filled in by the `/speckit-plan` command; its definition describes the execution workflow.
-
 ## Summary
 
 The fault is a fixed wait added to three of MySQL's own queries by the Rewriter plugin that ships in the existing database image: 2.5 s for the two shipping queries and 0.5 s for the ratings query (`research.md` Findings 9 and 12). One Bash script with three verbs (`start`, `status`, `revert`) installs the plugin if it is missing and turns the rules on or off; revert only disables them (Finding 10). The shop gets slower with identical answers, no errors and no data change. A new panel on the Database dashboard shows the average query time, and a new Azure-only dashboard lists slow requests and opens their step-by-step view. The approach changed in Phase 0 from lowering the database's CPU limit to this plugin (Findings 8 and 9).
-
-> **Work in progress, 2026-10-23.** Summary, Technical Context, Constitution Check, Project Structure and Verification are written; Phase 1 outputs exist (`data-model.md`, `contracts/commands.md`, `quickstart.md`). Technical Context and the Constitution Check were rewritten on 2026-10-23 after the research changed the approach (`research.md` Findings 8 to 14).
 
 ## Technical Context
 
@@ -54,7 +50,7 @@ The fault is a fixed wait added to three of MySQL's own queries by the Rewriter 
 6. Dashboards: threads running, query rate and a new average-time panel move; a new Azure-only dashboard lists slow requests and links to traces (Findings 9 and 11).
 7. Other MySQL users: none (Finding 3).
 
-**Open**: why the data is re-created on a MySQL restart although the data directory is a volume claim (Finding 14). The empty `ratings` table is explained by the load generator adding the rows (developer's explanation, consistent with Finding 14).
+**Known unknown**: why the data is re-created on a MySQL restart although the data directory is a volume claim is not known (Finding 14). The guides state only the observed behaviour, and the PR lists this as not explained. The empty `ratings` table is explained by the load generator adding the rows (developer's explanation, consistent with Finding 14).
 
 ## Constitution Check
 
