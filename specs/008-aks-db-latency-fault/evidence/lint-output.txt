@@ -1,0 +1,75 @@
+check-hooks-enabled: .githooks active
+check-secrets: clean (425 files)
+check-protected-paths: clean (20 files)
+check-ratchets: clean (20 changed files)
+infra/azure/chart-values/otel-collector.yaml
+  95:5      warning  comment not indented like content  (comments-indentation)
+  483:7     warning  comment not indented like content  (comments-indentation)
+  495:7     warning  comment not indented like content  (comments-indentation)
+
+==> Linting /home/rijojohn/dev/sre-stack/app/robot-shop/helm
+[INFO] Chart.yaml: icon is recommended
+
+1 chart(s) linted, 0 chart(s) failed
+lint-changed: clean (sh:93 yaml:106 charts:46)
+==> Linting app/robot-shop/helm
+[INFO] Chart.yaml: icon is recommended
+
+1 chart(s) linted, 0 chart(s) failed
+PASS infra/azure/chart-values/loki.yaml
+PASS infra/azure/chart-values/alloy.yaml
+PASS infra/azure/chart-values/otel-collector.yaml
+PASS monitoring/chart-values/prometheus-values.yaml
+PASS infra/azure/kiali/kiali.yaml
+placement check: all files select and tolerate the o11y pool correctly
+case ok:
+  PASS ok:exit-0
+  PASS ok:0 failures
+case misplaced:
+  PASS misplaced:exit-nonzero
+  PASS misplaced:names the pod
+  PASS misplaced:1 failure
+case helper-gap:
+  PASS helper-gap:exit-nonzero
+  PASS helper-gap:names the pool
+case helper-absent:
+  PASS helper-absent:exit-nonzero
+  PASS helper-absent:names the helper
+case beyla-gap:
+  PASS beyla-gap:exit-nonzero
+  PASS beyla-gap:names the pool
+
+verify-observability offline tests: 11 checks, 0 failed
+case no-crd:
+  PASS no-crd:exit-0
+  PASS no-crd:skip message
+  PASS no-crd:0 applies
+case no-ns:
+  PASS no-ns:exit-0
+  PASS no-ns:names the namespace
+  PASS no-ns:0 applies
+case mesh:
+  PASS mesh:exit-0
+  PASS mesh:4 applies
+  PASS mesh:applies grafana-vs.yaml
+  PASS mesh:applies prometheus-vs.yaml
+  PASS mesh:applies istio-podmonitor.yaml
+  PASS mesh:applies istio-servicemonitor.yaml
+  PASS mesh:no skip message
+case kube-err:
+  PASS kube-err:exit-1
+  PASS kube-err:says kubectl failed
+  PASS kube-err:no skip message
+  PASS kube-err:0 applies
+case dry-run:
+  PASS dry-run:exit-0
+  PASS dry-run:4 applies
+  PASS dry-run:every apply is client-side
+
+o11y-routes offline tests: 20 checks, 0 failed
+speckit-version: artifacts match installer pin v1.0.4
+loom: WARNING: spec pack claude.md is 50 days old — run the loom skill to refresh
+loom: WARNING: spec pack codex.md is 50 days old — run the loom skill to refresh
+loom: WARNING: spec pack devin.md is 50 days old — run the loom skill to refresh
+loom: WARNING: spec pack opencode.md is 50 days old — run the loom skill to refresh
+loom: check clean — adapters match regeneration

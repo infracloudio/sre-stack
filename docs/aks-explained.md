@@ -450,7 +450,7 @@ Grafana starts with these dashboards already loaded:
 |---|---|---|
 | **Application Dashboard** | The whole robot shop on one page: request volume, success rate, slow requests (P50 and P90, explained below), errors per part, error log lines per part, the Service Map, and a **Restarts** row at the bottom with the cart's restart count and whether it was killed for running out of memory. | "Is the shop healthy right now?" |
 | **Istio Service Dashboard** | One part at a time: who calls it, how often, how fast, how many fail. | "What is wrong with *this* part?" |
-| **MySQL** | The MySQL database: connections, queries per second, memory. | "Is the database the bottleneck?" |
+| **MySQL** | The MySQL database: connections, queries per second, memory, and the average time a query takes. | "Is the database the bottleneck?" |
 | **RabbitMQ** | The order queue: messages in, messages out, messages waiting. | "Are orders piling up?" |
 
 The standard Kubernetes dashboards that come with Prometheus's install
@@ -547,14 +547,16 @@ become very visible.
 
 ## 8. Breaking things on purpose (fault injection)
 
-**In short: two scenarios run on Azure today. Scenario 01 has two
+**In short: three scenarios run on Azure today. Scenario 01 has two
 versions, and both break the ratings part in a specific way. Version 1
 stays broken until you run one command to fix it, at normal traffic.
 Version 2 turns the pretend shoppers up to 5,000, breaks ratings for 10
 minutes, then puts everything back by itself. Scenario 02 gives the cart
 part too little memory, so the cluster keeps killing it until you run one
-command to fix it. Your job is to spot the problem on the dashboards and
-work out which part is to blame.**
+command to fix it. Scenario 03 makes the database answer slowly, so
+shipping cost and ratings take longer, until you run one command to fix
+it. Your job is to spot the problem on the dashboards and work out which
+part is to blame.**
 
 ### How every scenario works
 
@@ -681,6 +683,33 @@ cluster, which is why the failure shows.
 container that is stopped by force from the outside writes nothing about
 it, so the logs look quiet while the count climbs.
 
+### Azure scenario 03: the shop's database is slow
+
+**The story.** The database that holds the shipping cities and the
+product ratings has become slow. Nothing is broken and nothing fails;
+every question just takes longer to answer.
+
+**What the command actually does.** `make aks-db-latency-start` turns on
+three rules inside the database that add a fixed wait of 2.5 seconds to
+the two shipping lookups and 0.5 seconds to the ratings lookup. The
+answers are identical and no shop data changes. It then sends a few test
+requests and reports whether they were slow. The wait stays until you
+remove it with `make aks-db-latency-revert`.
+
+**What a shopper notices.** The shipping cost and the ratings take
+noticeably longer to appear. Nothing shows an error.
+
+**What you should see:**
+
+| Where | What |
+|---|---|
+| Database dashboard → **MySQL Average Query Time** | About 50 milliseconds normally with the pretend shoppers running; rises about tenfold (to roughly half a second) while the fault is on, because only three kinds of query are slowed. |
+| **Slow shop requests** dashboard (Azure Scenario Dashboards folder) | Two tables of shipping requests over 2 seconds and ratings requests over 0.5 seconds. Pick a trace ID to see the step-by-step view; the database step is most of the time. |
+
+**The lesson.** When a request is slow, open one slow request's
+step-by-step view before changing anything: it shows which step the time
+went to, and here that is the database, not the part you were looking at.
+
 ### How to start a scenario
 
 Version 1 runs from the repository root. See
@@ -714,12 +743,23 @@ make aks-cart-oom-status   # is the fault on?
 make aks-cart-oom-revert   # restore the allowance
 ```
 
+Azure scenario 03 (the shop's database is slow) also runs from the
+repository root. See
+[`infra/azure/scenario-03/README.md`](../infra/azure/scenario-03/README.md)
+for the full guide:
+
+```bash
+make aks-db-latency-start    # add a fixed wait to the shop's database lookups
+make aks-db-latency-status   # is the fault on?
+make aks-db-latency-revert   # remove the wait
+```
+
 Start the pretend shoppers first (section 7) for any of them, or there
 is no one to notice the fault.
 
 ### Other scenarios in the repository
 
-The `scenarios/` folder also contains scenarios 03 and 04, and the EKS
+The `scenarios/` folder also contains the EKS scenarios 03 and 04, and the EKS
 version of 02 (a database connection limit, a data-centre zone outage,
 and an overloaded order queue). These were written for Amazon's cloud and do not run on
 Azure yet.
@@ -817,7 +857,7 @@ used when `STACK_MODE=aks`.**
 | `makefile` | The shortcut commands (`make setup-aks`, `make cleanup`, …). Each one lists the steps it runs. |
 | `.env` | The settings file: cloud, region, names, scenario timings, shopper counts. |
 | `infra/scripts/cluster/` | The scripts that create and remove the cluster. The Azure ones have `aks` or `azure` in their names. |
-| `infra/azure/` | **Azure only.** Settings that differ from the other clouds: node-pool permits for spot machines, the Loki, Tempo, Beyla, Caretta, and Alloy settings, the Kiali install, the load generator copy, `scenario-01/`, the commands for the Azure version 1 fault, and `scenario-02/`, the commands for the cart memory fault. |
+| `infra/azure/` | **Azure only.** Settings that differ from the other clouds: node-pool permits for spot machines, the Loki, Tempo, Beyla, Caretta, and Alloy settings, the Kiali install, the load generator copy, `scenario-01/`, the commands for the Azure version 1 fault, `scenario-02/`, the commands for the cart memory fault, `scenario-03/`, the commands for the slow database fault, and `dashboards/`, the Azure-only Slow shop requests dashboard. |
 | `app/robot-shop/` | Robot Shop's installation package (Helm chart) and its gateway rule. |
 | `app/hotrod/` | HotROD's installation files and its gateway rule. |
 | `monitoring/dashboards/` | The ready-made Grafana dashboards. |
