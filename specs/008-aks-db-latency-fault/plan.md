@@ -1,57 +1,60 @@
 # Implementation Plan: [FEATURE]
 
-**Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
+**Branch**: `008-aks-db-latency-fault` | **Date**: 2026-10-22 | **Spec**: [spec.md](spec.md)
 
-**Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
+**Input**: Feature specification from `/specs/008-aks-db-latency-fault/spec.md`
 
 **Note**: This template is filled in by the `/speckit-plan` command; its definition describes the execution workflow.
 
 ## Summary
 
-[Extract from feature spec: primary requirement + technical approach from research]
+The fault is a fixed wait added to three of MySQL's own queries by the Rewriter plugin that ships in the existing database image: 2.5 s for the two shipping queries and 0.5 s for the ratings query (`research.md` Findings 9 and 12). One Bash script with three verbs (`start`, `status`, `revert`) installs the plugin if it is missing and turns the rules on or off; revert only disables them (Finding 10). The shop gets slower with identical answers, no errors and no data change. A new panel on the Database dashboard shows the average query time, and a new Azure-only dashboard lists slow requests and opens their step-by-step view. The approach changed in Phase 0 from lowering the database's CPU limit to this plugin (Findings 8 and 9).
 
-> **Work in progress, 2026-10-22.** Only Technical Context and Constitution Check are written, and both were approved before the research changed the approach. **Technical Context is out of date**: the CPU-limit lever, the in-place resize and the pod annotation marker described below were dropped (`research.md` Findings 8 and 9). The fault is now MySQL's Rewriter plugin adding a fixed sleep to the shipping and ratings statements; revert disables the rules and keeps the plugin installed (Finding 10, not yet written). The Constitution Check rows II, III and V stay open until the mechanism is written back. The remaining sections below are still the unfilled template.
+> **Work in progress, 2026-10-23.** Summary, Technical Context, Constitution Check, Project Structure and Verification are written; Phase 1 outputs exist (`data-model.md`, `contracts/commands.md`, `quickstart.md`). Technical Context and the Constitution Check were rewritten on 2026-10-23 after the research changed the approach (`research.md` Findings 8 to 14).
 
 ## Technical Context
 
 **Language/Version**: Bash 5 scripts (`GNU bash, version 5.2.21(1)-release`) called from GNU make targets. No application code changes; the shop runs upstream images.
 
 **Primary Dependencies**:
-- `kubectl` client `v1.33.4`, `helm` `v3.18.6`, `az` `2.91.0`, signed in to `Pune - Sandbox (TPM)`. AKS cluster `sre-stack-452138` (southindia, `Running`, 9 nodes Ready at `v1.34.11`) was already up when planning began.
-- The database is the `mysql-0` pod in `robot-shop` (containers `mysql`, `mysql-exporter`, Istio sidecar). Only ratings and shipping are confirmed to use it (spec Assumptions).
-- The mesh sidecars already on every shop pod and the Prometheus stack from `make setup-aks-o11y` supply the request-duration measurements FR-010 relies on. Which mechanism slows the database is an open Phase 0 question (see below), so no new dependency is named yet.
+- `kubectl` client `v1.33.4`, `helm` `v3.18.6`, `az` `2.91.0`, signed in to `Pune - Sandbox (TPM)`. AKS cluster `sre-stack-452138` (southindia, Kubernetes 1.34, 9 nodes) is where every finding was run.
+- The database is the `mysql-0` pod in `robot-shop` (containers `mysql`, `mysql-exporter`, Istio sidecar), MySQL 5.7.35 from the existing image `robotshop/rs-mysql-db:latest`. The fault uses the Rewriter plugin that ships inside that image (`/usr/share/mysql/install_rewriter.sql`): no new image, chart or pod (Findings 9 and 10).
+- Only ratings and shipping use MySQL (Finding 3 and spec Assumptions).
+- The mesh sidecars, Prometheus, Grafana, Beyla and Tempo from `make setup-aks-o11y` show the result (Findings 11 and 12). Grafana already has a Tempo datasource (`uid` `EbPG8fYoz`).
 
-**Storage**: None. Whether the fault is on lives only in the cluster (no local state file), so anyone can run status or revert (EC-005). The exact marker is a Phase 0 decision.
+**Storage**: No local state file. The fault state is the `enabled` column of `query_rewrite.rewrite_rules` inside the database, read through `kubectl exec` into `mysql-0`, so anyone with cluster access can run status or revert (EC-005). A database restart wipes it (Finding 14).
 
 **Testing**:
-- No offline (fake-`kubectl`) tests, following the developer's decision on story 006 and re-confirmed on 007.
-- Live on `sre-stack-452138`: start → status → revert → status, plus a database restart while the fault is on (SC-013), with the load generator running, timed against SC-001 to SC-008, SC-010, SC-012 and SC-013; output pasted into the PR.
+- No offline (fake-`kubectl`) tests, following the developer's decision on story 006, re-confirmed on 007.
+- Live on `sre-stack-452138`: start → status → revert → status, with the load generator running, timed against SC-001 to SC-008, SC-010, SC-012, SC-014 and SC-015. The data check from Finding 12 (`cities` row count and checksum, both shipping route hashes) before and after. Output pasted into the PR.
 - `make lint` for every change.
 
-**Target Platform**: AKS only (`STACK_MODE=aks`, `.env:5`), namespace `robot-shop` (`.env:38`). EKS and k3d are out of scope.
+**Target Platform**: AKS only (`STACK_MODE=aks`), namespace `robot-shop`. EKS and k3d are out of scope.
 
-**Project Type**: Operations glue: make targets calling one Azure-only script (new folder `infra/azure/scenario-03/`), plus guide text in `scenarios/README.md` and `docs/aks-explained.md` (FR-011, FR-014).
+**Project Type**: Operations glue: make targets calling one Azure-only script (new folder `infra/azure/scenario-03/`), guide text in `scenarios/README.md` and `docs/aks-explained.md` (FR-011, FR-014), one new panel in `monitoring/dashboards/mysql.yaml` (FR-015), and a new Azure-only dashboard in `infra/azure/dashboards/` (FR-016).
 
-**Performance Goals**: Start shows slow answers within 60 s (SC-001). Revert is back to normal within 10 s, with dashboards recovered within 2 min (SC-004). Each command takes under 60 s including its own check (SC-006). Status takes under 10 s (SC-007).
+**Performance Goals**: Start shows slow answers within 60 s (SC-001). After revert, requests are normal within 1 minute and dashboards recover within 5 minutes (SC-004). Each command takes under 60 s including its own check (SC-006). Status takes under 10 s (SC-007).
 
 **Constraints**:
 - FR-012 / SC-011: no line changes in `scenarios/scenario-01/`, `scenario-02/`, `scenario-04/`. `makefile` and `.env` gain Azure-only lines only.
-- Principle I: every command is safe to run twice (FR-004, SC-010).
-- FR-003 / SC-013: the fault survives a restart of the database pod.
-- FR-006 / SC-008: no data change. The slowdown must not write to the database.
-- SC-012 / FR-013: a normal setup with the fault never started must not touch the live stack.
-- SC-002: slow answers only, no errors. The delay must stay within the 2–10 s window.
+- Principle I: every command is safe to run twice (FR-004, SC-010). Start installs the plugin only if it is missing, then enables the rules; revert only disables the rules and leaves the plugin installed (Finding 10).
+- FR-006 / SC-008: no data change. The rules rewrite `SELECT`s only (Findings 9 and 12).
+- SC-002: slow answers only, no errors. The delays are fixed in the script: 2.5 s for both shipping statements and 0.5 s for ratings (Finding 12).
+- The rules match the exact statement text, so a changed upstream image could stop them matching (Finding 9).
+- SC-012 / FR-013: a normal setup with the fault never started must not touch the live stack. A shop re-deploy leaves a running fault on (Finding 13).
 
 **Scale/Scope**: One database pod, one namespace, one presenter at a time.
 
-**Questions for Phase 0 (live on `sre-stack-452138`)**:
-1. Which mechanism slows the database without data change or errors, survives a pod restart, and stays inside the 2–10 s window? The candidates are an Istio fault-injection delay on traffic to the database, a MySQL-side change, or network shaping.
-2. Does the ratings or shipping path time out before 10 s, so that a delay produces errors and breaks SC-002?
-3. What do the normal speeds actually measure for ratings and shipping today? (spec §3 quotes about 0.02 s and 0.4–0.9 s, from earlier work.)
-4. Does `make setup-robot-shop` during an active fault clear it (EC-002, FR-013)?
-5. How does status tell "our fault" from "slow for another reason" (EC-007, FR-009)?
-6. Which installed dashboard panels show the rise (FR-010)?
-7. Does anything besides ratings and shipping use MySQL (catalogue, user, cart)? The spec marks this unverified.
+**Phase 0 questions, with where each is answered**:
+1. Mechanism: Rewriter plugin rules (Findings 8, 9, 12).
+2. Timeouts: the fixed sleep does not time out under overlapping traffic (Findings 9, 12).
+3. Normal speeds: shipping `/match` 0.16 to 0.29 s, ratings 0.017 to 0.056 s in the latest run (Finding 12).
+4. Re-deploy: the fault stays on (Finding 13).
+5. Status: the `enabled` column plus `Rewriter_number_loaded_rules`; the exact status design is a Phase 1 item (Findings 7, 10 and 12).
+6. Dashboards: threads running, query rate and a new average-time panel move; a new Azure-only dashboard lists slow requests and links to traces (Findings 9 and 11).
+7. Other MySQL users: none (Finding 3).
+
+**Open**: why the data is re-created on a MySQL restart although the data directory is a volume claim (Finding 14). The empty `ratings` table is explained by the load generator adding the rows (developer's explanation, consistent with Finding 14).
 
 ## Constitution Check
 
@@ -60,14 +63,14 @@
 | Principle | Status | Why |
 |---|---|---|
 | I. Re-runnable scripts | Pass | Start, revert and status are idempotent by FR-004 and SC-010. The script follows the pattern of `ratings-abort.sh` and `cart-oom-kill.sh`: resolve repo root, source `.env`, check before change. |
-| II. Pinned versions | Open | No chart or image is named yet. If the mechanism needs a new image or chart, it is pinned and goes in `*/chart-values/`. Settled by the Phase 0 mechanism finding. |
-| III. One configuration surface | Open | Any tunable (for example the delay length) goes in `.env`. The spec fixes the amount (Out of Scope), so the plan expects no new tunable. Confirmed after the mechanism is chosen. |
-| IV. No secrets in git | Pass | No credential is added. The slowdown must not need the database password. If Phase 0 finds it does, this row changes. |
-| V. Workload placement | Open | Applies only if the mechanism adds a pod or workload. It would then select a `workload=` pool and tolerate its taint. A mesh rule or a change to the existing database pod adds no new workload. |
-| VI. Specs without technical detail | Pass | `spec.md` was checked against this at authoring. Technical content lives here. |
-| VII. Plain language | Pass | Each plan section is written in plain words with an example. |
-| VIII. Try it before you plan it | Pending | Phase 0 runs live on `sre-stack-452138`. Cluster access is already granted. No substitute is needed. |
-| IX. Author in steps | Pass | This plan is being written one section at a time. |
+| II. Pinned versions | Pass | No chart or image is added. The plugin ships inside the existing image, whose tag is `latest` (an existing choice, not changed here). Finding 9 notes that a changed image could stop the rules matching. |
+| III. One configuration surface | Pass | No new setting. The spec fixes the amounts (Out of Scope), so the delays are constants in the script. |
+| IV. No secrets in git | Pass | The database password is read from the running pod's own environment inside `kubectl exec`. No credential is added to a file. |
+| V. Workload placement | Pass | No new pod or workload, so no `workload=` pool or taint to choose. |
+| VI. Specs without technical detail | Pass | `spec.md` was re-checked after the amendment: no mention of the plugin, MySQL or rules. Technical content lives here. |
+| VII. Plain language | Pass | Each plan section is written in plain words. |
+| VIII. Try it before you plan it | Pass so far | Findings 1 to 13 ran live on `sre-stack-452138`, with pasted output. Re-checked at the end of Phase 1. |
+| IX. Author in steps | Pass | Written one section at a time; the developer asked for items together on 2026-10-22 and 2026-10-23. |
 | X. Converge to agreed scope | Not yet applicable | Applies at `/speckit-converge`. |
 
 **Gate result**: no violation. No entry for the Complexity Tracking table.
@@ -77,67 +80,55 @@
 ### Documentation (this feature)
 
 ```text
-specs/[###-feature]/
+specs/008-aks-db-latency-fault/
+├── spec.md              # Feature specification
 ├── plan.md              # This file (/speckit-plan command output)
-├── research.md          # Phase 0 output (/speckit-plan command)
-├── data-model.md        # Phase 1 output (/speckit-plan command)
-├── quickstart.md        # Phase 1 output (/speckit-plan command)
-├── contracts/           # Phase 1 output (/speckit-plan command)
+├── research.md          # Phase 0 output: Findings 1 to 14, live on sre-stack-452138
+├── data-model.md        # Phase 1 output: the three rules, the fault states, the test requests
+├── quickstart.md        # Phase 1 output: the live validation run
+├── contracts/
+│   └── commands.md      # Phase 1 output: make targets, exit codes, RESULT lines
+├── checklists/
+│   └── requirements.md  # Spec quality checklist
 └── tasks.md             # Phase 2 output (/speckit-tasks command - NOT created by /speckit-plan)
 ```
 
 ### Source Code (repository root)
-<!--
-  ACTION REQUIRED: Replace the placeholder tree below with the concrete layout
-  for this feature. Delete unused options and expand the chosen structure with
-  real paths (e.g., apps/admin, packages/something). The delivered plan must
-  not include Option labels.
--->
 
 ```text
-# [REMOVE IF UNUSED] Option 1: Single project (DEFAULT)
-src/
-├── models/
-├── services/
-├── cli/
-└── lib/
-
-tests/
-├── contract/
-├── integration/
-└── unit/
-
-# [REMOVE IF UNUSED] Option 2: Web application (when "frontend" + "backend" detected)
-backend/
-├── src/
-│   ├── models/
-│   ├── services/
-│   └── api/
-└── tests/
-
-frontend/
-├── src/
-│   ├── components/
-│   ├── pages/
-│   └── services/
-└── tests/
-
-# [REMOVE IF UNUSED] Option 3: Mobile + API (when "iOS/Android" detected)
-api/
-└── [same as backend above]
-
-ios/ or android/
-└── [platform-specific structure: feature modules, UI flows, platform tests]
+infra/azure/scenario-03/
+├── db-latency.sh        # new: start | status | revert
+└── README.md            # new: short guide beside the script
+infra/azure/dashboards/
+└── slow-requests.yaml   # new: Azure-only "Slow shop requests" dashboard (FR-016)
+monitoring/dashboards/
+└── mysql.yaml           # edit: one new average-query-time panel (FR-015)
+makefile                 # edit: three aks-db-latency-* targets and help lines; one Azure-only apply line in setup-dashboards
+scenarios/README.md      # edit: Azure scenario 03 section
+docs/aks-explained.md    # edit: Azure scenario 03 section
 ```
 
-**Structure Decision**: [Document the selected structure and reference the real
-directories captured above]
+| File | Change | Requirement |
+|---|---|---|
+| `infra/azure/scenario-03/db-latency.sh` | New. The pre-checks, the state detection, the three rules, the test requests (`contracts/commands.md`) | FR-001 to FR-009 |
+| `infra/azure/scenario-03/README.md` | New. Short guide beside the script, like scenario-01 and scenario-02 | FR-011 |
+| `infra/azure/dashboards/slow-requests.yaml` | New ConfigMap with a Grafana dashboard: a Tempo table of slow shipping and ratings requests, trace IDs linking to the span view. Applied only on AKS | FR-010, FR-016 |
+| `makefile` | Three targets after `makefile:267`, three help lines after `makefile:37`, and in the `aks` branch of `setup-dashboards` (`makefile:154`) one extra apply of `infra/azure/dashboards/`. No existing line changes | FR-001, FR-012, FR-013 |
+| `monitoring/dashboards/mysql.yaml` | One new panel, average statement time, in the "MySQL Dashboard" (uid `549c2bf8936f7767ea6ac47c47b00f2a`). No existing panel changes | FR-015 |
+| `scenarios/README.md` | Azure scenario 03 section; says which scenario it is to avoid the EKS "Scenario 02/3" mix-up | FR-011, EC-009 |
+| `docs/aks-explained.md` | Azure scenario 03 next to the others; correct anything the fault shows to be wrong | FR-014 |
+| `.env` | No change planned: no new setting (Constitution III) | FR-012 |
+
+**Structure Decision**: The script goes in a new `infra/azure/scenario-03/` folder, continuing `scenario-01/` and `scenario-02/`. The slow-requests dashboard goes in a new Azure-only folder `infra/azure/dashboards/`, not in the shared `monitoring/dashboards/`, so it appears only on Azure and EKS or k3d never see an empty trace table (developer decision, 2026-10-23). The average-query-time panel goes in the shared `mysql.yaml` (precedent: story 007 added a section to the shared `application.yaml`); it uses the same MySQL exporter metric on every stack. Nothing under `scenarios/scenario-01/`, `-02/` or `-04/` changes.
+
+## Verification Strategy
+
+- **Live run:** `quickstart.md`, once after implementation, with output pasted into the PR.
+- **Lint:** `make lint` for every change, with its real output.
+- **Dashboards:** `kubectl apply --dry-run=client` on both ConfigMaps, then loaded in Grafana and checked with the Playwright browser. `helm template` is not needed: no chart changes.
+- **Reading the script** covers what the live run cannot reach, as named in `quickstart.md`.
+- **No offline (fake-`kubectl`) tests**, following stories 006 and 007.
 
 ## Complexity Tracking
 
-> **Fill ONLY if Constitution Check has violations that must be justified**
-
-| Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| [e.g., 4th project] | [current need] | [why 3 projects insufficient] |
-| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient] |
+No Constitution Check violations, so nothing to justify.

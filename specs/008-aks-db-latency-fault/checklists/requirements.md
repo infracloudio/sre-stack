@@ -44,3 +44,9 @@ Open points that are not spec defects, carried to planning (constitution princip
 - Whether other parts of the shop use the database is not confirmed beyond ratings and shipping.
 - "Azure scenario 03" shares a number with the EKS zone-outage scenario 03; EC-009 and FR-011 require the guides to say which is which.
 - "Feature meets measurable outcomes" is satisfied as defined; it cannot be shown until the feature is built.
+
+Re-checked 2026-10-23 after the amendment (`spec.md`, 180 lines):
+
+- `grep -c "NEEDS CLARIFICATION" spec.md` printed `0`.
+- A search for implementation terms (`kubectl`, `helm`, `istio`, `grafana`, `prometheus`, `tempo`, `mysql`, `plugin`, `rewrit`, `make `, `pod`, `namespace`, `.yaml`, `.sh`) matched only the plain English "make" in "Make the database slow" (line 33) and "does not make" (line 101). No product, tool or file name.
+- The spec now has 16 functional requirements and 15 success criteria. FR-016 (the new Azure-only slow-requests dashboard) maps to SC-015; FR-015 maps to SC-014. Ratings is back in scope and covered by FR-001, FR-002, FR-005, FR-008, FR-009 and SC-001, SC-002, SC-004.

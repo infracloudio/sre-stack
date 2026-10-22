@@ -424,6 +424,8 @@ restarts=0 {"limits":{"cpu":"200m","memory":"1Gi"},"requests":{"cpu":"100m","mem
 
 ## Finding 6 — A shop re-deploy leaves the in-place limit alone (Technical Context question 4, EC-002)
 
+> **Superseded, 2026-10-22.** This finding is about the in-place CPU limit, which was dropped (Findings 8 and 9). What a shop re-deploy does to the Rewriter rules is **not tested yet**: the deploy re-creates the seeder job and reloads the data, but whether the `query_rewrite` schema and the rules survive is open. The seeder facts below still hold.
+
 **Question.** Does re-running the shop's deploy put MySQL's CPU limit back and so clear the fault?
 
 **Read-only facts first.** The AKS branch of `setup-robot-shop` runs `kubectl delete job mysql-seeder -n $(APP_NS) --ignore-not-found`, then `helm upgrade --install $(APP_RELEASE_NAME) -n $(APP_NS) --create-namespace ./app/robot-shop/helm/ --values ./infra/azure/chart-values/robot-shop.yaml --set stack_mode=$(STACK_MODE) --set mysql_root_password=… --wait --timeout $(LOCAL_APP_SETUP_TIMEOUT)` (`LOCAL_APP_SETUP_TIMEOUT=10m0s`, `.env:19`). The seeder is a plain `Job` in the chart (`app/robot-shop/helm/templates/mysql-seeed-job.yaml`), not a Helm hook. Its import script drops and recreates each table it loads. The makefile delete-line was added by story 004 (`git log -S"delete job mysql-seeder"`: `3a477c1`). Helm's copy of the `mysql` StatefulSet shows the same values as the pod template (200m / 100m):
@@ -478,6 +480,8 @@ mysql-0                      3/3     Running   0          107m
 **Result.** EC-002 answer: the fault stays on through a re-deploy, but the deploy reloads the data. Presenters revert first. The guide says so.
 
 ## Finding 7 — How status tells this fault from other slowness (Technical Context question 5)
+
+> **Superseded, 2026-10-22.** The four states below were built on the pod annotation and the live CPU limit, both dropped (Findings 8 and 9). With the Rewriter the on/off state is the `enabled` column and `Rewriter_number_loaded_rules` (Findings 9, 10 and 12). Status still has to be redesigned around those; what status can read from the shop and the dashboards below still holds.
 
 **Question.** What can status read to tell "our fault" from "the database is slow for another reason" (FR-009, EC-007)?
 
@@ -819,3 +823,384 @@ plugin_rows
 - The Database dashboard's existing statement metrics work as a panel source: the average statement time was 3.7 s during the fault.
 
 **Result.** The fault is the Rewriter rules. Plan facts drawn from this finding: `pattern_database` is `cities` for shipping and `ratings` for ratings; ratings needs about half the sleep of shipping for a similar delay; `Rewriter_number_loaded_rules` and the `enabled` column are the on/off state.
+
+## Finding 10 — The Rewriter plugin cannot be uninstalled and reinstalled without restarting MySQL
+
+**Question.** Can revert uninstall the plugin and start install it again?
+
+**What I ran.** The plugin's own scripts, `/usr/share/mysql/install_rewriter.sql` and `uninstall_rewriter.sql`, each run twice on the live `mysql-0` on 2026-10-22, in the session of Finding 9. The output below is the terminal output of that run:
+
+```
+== state now
+plugin=DELETED
+mysql.plugin rows=0
+schema=0
+== install while plugin is DELETED
+ERROR 1125 (HY000) at line 37: Function 'rewriter' already exists
+(0) done install_rewriter.sql
+plugin=DELETED
+mysql.plugin rows=0
+schema=1
+== install again (already installed)
+ERROR 1125 (HY000) at line 37: Function 'rewriter' already exists
+(0) done install_rewriter.sql
+plugin=DELETED
+mysql.plugin rows=0
+schema=1
+== uninstall
+ERROR 1305 (42000) at line 24: FUNCTION (UDF) load_rewrite_rules does not exist
+(0) done uninstall_rewriter.sql
+plugin=DELETED
+mysql.plugin rows=0
+schema=0
+== uninstall again (already uninstalled)
+ERROR 1305 (42000) at line 24: FUNCTION (UDF) load_rewrite_rules does not exist
+(0) done uninstall_rewriter.sql
+plugin=DELETED
+mysql.plugin rows=0
+schema=0
+restarts=0
+```
+
+**What it shows.**
+- The first uninstall removes the plugin's table row (`mysql.plugin rows=0`), but the plugin stays loaded in memory as `DELETED` until MySQL restarts.
+- A later install fails with `ERROR 1125 ... Function 'rewriter' already exists` and half-creates the `query_rewrite` schema (`schema=1`).
+- A second uninstall fails with `ERROR 1305 ... load_rewrite_rules does not exist`.
+- The pod had 0 restarts throughout. A restart cleared the state: on 2026-10-22, after the cluster was started again, the plugin was absent and a fresh install worked.
+
+**Result.** Revert only disables the rules and leaves the plugin installed (developer decision, 2026-10-22). Disabling was tested the same day: `UPDATE query_rewrite.rewrite_rules SET enabled='NO'` plus `CALL query_rewrite.flush_rewrite_rules()` took `Rewriter_number_loaded_rules` to 0 and request times were normal at once. Start installs the plugin only if it is missing, then enables the rules. Whether the rules survive a MySQL restart was not tested; the spec does not require it.
+
+## Finding 11 — Tempo shows the slow database call for shipping (Technical Context question 6, FR-010)
+
+**Question.** Can the presenter see the slow database step of a slow request, and from where?
+
+**What I ran** (2026-10-22, 18:14 UTC, Rewriter rules on with 2.5 s for the shipping statements and 0.5 s for ratings; requests sent from `deploy/web`; Tempo at `tempo.monitoring.svc:3200`):
+
+```
+match 200 2.737232
+ratings 200 1.024695
+```
+
+Search for shipping traces longer than 2 s (`{ resource.service.name = "shipping" && duration > 2s }`):
+
+```
+231e2a4ac6028de2a36ac75491fa83fc GET /match/de/ber 2684
+54f95ec9ef73a91b6827a2a6cb8cda3a GET /match/de/ber 2708
+868cee38581c07f99c42cc0592b1cc01 GET /match/de/ber 2714
+```
+
+The spans of the first trace, fetched with `/api/traces/<id>`:
+
+```
+['shipping'] GET /match/de/ber 2685.0 ms
+['shipping'] GET /match/de/ber 2684.4 ms
+['shipping'] SELECT cities 2505.9 ms
+['shipping'] SELECT cities 2505.8 ms
+['shipping'] GET /match/de/ber 2683.9 ms
+['shipping'] SELECT cities 2506.0 ms
+```
+
+Three TraceQL searches:
+
+```
+== { span.db.system != nil }
+0 traces []
+== { name = "SELECT cities" }
+3 traces [('SELECT cities', 2504), ('GET /match/de/ber', 2635), ('SELECT cities', 2505)]
+== { resource.service.name = "ratings" && duration > 0.9s }
+Traceback (most recent call last):
+  ...
+KeyError: 'rootTraceName'
+```
+
+The last search did return a trace (`rootServiceName` `<root span not yet received>`, `durationMs` 17907); my script failed because the reply has no `rootTraceName`. I did not open its spans.
+
+**In Grafana** (logged in by the developer; the Grafana datasource list shows `Tempo`, type `tempo`, uid `EbPG8fYoz`, `http://tempo.monitoring:3200`): Explore → Tempo → TraceQL with the shipping query above and a 30 minute range showed a table with Trace ID, Start time, Name and Duration. The rows were `/match/de/ber` at 2.63 to 2.77 s and `/cities/de` at 3.24 to 3.26 s, and one row named `<root span not yet received>` at 2.72 s. Clicking a trace ID opened the trace view with 6 spans, the lower `SELECT` spans at about 2.51 s of 2.63 s.
+
+**Failure.** My own call to Grafana's `/api/ds/query` returned `{"message":"An error occurred within the plugin","messageId":"plugin.downstreamError","statusCode":500}` for 15 minute and 1 hour ranges. The same query worked in the Explore screen, so the request body I hand-built was the likely problem; the cause was not investigated.
+
+**What it shows.**
+- For shipping, the `SELECT` span is about 2.5 s of a 2.68 s request. That is the "database is the slow part" view.
+- Search by span name works; search by `span.db.system` finds nothing.
+- Late spans can leave a `<root span not yet received>` row. It still opens.
+- Whether ratings has an SQL span is not confirmed.
+- The Database dashboard has no link to these traces today; the presenter has to know to use Explore.
+
+**Update, same day (Finding 12).** Ratings does have SQL spans (`SELECT ratings`, about 0.5 s, with the 0.5 s sleep). The ratings sentence above is settled by Finding 12.
+
+**Result.** The Database dashboard gets one new panel (developer decision, 2026-10-22): a Tempo table of slow shipping requests whose trace IDs open the span view. Ratings is included too, since Finding 12 confirmed its SQL spans. The panel's exact query and layout are a plan decision, still to write. The spec needs a requirement for this panel, still to amend.
+
+## Finding 12 — Tuned sleeps, overlapping traffic, revert, data check and ratings spans (Technical Context questions 1 and 2)
+
+**Question.** Which sleep lengths put shipping above 2 s and ratings above 0.5 s without errors, does revert work by disabling rules, is the data unchanged, and does ratings show SQL spans?
+
+**What I ran** (2026-10-22, cluster started again that evening, load generator at 0 replicas; `mysql-0` restarted by the cluster start so the plugin was absent at the start; requests from `deploy/web`).
+
+Plugin installed with `install_rewriter.sql`, then three rules loaded: shipping at 2 s, ratings at 0.5 s:
+
+```
+id	enabled	loaded	message
+1	YES	1	NULL
+2	YES	1	NULL
+3	YES	1	NULL
+Variable_name	Value
+Rewriter_number_loaded_rules	3
+Rewriter_number_reloads	3
+Rewriter_number_rewritten_queries	0
+Rewriter_reload_error	OFF
+```
+
+At 2 s for shipping (`/match` normal time at this point was 0.16 to 0.29 s):
+
+```
+match 200 2.603002
+match 200 2.282588
+match 200 2.234097
+match 200 2.178348
+cities 200 4.165742
+cities 200 3.631653
+cities 200 3.701440
+ratings 200 1.030231
+ratings 200 1.025674
+ratings 200 1.027020
+ratings 200 1.018612
+```
+
+Several `/match` times are close to the 2 s line, so shipping went to 2.5 s. The `UPDATE` that did it ran in the same command as a `SELECT` using `REGEXP_SUBSTR`, which MySQL 5.7 does not have, so that command printed `ERROR 1046 (3D000) at line 1: No database selected`. The rule rows were checked separately and the update had applied:
+
+```
+id	pattern_database	enabled	message	s
+1	cities	YES	NULL	2.5
+2	cities	YES	NULL	2.5
+3	ratings	YES	NULL	0.5
+Variable_name	Value
+Rewriter_number_loaded_rules	3
+Rewriter_number_reloads	4
+Rewriter_number_rewritten_queries	29
+Rewriter_reload_error	OFF
+```
+
+At 2.5 s and 0.5 s:
+
+```
+match 200 2.645871
+match 200 2.699331
+match 200 2.686853
+match 200 2.697160
+match 200 2.703083
+cities 200 3.262939
+cities 200 3.254839
+cities 200 3.243335
+ratings 200 1.029279
+ratings 200 1.019225
+ratings 200 1.027526
+```
+
+Overlapping traffic for 2 minutes (one shipping `/match/de/ber` and one ratings `/api/fetch/Watson` request every 2 s, 40 s timeout), summarised with awk:
+
+```
+shipping n=40 bad=0 over2s=40 min=2.641237 max=2.822228 | ratings n=40 bad=0 over0.5s=40 max=1.138295
+```
+
+Revert: all rules set to `enabled='NO'`, then `flush_rewrite_rules()`:
+
+```
+id	enabled	message
+1	NO	NULL
+2	NO	NULL
+3	NO	NULL
+Variable_name	Value
+Rewriter_number_loaded_rules	0
+match 200 0.156958
+match 200 0.201239
+match 200 0.288935
+cities 200 1.269682
+ratings 200 0.023464
+ratings 200 0.016858
+ratings 200 0.055813
+```
+
+Data check with the rules on, then off (the rules were disabled between the two runs), and the shipping output hashes after revert, next to the hashes saved before any change:
+
+```
+== fault ON
+Variable_name	Value
+Rewriter_number_loaded_rules	3
+COUNT(*)	SUM(CRC32(CONCAT(uuid,city,country_code,name)))
+948833	2037759317216027
+COUNT(*)
+25
+COUNT(*)
+0
+Variable_name	Value
+Rewriter_number_loaded_rules	0
+== fault OFF
+COUNT(*)	SUM(CRC32(CONCAT(uuid,city,country_code,name)))
+948833	2037759317216027
+COUNT(*)
+25
+COUNT(*)
+0
+fac23cd2b8ffdf432b27b74fb359e324  -
+4d81af2eac60dd9c1459c4a3b37a35b4  -
+fac23cd2b8ffdf432b27b74fb359e324  -
+4d81af2eac60dd9c1459c4a3b37a35b4  -
+```
+
+The first two hash lines are the shipping routes after revert; the last two are the saved "before" values. They match.
+
+Ratings spans for one slow `GET /api/fetch/Watson` (trace `98e58d945daf26f395afc39d6157d2e9`, rules on; columns: service, container, span name, kind, milliseconds, database, port), sorted by start time:
+
+```
+web istio-proxy GET /api/fetch/Watson SERVER 1019.5 None 15001
+web istio-proxy GET /api/fetch/Watson CLIENT 1018.1 None 80
+ratings istio-proxy GET /api/fetch/Watson SERVER 1017.7 None 15006
+ratings istio-proxy GET /api/fetch/Watson CLIENT 1017.1 None 80
+ratings ratings GET /api/fetch/Watson SERVER 1017.0 None 80
+ratings istio-proxy SELECT ratings SERVER 0.2 mysql 15001
+ratings ratings SELECT ratings CLIENT 501.8 mysql 3306
+ratings istio-proxy SELECT ratings CLIENT 501.4 mysql 3306
+```
+
+A second trace of the same call (`85b03ef929053000073bc4af2115b22f`) had the same spans plus `SELECT dual` (0.3 and 0.7 ms) and a trace length of 5,935 ms; I did not look into either.
+
+**Failure: the `ratings` table is empty.** The response body for `Watson` was `{"avg_rating":0,"rating_count":0}` (it was `3.09` and `250` in Finding 9) and the count above is 0, not 9 rows (`SUM(rating_count)` 2276). The count was 0 with the rules on and off, and the rules only rewrite `SELECT`s, so the fault did not cause it. `cities` (948,833 rows) survived the cluster stop and start. The cause was not found; the ratings logs show only health checks. Open item (developer decision: note it and move on).
+
+**What it shows.**
+- 2.5 s for both shipping statements gives `/match` 2.64 to 2.82 s and `/cities` about 3.25 s; 0.5 s for ratings gives 1.02 to 1.14 s. All 40 shipping and 40 ratings requests in the overlap run succeeded, all over the thresholds (2 s and 0.5 s).
+- At 2 s the shipping `/match` time was 2.18 to 2.60 s, too close to the 2 s line.
+- The ratings request takes about twice its sleep (the query seems to run twice), but its trace listed one 0.5 s `SELECT ratings` client span. Why is not known.
+- Disabling the rules and flushing returns request times to normal at once (`/match` 0.16 to 0.29 s, ratings 0.017 to 0.056 s).
+- Shipping data and outputs are unchanged by the fault (row count, checksum, both route hashes).
+- Ratings does have SQL spans in Tempo, so the traces panel can include ratings.
+
+**Result.** Sleeps: 2.5 s for both shipping statements and 0.5 s for ratings. Revert is disable plus flush. Open: why `ratings` has no rows, and the second 0.5 s on the ratings request. The "nothing changed" check for ratings is not possible until the table has rows again.
+
+## Finding 13 — A shop re-deploy leaves the fault on (Technical Context question 4, EC-002, FR-013)
+
+**Question.** Does re-running the shop's deploy clear the Rewriter rules?
+
+**What I ran** (2026-10-22, 18:35 to 18:38 UTC): with the three rules enabled, `make setup-robot-shop` (STACK_MODE `aks`), then waited for the seeder job. Before, right after the deploy, and after the seeder finished, I recorded the rules, the plugin state and a shipping request:
+
+```
+== BEFORE
+id	enabled	pattern_database
+1	YES	cities
+2	YES	cities
+3	YES	ratings
+Variable_name	Value
+Rewriter_number_loaded_rules	3
+PLUGIN_NAME	PLUGIN_STATUS
+Rewriter	ACTIVE
+2f259ce6-e3b6-4a9c-84ca-0b3500aa3182 restarts=0
+match 200 2.647434
+```
+
+The deploy printed (password lines filtered out of the paste):
+
+```
+kubectl delete job mysql-seeder -n robot-shop --ignore-not-found
+job.batch "mysql-seeder" deleted
+Release "roboshop" has been upgraded. Happy Helming!
+STATUS: deployed
+REVISION: 15
+```
+
+It finished in 10 s (18:35:46 to 18:35:56); `helm --wait` does not wait for the seeder.
+
+```
+== AFTER deploy (seeder running)
+id	enabled	pattern_database
+1	YES	cities
+2	YES	cities
+3	YES	ratings
+Variable_name	Value
+Rewriter_number_loaded_rules	3
+PLUGIN_NAME	PLUGIN_STATUS
+Rewriter	ACTIVE
+2f259ce6-e3b6-4a9c-84ca-0b3500aa3182 restarts=0
+job.batch/mysql-seeder   Running   0/1   7s
+== AFTER seeder complete (condition met, 18:37:59 UTC)
+id	enabled	pattern_database
+1	YES	cities
+2	YES	cities
+3	YES	ratings
+Variable_name	Value
+Rewriter_number_loaded_rules	3
+COUNT(*)
+948833
+COUNT(*)
+0
+match 200 2.750635
+match 200 2.786110
+ratings 200 1.026246
+{"avg_rating":0,"rating_count":0}
+```
+
+**What it shows.**
+- Rules, plugin and pod (same uid, 0 restarts) all survive a re-deploy, and the fault stays on.
+- The seeder took about 2 minutes and was not slowed by the fault: its statements are not matched by the rules. The old EC-002 text ("takes much longer while the database is slowed") does not apply to this design.
+- The `ratings` table was already empty before the deploy and the seeder leaves it empty. The developer's explanation is that rows come from the load generator, which was off; this was not tested here (see Finding 14 for what a database restart does to the table).
+
+**Result.** EC-002 answer: the fault stays on through a re-deploy and the data reloads normally. The guide can still suggest reverting first as the cleaner order, but it is not needed for speed or for data.
+
+## Finding 14 — A MySQL restart wipes the fault and reloads the shop data (EC-003, EC-004)
+
+**Question.** What happens to the fault, and to the shop, when `mysql-0` restarts?
+
+**What I ran** (2026-10-22): rules enabled (`Rewriter_number_loaded_rules` 3), then `kubectl delete pod mysql-0 -n robot-shop` at 18:41:31 UTC (the StatefulSet recreated it), then checks:
+
+```
+before uid=2f259ce6-e3b6-4a9c-84ca-0b3500aa3182
+pod "mysql-0" deleted
+pod/mysql-0 condition met
+after uid=c3e6b366-bffb-4cb7-b764-be2e7b8b15cf
+ERROR 1146 (42S02) at line 1: Table 'query_rewrite.rewrite_rules' doesn't exist
+match 000 30.001218
+match 000 30.000937
+ratings 500 0.036750
+```
+
+The pod reported ready 15 s after the delete, but the MySQL log showed it still initialising from scratch:
+
+```
+2026-10-22 18:42:01+00:00 [Note] [Entrypoint]: Creating database cities
+2026-10-22 18:42:01+00:00 [Note] [Entrypoint]: Creating user shipping
+2026-10-22 18:42:01+00:00 [Note] [Entrypoint]: Giving user shipping access to schema cities
+2026-10-22 18:42:01+00:00 [Note] [Entrypoint]: /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/10-dump.sql.gz
+2026-10-22 18:43:41+00:00 [Note] [Entrypoint]: /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/20-ratings.sql
+2026-10-22 18:43:42+00:00 [Note] [Entrypoint]: /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/99-finished.sh
+```
+
+After it finished (18:43:51 UTC):
+
+```
+ready=true restarts=0
+Database
+information_schema
+cities
+mysql
+performance_schema
+ratings
+sys
+COUNT(*)
+948833
+COUNT(*)
+0
+COUNT(*)
+0
+match 200 3.103562
+ratings 200 0.016282
+```
+
+The three counts are `cities` rows, `ratings` rows and `mysql.plugin` rows. An earlier check, while it was still initialising, had printed `ERROR 1053 (08S01) at line 1: Server shutdown in progress` (the temporary init server stopping), `COUNT(*)` 0 for `information_schema.plugins` Rewriter and 0 for `mysql.plugin`.
+
+**What it shows.**
+- A restart removes the plugin, the `query_rewrite` schema and the rules: the fault is gone. This confirms EC-003 as written.
+- The shop is down for about 2 minutes: shipping timed out at 30 s and ratings returned 500 while MySQL initialised. A presenter should not restart MySQL in the middle of a demo.
+- The `cities` data comes back (948,833 rows); the `ratings` table is empty again. Its rows come from shop traffic (developer's explanation, consistent with this).
+- Start after a restart installs the plugin from scratch, so "install only if missing" (Finding 10) holds.
+- The first `/match` after initialisation took 3.10 s with the fault off (cold cache), so "normal speed" depends on how recently the database restarted.
+- Not investigated: why the data is re-created although `/var/lib/mysql` is a mounted volume claim (`data-mysql-0`).
+
+**Result.** No restart survival, as the spec says. Status after a restart reads "not active". The guide warns against restarting MySQL during a demo.
