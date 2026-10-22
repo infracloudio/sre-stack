@@ -1,0 +1,179 @@
+Live run record, cluster sre-stack-452138 only (kubectl context checked: sre-stack-452138)
+Date: 2026-10-21 (IST). Output copied from the terminal session.
+Shop state before the run: all shop pods Running; shipping showed 1/2 Ready
+(pre-existing, not touched by this story); load generator pod loadgen/load-cb796c98b-kbqfn Running.
+
+== Quickstart step 3: status before anything (fault not active) ==
+$ make aks-cart-oom-status
+RESULT: fault not active (cart runs at the chart's allowance, no out-of-memory kills recorded)
+exit=0
+(status run on its own, 2.29 s)
+
+== Step 4: start, timed (second run, after the first proof run) ==
+$ time make aks-cart-oom-start
+Lowering the cart memory allowance to 24Mi (cart container only)...
+deployment.apps/cart resource requirements updated
+deployment.apps/cart annotated
+Waiting up to 60s for the cluster to kill the cart container for running out of memory...
+RESULT: fault active (cart container was killed for running out of memory within 60s)
+make aks-cart-oom-start  4.50s user 1.18s system 66% cpu 8.472 total
+exit=0
+(first start run, same result: 12.15 s total, exit 0)
+
+== Step 5: pods 60 s after start ==
+$ kubectl get pods -n robot-shop -l service=cart
+NAME                    READY   STATUS             RESTARTS      AGE
+cart-769b547b68-mk8jr   1/2     CrashLoopBackOff   3 (15s ago)   66s
+cart-769b547b68-mk8jr: lastState.terminated.reason=OOMKilled
+
+== Step 7: status mid-fault, and idempotent start ==
+$ make aks-cart-oom-status
+RESULT: fault active (cart allowance 24Mi, restarts currently climbing / waiting for the next restart)
+exit=0
+$ make aks-cart-oom-start
+The fault is already in place (cart allowance 24Mi).
+RESULT: fault already active
+exit=0
+
+== Extra check (c), EC-004: delete the cart pod while the fault is on ==
+$ kubectl delete pod -n robot-shop -l service=cart --wait=false
+pod "cart-769b547b68-mk8jr" deleted
+$ kubectl get pods -n robot-shop -l service=cart   (75 s later)
+NAME                    READY   STATUS             RESTARTS      AGE
+cart-769b547b68-zndms   1/2     CrashLoopBackOff   3 (20s ago)   75s
+replacement lastState.terminated.reason=OOMKilled
+$ make aks-cart-oom-status
+RESULT: fault active (cart allowance 24Mi, restarts currently climbing / waiting for the next restart)
+exit=0
+
+== Extra check (c), FR-004: still active after 5 minutes with no action ==
+$ make aks-cart-oom-status   (at about 6 min after the delete, 6 restarts)
+kubectl: cart-769b547b68-zndms 1/2 CrashLoopBackOff 6 (25s ago); restarts=6 lastState=OOMKilled
+RESULT: fault active (cart allowance 24Mi, restarts currently climbing / waiting for the next restart)
+exit=0
+
+== Step 8: revert, timed ==
+$ time make aks-cart-oom-revert
+Restoring the cart memory allowance the shop is installed with (requests 50Mi, limits 100Mi)...
+deployment.apps/cart resource requirements updated
+deployment.apps/cart annotated
+Waiting up to 60s for cart to run cleanly...
+RESULT: fault reverted (cart runs at the allowance the shop is installed with, no further out-of-memory kills)
+make aks-cart-oom-revert  4.52s user 1.23s system 66% cpu 8.592 total
+exit=0
+
+== Step 9: status after revert, and re-revert ==
+$ make aks-cart-oom-status
+RESULT: fault not active (cart runs at the chart's allowance, no out-of-memory kills recorded)
+exit=0
+$ make aks-cart-oom-revert
+The fault is not in place.
+RESULT: fault not active; nothing changed
+exit=0
+cart deployment after revert: resources limits.memory=100Mi requests.memory=50Mi, marker absent, pod 2/2 Running
+
+== Step 11: refusals ==
+$ KUBECONFIG=/dev/null make aks-cart-oom-status
+Could not reach the cluster in the current kubectl context.
+Nothing was changed.
+make: *** [makefile:265: aks-cart-oom-status] Error 3
+(the script exits 3; make prints the Error 3 line and its own shell exit is 2)
+Scratch copy of the script with .env STACK_MODE=eks (under the scratchpad directory, the real .env untouched):
+This command is for Azure (STACK_MODE=aks); .env says 'eks'.
+Nothing was changed.
+exit=3
+
+== Extra by-hand cases from T004 ==
+Row 2 (limit set by hand to 80Mi):
+  status -> RESULT: the cart allowance (80Mi) was not set by this fault — it is not active   exit=1
+  revert -> RESULT: fault reverted (cart allowance restored to the shop's installed values)  exit=0
+Row 4 (marker set by hand, allowance normal):
+  revert -> RESULT: fault not active; nothing changed (leftover marker cleared)   exit=0
+Second revert on a clean shop: RESULT: fault not active; nothing changed   exit=0, no new rollout revision
+
+== Step 6 and 10: dashboard (Grafana, Playwright) ==
+Grafana login as admin verified (HTTP 200 on /api/user). Application Dashboard G8wLrJIZk, version 3.
+Restarts row: rendered, with "Cart restarts" (timeseries) and "Cart killed for running out of memory" (stat).
+Console: 0 errors on each load.
+Screenshots:
+  02-fault-on.png       restart line climbing to 4, out-of-memory stat 1 (red)
+  03-after-revert.png   restart line back to 0, out-of-memory stat 0 (green)
+(the healthy-before-fault baseline screenshot was not taken; see pr-entries.md)
+
+== NOT RUN in this session ==
+Step 12 (make setup-robot-shop while the fault is on): the permission check denied the command. Not run.
+Step 13 (5-minute never-faulted watch): see the background check result in pr-entries.md.
+Step 14 (owner follows only the guide): developer's to do.
+Extra check (a) (diff of other Deployments' resources before/after): not captured before the run, so not proven.
+Extra check (b) (one whole cycle on the stopwatch, start to dashboard recovery): not timed as one run.
+SC-006 (ten status runs under 10 s each): not run ten times; the single status runs took 2.3 s.
+
+== T012/T013 (2026-10-21): Restarts row for every pod ==
+Scratch namespace oom-proof, pods oom-proof (16Mi limit, OOMKilled) and crash-proof (exit 1).
+Queries via Grafana datasource proxy, both pods broken:
+  restarts by pod: oom-proof/oom-proof and oom-proof/crash-proof returned
+  OOM stat query: 1
+Table rows with cart fault also on: cart Yes, oom-proof Yes, crash-proof No.
+kubectl delete namespace oom-proof -> deleted; get ns -> NotFound.
+make aks-cart-oom-revert -> RESULT: fault reverted; status -> RESULT: fault not active.
+Screenshots: 04-other-pods.png, 02-fault-on.png (retaken), 03-after-revert.png (retaken after window).
+
+== T011 and the cheap T010 leftovers (2026-10-21, cluster sre-stack-452138) ==
+SC-006, ten status runs (make aks-cart-oom-status), fault off:
+  run 1 7.8 s (first call, cold), runs 2-10 between 2.6 s and 2.9 s; every run
+  "RESULT: fault not active (cart runs at the chart's allowance, no out-of-memory kills recorded)". All under 10 s.
+FR-006, extra check (a), taken from a different angle than planned: no before-run snapshot exists, so the
+  memory limit/request of every Deployment except cart was compared now against the Helm release manifest
+  (helm get manifest roboshop): catalogue, dispatch, mongodb, payment, rabbitmq, ratings, shipping, user, web
+  all identical (e.g. catalogue 100Mi/50Mi, mongodb 200Mi/100Mi, rabbitmq 512Mi/256Mi, shipping 2Gi/1Gi).
+  Shows they match the installed values now; it does not prove they were untouched during the run.
+FR-013 / SC-009: git diff --stat main -- scenarios/scenario-01 scenarios/scenario-02 scenarios/scenario-04 -> empty.
+  Removed lines from makefile, .env, scenarios/README.md, monitoring/dashboards/application.yaml: none
+  (application.yaml: 321 added, 0 removed). docs/aks-explained.md removed lines: only the lines T008 edits.
+make lint: exit 0 (full output in lint-final2.txt, copied below the line).
+Deviations D2-D4, D6, D12: checked, already applied in contracts/commands.md, research.md Finding 2 and plan.md.
+
+== Stopwatch cycle, extra check (b) / SC-004 (2026-10-21) ==
+t=0   typing make aks-cart-oom-start
+t=12s start returned: RESULT: fault active (cart container was killed for running out of memory within 60s)
+t=40s dashboard stat query ("Pods killed for running out of memory") read 1
+t=49s revert returned: RESULT: fault reverted (cart runs at the allowance the shop is installed with, no further out-of-memory kills)
+t=70s dashboard stat query back to 0 (29 s after revert returned)
+Whole cycle 70 s, under the 2-minute limit. Timed by polling the dashboard's stat query through Grafana, not by eye on the screen.
+Baseline screenshot 01-baseline.png: healthy shop, taken just before this cycle (Restarts row empty, stat 0).
+
+== Step 12 (redeploy while the fault is on): NOT RUN ==
+Asked a second time; the permission check denied "make setup-robot-shop" again as a change to shared resources. Not retried.
+Covered only by reading the script and research Findings 3 and 4.
+
+== Step 12: shop redeployed while the fault is on (2026-10-21, developer asked for it; permission granted on the third try) ==
+$ make aks-cart-oom-start
+RESULT: fault active (cart container was killed for running out of memory within 60s)
+$ make setup-robot-shop
+helm upgrade --install roboshop ... --wait --timeout 10m0s
+Error: UPGRADE FAILED: context deadline exceeded     (shipping stays 1/2 Ready, as before this story; helm --wait never completes)
+helm status: STATUS: failed, REVISION 6 (revision 5 was deployed)
+Cart after the redeploy: limits 100Mi / requests 50Mi (the chart's allowance was applied), marker still "active".
+$ make aks-cart-oom-status   (first version of the script)
+The Helm release 'roboshop' is not deployed in 'robot-shop'; run 'make setup-robot-shop'.   exit 3   <- gap found
+Fix (deviation D20): the pre-check accepts a release whose last revision is `failed` as well as `deployed`.
+$ make aks-cart-oom-status
+RESULT: fault not active (the shop's allowance is correct); a leftover marker can be cleared with the revert command
+$ make aks-cart-oom-revert
+Only the leftover marker remains; removing it...
+RESULT: fault not active; nothing changed (leftover marker cleared)
+$ make aks-cart-oom-status
+RESULT: fault not active (cart runs at the chart's allowance, no out-of-memory kills recorded)
+marker annotation after: absent. Shellcheck clean.
+Side effect left on the cluster: Helm release roboshop is in status "failed" (revision 6), caused by the redeploy timing out on the pre-existing unready shipping pod. Pods keep running.
+
+--- T015 live proof (2026-10-22), after az aks start
+make setup-robot-shop -> helm release roboshop deployed, revision 12
+job mysql-seeder: Complete 1/1, 2m18s
+seeder log: Loaded: /opt/seeds/10-cities.sql ; Loaded: /opt/seeds/20-ratings.sql
+cities.cities 948833 ; cities.codes 25 ; ratings.ratings 0 (empty by design)
+seed_state markers: done_10_cities_, done_20_ratings_
+all 10 Deployments and 2 StatefulSets Ready (shipping 2/2, ratings 2/2), seeder pod 0/2 Completed
+bug found on the way: readiness SELECT 1 ran without the password (ERROR 1045), fixed in mysql-seeed-job.yaml
+kubectl rollout restart deployment/shipping -> successfully rolled out
+second make setup-robot-shop -> release deployed, revision 13, no timeout; seeder Job completed again; codes still 25 rows

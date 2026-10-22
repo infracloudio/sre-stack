@@ -101,6 +101,9 @@ in a later section is unclear.**
 | **Load** | Traffic sent at the app on purpose, by a program pretending to be shoppers. | Hiring actors to fill a restaurant for a practice night. |
 | **Fault injection** | Breaking a part on purpose, in a controlled way, to see how the system and the people react. | A fire drill. |
 | **Scenario** | A written, repeatable fault: what to break, how, for how long, and what to look for. | A fire-drill script. |
+| **Memory allowance** | The most memory Kubernetes lets one container use. Each container has its own. | The size of a cook's workbench: past the edge, things fall off. |
+| **Out-of-memory kill** | What the cluster does when a container uses more than its memory allowance: it stops the container by force. The pod shows the reason `OOMKilled`. | A cook who keeps piling ingredients past the bench edge and is sent out of the kitchen. |
+| **Restart count** | How many times Kubernetes has started a container again after it stopped. A healthy container stays at 0. | A tally mark every time the cook is called back in. |
 
 ## 3. The building blocks
 
@@ -203,8 +206,8 @@ built by Instana (now part of IBM) as a free demo.
 
 It has eight working parts and four places that store data.
 
-**The working parts** (each runs as 3 copies, so one can fail without
-the shop going down):
+**The working parts** (on this cluster each runs as one copy, so there is
+no spare if one fails; that is why the cart fault in section 8 is visible):
 
 | Part | What it does | Shop comparison |
 |---|---|---|
@@ -445,7 +448,7 @@ Grafana starts with these dashboards already loaded:
 
 | Dashboard | What it shows | Good first question |
 |---|---|---|
-| **Application Dashboard** | The whole robot shop on one page: request volume, success rate, slow requests (P50 and P90, explained below), errors per part, error log lines per part, and the Service Map. | "Is the shop healthy right now?" |
+| **Application Dashboard** | The whole robot shop on one page: request volume, success rate, slow requests (P50 and P90, explained below), errors per part, error log lines per part, the Service Map, and a **Restarts** row at the bottom with the cart's restart count and whether it was killed for running out of memory. | "Is the shop healthy right now?" |
 | **Istio Service Dashboard** | One part at a time: who calls it, how often, how fast, how many fail. | "What is wrong with *this* part?" |
 | **MySQL** | The MySQL database: connections, queries per second, memory. | "Is the database the bottleneck?" |
 | **RabbitMQ** | The order queue: messages in, messages out, messages waiting. | "Are orders piling up?" |
@@ -544,12 +547,14 @@ become very visible.
 
 ## 8. Breaking things on purpose (fault injection)
 
-**In short: one scenario runs on Azure today. It has two versions, and
-both break the ratings part in a specific way. Version 1 stays broken
-until you run one command to fix it, at normal traffic. Version 2 turns
-the pretend shoppers up to 5,000, breaks ratings for 10 minutes, then
-puts everything back by itself. Your job is to spot the problem on the
-dashboards and work out which part is to blame.**
+**In short: two scenarios run on Azure today. Scenario 01 has two
+versions, and both break the ratings part in a specific way. Version 1
+stays broken until you run one command to fix it, at normal traffic.
+Version 2 turns the pretend shoppers up to 5,000, breaks ratings for 10
+minutes, then puts everything back by itself. Scenario 02 gives the cart
+part too little memory, so the cluster keeps killing it until you run one
+command to fix it. Your job is to spot the problem on the dashboards and
+work out which part is to blame.**
 
 ### How every scenario works
 
@@ -641,6 +646,41 @@ outright fails at first.
 **The lesson.** Slowness is not always in the code. A deployment
 setting can quietly leave too few working copies to handle a crowd.
 
+### Azure scenario 02: the cart runs out of memory
+
+**The story.** Someone lowered the memory allowance on the cart part to
+save money, and set it too low. The cart needs about 31Mi of memory to
+run (Mi is a small unit of memory) but is now allowed only 24Mi.
+
+**What the command actually does.** `make aks-cart-oom-start` lowers the
+cart container's memory allowance from 100Mi to 24Mi and leaves a marker
+note on the cart so the other commands know this fault put the change
+there. It then waits for the cluster to stop the container by force
+(an out-of-memory kill) and reports what it saw. The cluster starts the
+container again, kills it again, and keeps going. Between kills it waits
+longer each time. It stays this way until you remove it with
+`make aks-cart-oom-revert`. Nothing else in the shop changes, and the
+number of shoppers does not change.
+
+**What a shopper notices.** Anything that needs the basket, such as
+adding a robot to the cart, fails or is slow while the cart container is
+down. Browsing robots still works. The cart has no spare copy on this
+cluster, which is why the failure shows.
+
+**What you should see:**
+
+| Where | What |
+|---|---|
+| Application Dashboard → **Restarts** row, **Pod restarts** | One line per pod that restarted in the last 5 minutes; cart's line climbs, quickly at first and then in bigger steps. |
+| Application Dashboard → **Restarts** row, **Pods killed for running out of memory** | Turns red and reads 1 while cart is killed; clears about 5 minutes after the last kill. |
+| Application Dashboard → **Restarts** row, **Pods restarting or killed** | A table naming the pod. Any pod in any namespace appears here, not only cart. |
+| `kubectl get pods -n robot-shop -l service=cart` | The status alternates between `OOMKilled` and `CrashLoopBackOff`, and the restart count grows. |
+| The waits between restarts | Grow from 10 seconds to 20, 40, then 1 minute 20 seconds. |
+
+**The lesson.** Check the restart count before you read the logs. A
+container that is stopped by force from the outside writes nothing about
+it, so the logs look quiet while the count climbs.
+
 ### How to start a scenario
 
 Version 1 runs from the repository root. See
@@ -661,15 +701,27 @@ cd scenarios/scenario-01
 bash ./scripts/mis-config-health-probs.sh  # version 2: slow readiness
 ```
 
-Version 2 runs for about 10 minutes and then undoes itself. Start the
-pretend shoppers first (section 7) for either version, or there is no
-one to notice the fault.
+Version 2 runs for about 10 minutes and then undoes itself.
+
+Azure scenario 02 (the cart runs out of memory) also runs from the
+repository root. See
+[`infra/azure/scenario-02/README.md`](../infra/azure/scenario-02/README.md)
+for the full guide:
+
+```bash
+make aks-cart-oom-start    # lower the cart's memory allowance until it is killed
+make aks-cart-oom-status   # is the fault on?
+make aks-cart-oom-revert   # restore the allowance
+```
+
+Start the pretend shoppers first (section 7) for any of them, or there
+is no one to notice the fault.
 
 ### Other scenarios in the repository
 
-The `scenarios/` folder also contains scenarios 02, 03, and 04 (a
-database connection limit, a data-centre zone outage, and an overloaded
-order queue). These were written for Amazon's cloud and do not run on
+The `scenarios/` folder also contains scenarios 03 and 04, and the EKS
+version of 02 (a database connection limit, a data-centre zone outage,
+and an overloaded order queue). These were written for Amazon's cloud and do not run on
 Azure yet.
 
 ## 9. A short tour: what happens when you build it
@@ -765,7 +817,7 @@ used when `STACK_MODE=aks`.**
 | `makefile` | The shortcut commands (`make setup-aks`, `make cleanup`, …). Each one lists the steps it runs. |
 | `.env` | The settings file: cloud, region, names, scenario timings, shopper counts. |
 | `infra/scripts/cluster/` | The scripts that create and remove the cluster. The Azure ones have `aks` or `azure` in their names. |
-| `infra/azure/` | **Azure only.** Settings that differ from the other clouds: node-pool permits for spot machines, the Loki, Tempo, Beyla, Caretta, and Alloy settings, the Kiali install, the load generator copy, and `scenario-01/`, the commands for the Azure version 1 fault. |
+| `infra/azure/` | **Azure only.** Settings that differ from the other clouds: node-pool permits for spot machines, the Loki, Tempo, Beyla, Caretta, and Alloy settings, the Kiali install, the load generator copy, `scenario-01/`, the commands for the Azure version 1 fault, and `scenario-02/`, the commands for the cart memory fault. |
 | `app/robot-shop/` | Robot Shop's installation package (Helm chart) and its gateway rule. |
 | `app/hotrod/` | HotROD's installation files and its gateway rule. |
 | `monitoring/dashboards/` | The ready-made Grafana dashboards. |

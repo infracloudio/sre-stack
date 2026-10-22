@@ -74,7 +74,6 @@ ignore: |
   monitoring/chart-values/prometheus-values.yaml
   monitoring/chart-values/tempo.yaml
   monitoring/chart-values/yace.yaml
-  monitoring/dashboards/application.yaml
   monitoring/dashboards/istio-service.yaml
   monitoring/dashboards/mysql.yaml
   monitoring/dashboards/rabbitmq.yaml
