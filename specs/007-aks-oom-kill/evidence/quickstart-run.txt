@@ -166,3 +166,14 @@ $ make aks-cart-oom-status
 RESULT: fault not active (cart runs at the chart's allowance, no out-of-memory kills recorded)
 marker annotation after: absent. Shellcheck clean.
 Side effect left on the cluster: Helm release roboshop is in status "failed" (revision 6), caused by the redeploy timing out on the pre-existing unready shipping pod. Pods keep running.
+
+--- T015 live proof (2026-10-22), after az aks start
+make setup-robot-shop -> helm release roboshop deployed, revision 12
+job mysql-seeder: Complete 1/1, 2m18s
+seeder log: Loaded: /opt/seeds/10-cities.sql ; Loaded: /opt/seeds/20-ratings.sql
+cities.cities 948833 ; cities.codes 25 ; ratings.ratings 0 (empty by design)
+seed_state markers: done_10_cities_, done_20_ratings_
+all 10 Deployments and 2 StatefulSets Ready (shipping 2/2, ratings 2/2), seeder pod 0/2 Completed
+bug found on the way: readiness SELECT 1 ran without the password (ERROR 1045), fixed in mysql-seeed-job.yaml
+kubectl rollout restart deployment/shipping -> successfully rolled out
+second make setup-robot-shop -> release deployed, revision 13, no timeout; seeder Job completed again; codes still 25 rows

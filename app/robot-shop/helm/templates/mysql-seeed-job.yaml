@@ -35,7 +35,7 @@ spec:
             # /wait only proves a TCP connection opens; the mesh sidecar accepts
             # that before MySQL is ready, so wait for a real answer.
             n=0
-            until timeout 15 mysql -h "$MYSQL_HOST" -u "$MYSQL_USER" -e "SELECT 1" >/dev/null 2>&1; do
+            until MYSQL_PWD="$MYSQL_PASSWORD" timeout 15 mysql -h "$MYSQL_HOST" -u "$MYSQL_USER" -e "SELECT 1" >/dev/null 2>&1; do
               n=$((n + 1)); [ "$n" -ge 40 ] && { echo "MySQL did not answer"; exit 1; }
               sleep 5
             done
