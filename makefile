@@ -35,6 +35,9 @@ help:
 	@echo "	aks-cart-oom-start                - Start Azure scenario 02 on AKS: cart killed for running out of memory"
 	@echo "	aks-cart-oom-status               - Report whether the Azure scenario 02 cart fault is active (AKS, read-only)"
 	@echo "	aks-cart-oom-revert               - Remove the Azure scenario 02 cart fault (AKS)"
+	@echo "	aks-db-latency-start              - Start Azure scenario 03 on AKS: the shop's database answers slowly"
+	@echo "	aks-db-latency-status             - Report whether the Azure scenario 03 database fault is active (AKS, read-only)"
+	@echo "	aks-db-latency-revert             - Remove the Azure scenario 03 database fault (AKS)"
 	@echo "	setup-optional-otel               - Setup OpenTelemetry (works on AKS too)"
 	@echo "	cleanup                           - Cleanup AKS cluster"
 	@echo ""
@@ -161,6 +164,7 @@ ifeq ($(STACK_MODE),aks)
 			*) kubectl apply -f "$$_f";; \
 		esac; \
 	done
+	kubectl apply -f infra/azure/dashboards/
 else
 	kubectl apply -f ./monitoring/dashboards/
 endif
@@ -266,6 +270,19 @@ aks-cart-oom-status:
 
 aks-cart-oom-revert:
 	bash infra/azure/scenario-02/cart-oom-kill.sh revert
+
+# Scenario 03 on AKS (specs/008-aks-db-latency-fault): turn on, report and turn
+# off a fixed wait on the shop's database lookups. No STACK_MODE gate here; the
+# script refuses with exit 3 itself; on any failure make prints `Error <n>` and
+# exits 2.
+aks-db-latency-start:
+	bash infra/azure/scenario-03/db-latency.sh start
+
+aks-db-latency-status:
+	bash infra/azure/scenario-03/db-latency.sh status
+
+aks-db-latency-revert:
+	bash infra/azure/scenario-03/db-latency.sh revert
 
 # One-shot AKS deploy, same path as specs/002-azure-observability-stack/
 # instructions.md steps 2–7: cluster → mesh → observability → Kiali → apps →

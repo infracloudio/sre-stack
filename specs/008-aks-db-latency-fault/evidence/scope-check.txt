@@ -1,0 +1,32 @@
+## step 20 / T014(2): git diff --stat main (re-run after the yamllint ratchet fix)
+ docs/aks-explained.md                              |   52 +-
+ infra/azure/dashboards/slow-requests.yaml          |  139 +++
+ infra/azure/scenario-03/README.md                  |  148 +++
+ infra/azure/scenario-03/db-latency.sh              |  277 +++++
+ makefile                                           |   17 +
+ monitoring/dashboards/mysql.yaml                   |   96 +-
+ scenarios/README.md                                |    2 +
+ .../checklists/requirements.md                     |   52 +
+ .../008-aks-db-latency-fault/contracts/commands.md |   96 ++
+ specs/008-aks-db-latency-fault/data-model.md       |   37 +
+ .../evidence/01-baseline.png                       |  Bin 0 -> 102555 bytes
+ .../evidence/02-fault-on.png                       |  Bin 0 -> 116453 bytes
+ .../evidence/03-after-revert.png                   |  Bin 0 -> 138703 bytes
+ .../evidence/04-slow-requests.png                  |  Bin 0 -> 233922 bytes
+ .../evidence/05-trace-spans.png                    |  Bin 0 -> 121389 bytes
+ .../evidence/lint-output.txt                       |   75 ++
+ .../evidence/pr-entries.md                         |   42 +
+ .../evidence/quickstart-run.txt                    |  185 +++
+ .../evidence/scope-check.txt                       |    1 +
+ specs/008-aks-db-latency-fault/plan.md             |  130 +++
+ specs/008-aks-db-latency-fault/quickstart.md       |   51 +
+ specs/008-aks-db-latency-fault/research.md         | 1206 ++++++++++++++++++++
+ specs/008-aks-db-latency-fault/spec.md             |  181 +++
+ specs/008-aks-db-latency-fault/tasks.md            |  105 ++
+ 25 files changed, 2883 insertions(+), 10 deletions(-)
+lines changed in scenarios/scenario-01,02,04 vs main:
+0
+0	1	.yamllint.yaml
+17	0	makefile
+93	3	monitoring/dashboards/mysql.yaml
+2	0	scenarios/README.md

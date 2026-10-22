@@ -30,7 +30,7 @@ The state is read from the database, so there is no local file and anyone with c
 | Shipping | `GET http://shipping:8080/match/de/ber` | more than 2 s |
 | Ratings | `GET http://ratings/api/fetch/Watson` | more than 0.5 s |
 
-A few of each are sent. Status reports "slow for another reason" when the state is Off or Not installed but the requests are slow (EC-007).
+Three ratings requests are sent in parallel and two shipping requests one after another: parallel shipping scans queue on the database's CPU limit and read as slow even with the fault off (tasks.md, deviation D6). Status reports "slow for another reason" when the state is Off or Not installed but the requests are slow (EC-007).
 
 ## Data
 

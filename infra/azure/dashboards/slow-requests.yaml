@@ -1,0 +1,139 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: monitoring
+  name: "slow-requests-dashboard"
+  annotations:
+    grafana_folder: "Azure Scenario Dashboards"
+  labels:
+    grafana_dashboard: "1"
+    app: observability-grafana
+data:
+  slow-requests.json: |-
+    {
+      "annotations": {
+        "list": []
+      },
+      "editable": true,
+      "graphTooltip": 0,
+      "panels": [
+        {
+          "id": 1,
+          "type": "text",
+          "title": "",
+          "gridPos": {
+            "h": 4,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
+          "options": {
+            "mode": "markdown",
+            "content": "**Slow shop requests.** Pick a trace ID in either table to open the step-by-step view of that request. When the database is slow, the database step is most of the total time."
+          }
+        },
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "EbPG8fYoz"
+          },
+          "gridPos": {
+            "h": 14,
+            "w": 12,
+            "x": 0,
+            "y": 4
+          },
+          "id": 2,
+          "title": "Slow shipping requests (over 2 s)",
+          "type": "table",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": false
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "tempo",
+                "uid": "EbPG8fYoz"
+              },
+              "queryType": "traceql",
+              "query": "{ resource.service.name = \"shipping\" && duration > 2s }",
+              "limit": 50,
+              "tableType": "traces",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "EbPG8fYoz"
+          },
+          "gridPos": {
+            "h": 14,
+            "w": 12,
+            "x": 12,
+            "y": 4
+          },
+          "id": 3,
+          "title": "Slow ratings requests (over 0.5 s)",
+          "type": "table",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": false
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "tempo",
+                "uid": "EbPG8fYoz"
+              },
+              "queryType": "traceql",
+              "query": "{ resource.service.name = \"ratings\" && duration > 0.5s }",
+              "limit": 50,
+              "tableType": "traces",
+              "refId": "A"
+            }
+          ]
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "tags": [],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-30m",
+        "to": "now"
+      },
+      "timepicker": {},
+      "timezone": "",
+      "title": "Slow shop requests",
+      "uid": "slow-shop-requests",
+      "version": 1
+    }
