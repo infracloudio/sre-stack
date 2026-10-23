@@ -1,5 +1,26 @@
 <!--
 Sync Impact Report
+- Version change: 1.4.0 → 1.5.0 (MINOR: principle VIII research moved from
+  /speckit-plan to /speckit-specify)
+- Principles changed: VIII now require research as first step of
+  `/speckit-specify`, before `spec.md` written, instead of Phase 0 of
+  `/speckit-plan`. Substitute approved at spec gate, not plan gate. Plan
+  build on `research.md`; gap found while planning added as new finding,
+  and spec change go back to Architect. IX research sentence and
+  Verification and Evidence wording follow.
+- Why: research during planning kept amending already-approved specs
+  (spec 008: CPU-limit fault abandoned, Rewriter plugin missing, fault
+  wiped by mysql-0 restart — Findings 11–13 all landed after
+  gate:spec-approved). See AD-007.
+- Propagated to: speckit-specify ("Research First" section) and
+  speckit-plan ("Phase 0 Research — Done in /speckit-specify") in .claude/,
+  .agents/, .devin/ skills and .opencode/ commands (protected, human commit
+  with PROTECTED_OVERRIDE=1); docs/sdlc/framework.md steps 3 and 5;
+  AGENTS.md SDLC contract; docs/architectural-decisions.md AD-007.
+- Deferred: none. Known gap unchanged — `specify integration upgrade
+  --force` drops both skill blocks silently.
+
+Previous report (1.3.1 → 1.4.0):
 - Version change: 1.3.1 → 1.4.0 (MINOR: principles VIII and IX tightened)
 - Principles added: none
 - Principles changed: VIII made explicit that Phase 0 research runs against
@@ -117,11 +138,12 @@ Jargon hand it only to people who already have it.
 
 ### VIII. Try It Before You Plan It
 
-Story whose plan touch running infrastructure MUST get hands-on research
-against real cluster or real subscription before `plan.md` and `tasks.md`
-written. Live run is the default and the requirement, not the ideal case.
-During Phase 0 (research.md), author walk key steps with real commands,
-together with person who will review plan:
+Story that touch running infrastructure MUST get hands-on research against
+real cluster or real subscription as first step of `/speckit-specify`,
+before any section of `spec.md` written. Live run is the default and the
+requirement, not the ideal case. During research (`research.md` in story's
+`specs/` folder), author walk key steps with real commands, together with
+developer in the loop:
 
 - Before each command, author say in one or two sentences what it do and
   what could go wrong, then wait for go-ahead when command cost money,
@@ -129,7 +151,15 @@ together with person who will review plan:
 - Command runs against real target — the cluster, the subscription, the
   live chart repository. Actual output — every error, quirk, surprise —
   reported back and discussed before next step. Issues found this way
-  shape plan; not discovered later by builder.
+  shape spec and plan; not discovered later by Architect or builder.
+- Spec written from findings. Finding that change what story can promise —
+  limit, realistic threshold, fault that does not survive restart — go in
+  spec as outcome (assumption, edge case, success criterion). Commands,
+  versions, mechanisms stay in `research.md`. Research showing story cannot
+  be done as written stop spec; Owner reshape story.
+- `/speckit-plan` build on `research.md`, not fresh research pass. Fact
+  plan need that research lack is new finding, same rules; if it change
+  what spec promise, spec change go back to Architect before plan continue.
 - `research.md` record what was actually run and what happened, failures
   included, next to facts it cite. Paste terminal output verbatim. "The
   docs say" never substitute for "we ran it and here is what happened".
@@ -144,7 +174,7 @@ together with person who will review plan:
   timebox does substitute apply: `--dry-run`, `helm template`, `helm
   search`, sandbox, read-only query. research.md record who was asked, what
   answer came back, which substitute used, and what it cannot prove.
-  Architect approve substitute at plan gate; substitution not approved in
+  Architect approve substitute at spec gate; substitution not approved in
   advance and not decided by author alone. Limitation named in pull
   request, not buried in research.md.
 - Cheap read-only checks never qualify for substitute. Chart version,
@@ -157,6 +187,9 @@ no document mentioned. Errors found while walking steps with user are
 cheap; same errors found by builder mid-task are plan departures. Asking
 for access feel slow and cost hours; planning on guessed output cost days
 and burn reviewer trust. Blocked story is honest state — record it and ask.
+Research sit before spec, not plan, because spec approved on guesses get
+amended after approval: story 008 approved spec, then plan research found
+fault mechanism unworkable and three limits spec never named.
 
 ### IX. Author In Steps, Developer in the Loop
 
@@ -182,7 +215,7 @@ directory) beat reading it twice.
 Test: developer recognise every part of finished file, because they
 approved each part as it was made. Same rule apply to research, per
 principle VIII: findings arrive one at a time, real output attached, before
-plan built on them.
+spec built on them.
 
 *Rationale:* whole file generated in one pass get skimmed once and
 committed. Wrong version number is obvious on own line and invisible in
@@ -233,7 +266,7 @@ above are scope half of that boundary.
   work" is not evidence; command output is.
 - Chart changes checked with `helm template` or `helm lint` before any live
   run. Verification-time live runs happen only when story ask for them;
-  planning-time live runs follow principle VIII.
+  research-time live runs follow principle VIII.
 - Cloud and library facts grounded through MCP servers listed in
   `agent/policies/allowed-mcp-servers.md`, not from memory.
 - Verification steps reviewer will run written into plan and their output
@@ -267,4 +300,4 @@ principle, MINOR for adding one or materially expanding guidance, PATCH for
 wording. When mistake happen twice it become rule here, checklist line, or
 hook.
 
-**Version**: 1.4.0 | **Ratified**: 2026-09-04 | **Last Amended**: 2026-09-17
+**Version**: 1.5.0 | **Ratified**: 2026-09-04 | **Last Amended**: 2026-10-23
