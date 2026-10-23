@@ -71,11 +71,14 @@ Commands are spelled `/speckit-<verb>`; OpenCode spells them `/speckit.<verb>`.
 
 1. Owner files one 1–2 day story with Problem / Outcome / Out of scope / Must
    keep working (`intent`). Sponsor accepts it (`intent:accepted`).
-2. Owner runs `/speckit-specify` then `/speckit-clarify`; no
+2. Owner runs `/speckit-specify`: live research into `research.md` first
+   (principle VIII), then `spec.md`; then `/speckit-clarify`; no
    `[NEEDS CLARIFICATION]` may remain. Architect approves (`gate:spec-approved`).
-3. Builder uses a separate worktree for `/speckit-plan`, `/speckit-tasks`, and
-   `/speckit-analyze`. Architect approves (`gate:plan-approved`). CI blocks any
-   change outside the story's `specs/` folder before this label.
+3. Builder uses a separate worktree for `/speckit-plan` (builds on
+   `research.md`; a missing fact is a new finding, not a guess),
+   `/speckit-tasks`, and `/speckit-analyze`. Architect approves
+   (`gate:plan-approved`). CI blocks any change outside the story's `specs/`
+   folder before this label.
 4. Builder runs `/speckit-implement`; plan departures and reasons go into
    `plan.md` in the same commit. Attach verification output (`evidence:attached`).
 5. Builder runs `/speckit-converge` on the branch; if it appends tasks, run

@@ -391,3 +391,45 @@ files explain themselves (plan.md "Implementation departures" items 3–5):
   default of 3 fails every ring query with a single Loki replica; an
   offline render cannot show this, only a live query can.
 
+## AD-007 — Live research is the first step of `/speckit-specify`, not Phase 0 of `/speckit-plan`
+
+**Date**: 2026-10-23 · **Status**: Accepted · **Raised by**: story owner,
+after `specs/008-aks-db-latency-fault` (constitution 1.5.0, principle VIII).
+
+### Decision
+
+All of principle VIII's hands-on research moves to the start of
+`/speckit-specify`. Before any section of `spec.md` is written, the agent
+settles what the story depends on — mechanism, platform behaviour, what
+undoes it, charts, versions, targets, paths — against the real cluster,
+subscription or chart repo, one finding at a time, into the story's
+`research.md`. The spec is then written from those findings. The Architect
+approves any research substitute at the spec gate. `/speckit-plan` no
+longer runs a research pass: it builds on `research.md`, and a fact the
+plan needs but research lacks is added as a new finding under the same
+rules, with any resulting spec change going back to the Architect.
+
+### Why
+
+- Research during planning kept changing specs that were already approved.
+  In story 008 the CPU-limit fault was abandoned, the MySQL Rewriter plugin
+  turned out not to be installed, and a `mysql-0` restart wiped the fault —
+  each found after `gate:spec-approved`, each a spec amendment and a
+  second Architect review.
+- A spec written from tested facts promises what can actually be delivered:
+  realistic thresholds and accepted limits are agreed at the spec gate
+  instead of discovered by the Builder.
+
+### What we gave up
+
+- The spec step is no longer about an hour; it carries the live research,
+  so the Owner needs cluster or subscription access and spends cluster
+  money before the spec gate — including on stories the Architect rejects.
+- Research runs before the requirement is settled; a scope change in
+  `/speckit-clarify` or at the spec gate can waste findings.
+- Findings can go stale between spec and plan; the plan re-checks pins,
+  targets and paths before asserting them rather than trusting old output.
+- The rule lives in protected, generated skill files
+  (`speckit-specify`, `speckit-plan`, four harness copies each).
+  `specify integration upgrade --force` overwrites them silently, so an
+  upgrade must re-apply both blocks.

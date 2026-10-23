@@ -64,7 +64,7 @@ you through writing the files, in order:
 
 | You type | The agent produces |
 |---|---|
-| `/speckit-specify <your story text>` | a branch, a folder `specs/001-<name>/`, and `spec.md` — what to build and how we'll know it works |
+| `/speckit-specify <your story text>` | a branch, a folder `specs/001-<name>/`, `research.md` — what we tried on the real cluster and what happened — and `spec.md` — what to build and how we'll know it works |
 | `/speckit-clarify` | questions back at you about anything the spec left vague; your answers get written into the spec |
 | `/speckit-plan` | `plan.md` — how to build it: files to change, tools, versions, risks |
 | `/speckit-tasks` | `tasks.md` — the plan broken into a checklist of small tasks |
@@ -196,13 +196,47 @@ The Sponsor reads the story at the sync and says yes, no, or "split it".
 On yes, the issue gets the label `intent:accepted` and the three hats are
 assigned. That's the first approval.
 
-### Step 3 — Turn it into a spec (Owner, ~1 hour)
+### Step 3 — Research, then turn it into a spec (Owner, half a day)
 
 The Owner opens the agent on `main` and runs `/speckit-specify`, pasting
-the accepted issue text. The agent creates a branch and a `spec.md`: the
+the accepted issue text. The agent creates a branch, runs the research
+(below) into `research.md`, and only then writes `spec.md`: the
 story restated as concrete, testable statements — "given a fresh
 subscription, `make setup` exits 0 and prints a URL that opens" — plus
 numbered success criteria.
+
+**Research comes first, before any of `spec.md` is written.** Constitution
+principle VIII. Before drafting, the agent lists what the story depends on
+being true — does the mechanism work on our cluster, what does the platform
+already provide, what undoes it (a restart, a redeploy), which charts,
+versions, make targets and paths it touches — and settles each one, one
+finding at a time, into `research.md` in the story folder. Then it writes
+the spec from what it found: a limit or a realistic threshold goes into the
+spec as an outcome; commands and versions stay in `research.md`. If
+research shows the story can't be done as written, stop and reshape the
+story before writing the spec.
+
+The commands go against the real thing — the cluster, the subscription,
+the live chart repo — and `research.md` carries what the terminal actually
+printed, errors included. Never write an output block from
+memory or from the docs, and never label one "simulated": an invented output
+block is a false claim, and it makes a wrong answer look checked.
+
+If you can't reach a cluster or subscription, **that is a blocker — stop and
+ask for access.** Say what you need (subscription, role, credentials, quota)
+and who you're asking, and wait. Don't fill the gap from memory. A blocked
+story is an honest state; a confidently wrong spec isn't.
+
+A substitute — `--dry-run`, `helm template`, `helm search`, a sandbox — is
+allowed only *after* you asked and couldn't get access in the story's
+timebox. Write down who you asked, what came back, which substitute you used
+and what it can't prove; the Architect approves it at the spec gate, and the
+limitation goes in the PR. It isn't the author's call alone.
+
+None of that applies to the cheap checks. A chart version, a chart name, a
+make target, a path, a label or a taint is one command against the real
+source — `helm search repo <chart> --versions`, `grep -n "^<target>"
+makefile`, `ls` — and there's no acceptable reason to guess at them.
 
 Wherever the agent wasn't sure, it leaves a marker in the text:
 `[NEEDS CLARIFICATION: ...]`. Run `/speckit-clarify`: the agent asks you
@@ -214,8 +248,10 @@ everything the story produces — spec, plan, code — until it merges.
 
 ### Step 4 — Spec approved (Architect, same day, async)
 
-The Architect reads `spec.md` on the PR and checks three things: it's
-buildable, it's small enough, and it doesn't contradict the constitution.
+The Architect reads `spec.md` on the PR, with `research.md` beside it, and
+checks three things: it's buildable (the research shows it works on the
+real target), it's small enough, and it doesn't contradict the
+constitution. Any research substitute is approved or refused here.
 Comments are PR comments; fixes are commits. When satisfied, the
 Architect approves the spec with a PR comment and the label
 `gate:spec-approved`. Second approval.
@@ -228,9 +264,12 @@ sync — don't let a thread run for days.
 The Builder takes over the branch (use a separate git worktree so your
 other work isn't disturbed) and runs three commands:
 
-1. `/speckit-plan` — the agent writes `plan.md`: which files change, which
-   tools and versions (pinned), what could go wrong, and how the result
-   will be verified. It also writes a short verification script — the
+1. `/speckit-plan` — the agent writes `plan.md` on top of the research
+   already in `research.md`: which files change, which tools and versions
+   (pinned), what could go wrong, and how the result will be verified. If
+   the plan needs a fact the research doesn't have, the agent stops and
+   adds it as a new finding, same rules as step 3; if that changes what the
+   spec promises, the spec goes back to the Architect. It also writes a short verification script — the
    exact commands a reviewer will run to see the story working.
 2. `/speckit-tasks` — the plan becomes `tasks.md`, a checklist.
 3. `/speckit-analyze` — the agent cross-checks spec vs plan vs tasks and
@@ -256,29 +295,6 @@ end, which is the whole reason for working this way.
 `/speckit-analyze` is the backstop, not the review. It catches a file that
 contradicts itself; it won't catch a plan that is internally consistent and
 entirely wrong.
-
-**Phase 0 research runs against a live cluster or subscription.** Constitution
-principle VIII. The commands go against the real thing — the cluster, the
-subscription, the live chart repo — and `research.md` carries what the
-terminal actually printed, errors included. Never write an output block from
-memory or from the docs, and never label one "simulated": an invented output
-block is a false claim, and it makes a wrong answer look checked.
-
-If you can't reach a cluster or subscription, **that is a blocker — stop and
-ask for access.** Say what you need (subscription, role, credentials, quota)
-and who you're asking, and wait. Don't fill the gap from memory. A blocked
-story is an honest state; a confidently wrong plan isn't.
-
-A substitute — `--dry-run`, `helm template`, `helm search`, a sandbox — is
-allowed only *after* you asked and couldn't get access in the story's
-timebox. Write down who you asked, what came back, which substitute you used
-and what it can't prove; the Architect approves it at the plan gate, and the
-limitation goes in the PR. It isn't the author's call alone.
-
-None of that applies to the cheap checks. A chart version, a chart name, a
-make target, a path, a label or a taint is one command against the real
-source — `helm search repo <chart> --versions`, `grep -n "^<target>"
-makefile`, `ls` — and there's no acceptable reason to guess at them.
 
 Then get the **plan approved**: the Architect reads `plan.md` and the
 analyze report on the PR — async, or in five minutes at the sync — and

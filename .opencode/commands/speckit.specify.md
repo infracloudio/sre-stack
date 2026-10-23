@@ -233,6 +233,36 @@ Given that feature description, do this:
 
    d. **Update Checklist**: After each validation iteration, update the checklist file with current pass/fail status
 
+## Research First — REQUIRED (sre-stack)
+
+**Research is the first step of this command. It runs after the feature directory exists (step 3) and before any section of `spec.md` is written.**
+
+`.specify/memory/constitution.md` principle VIII: research for any story touching running infrastructure runs against the real cluster, the real subscription, or the live chart repository, and its findings go into `SPECIFY_FEATURE_DIRECTORY/research.md`. `/speckit.plan` does not run its own research; it builds on this file.
+
+1. **List what the story depends on being true.** Does the mechanism exist and work on the target? What does the platform already provide? What undoes it (restart, redeploy, upgrade)? How long does it take, what does it cost? Which charts, versions, make targets, paths, labels and taints will it touch?
+2. **Settle each one with a real command, one finding at a time.** Look up library, tool and cloud documentation first (context7, `aws-knowledge`, `microsoft-learn`), then prove what matters by running it. Propose the finding with its output, stop, wait for the developer to question or approve, then write it to `research.md`.
+3. **Then write `spec.md` from what research found.** A finding that changes what the story can promise — a limit, a realistic threshold, a fault that does not survive a restart — goes into the spec in outcome language (assumptions, edge cases, success criteria). Commands, versions and mechanisms stay in `research.md`.
+4. **If research shows the story cannot be done as written, stop before writing the spec.** Say what failed and what would work instead; the Owner reshapes the story.
+5. **Later questions get the same treatment.** If a `/speckit.clarify` answer depends on a fact `research.md` does not have, add the finding first, same rules.
+
+Rules, in order of how often they are broken:
+
+1. **Paste terminal output verbatim.** Never write an output block from memory, from documentation, or from what you expect the command to print. Never label a block "simulated", "expected", or "illustrative". An invented output block is a false claim — it is worse than leaving the question open, because it makes a wrong answer look checked.
+2. **Record failures.** Errors, quirks and surprises belong in `research.md` next to the facts they qualify. A research document with no failures in it usually means no commands were run.
+3. **If you cannot reach the cluster or subscription, stop and ask for access.** Say what you need — subscription, role, credentials, quota — and who you are asking. Then wait. Do not proceed and fill the gap from memory. A blocked story is an honest state; report it.
+4. **Substitutes need permission, not just a reason.** `--dry-run`, `helm template`, `helm search`, sandbox or read-only queries are allowed only after access was asked for and could not be granted in the story's timebox. Record who was asked, what came back, which substitute you used, and what it cannot prove. The Architect approves the substitute at the spec gate (`gate:spec-approved`); it is not yours to decide alone, and the limitation goes in the pull request.
+5. **Cheap checks never qualify for a substitute.** A chart version, a chart name, a make target, a file path, a label or a taint is settled by one command against the real source, and must be:
+
+   - `helm search repo <chart> --versions` — before pinning any chart version
+   - `helm show chart <repo>/<chart> --version <v>` — before naming a chart that must exist
+   - `grep -n "^<target>" makefile` — before writing "modify the existing <target> target"
+   - `ls <dir>` — before referencing a path
+   - `docs/architectural-decisions.md` and earlier stories' `data-model.md` — before asserting a label, taint or placement rule
+
+   None of these need a cluster, cost anything, or take longer than a minute. There is no acceptable reason to guess at them.
+
+---
+
 ## Incremental Authoring — REQUIRED (sre-stack)
 
 **This overrides any instruction above to produce `spec.md` in a single pass.**

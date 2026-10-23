@@ -67,29 +67,16 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Phase 1: Generate data-model.md, contracts/, quickstart.md
    - Re-evaluate Constitution Check post-design
 
-## Phase 0 Research — REQUIRED (sre-stack)
+## Phase 0 Research — Done in /speckit.specify (sre-stack)
 
-**`research.md` is written from a live run, not from memory or documentation.**
+**This overrides "Phase 0: Generate research.md" in the Outline above and the "Phase 0: Outline & Research" section below. Do not dispatch research agents or start a fresh research pass.**
 
-`.specify/memory/constitution.md` principle VIII: research for any story touching running infrastructure runs against the real cluster, the real subscription, or the live chart repository. That is the requirement, not the ideal case.
+`.specify/memory/constitution.md` principle VIII: research runs as the first step of `/speckit.specify`, against the real cluster, subscription or chart repository, and `research.md` already exists when this command starts. Phase 0 here means:
 
-Rules, in order of how often they are broken:
-
-1. **Paste terminal output verbatim.** Never write an output block from memory, from documentation, or from what you expect the command to print. Never label a block "simulated", "expected", or "illustrative". An invented output block is a false claim — it is worse than leaving the question open, because it makes a wrong answer look checked.
-2. **Record failures.** Errors, quirks and surprises belong in `research.md` next to the facts they qualify. A research document with no failures in it usually means no commands were run.
-3. **If you cannot reach the cluster or subscription, stop and ask for access.** Say what you need — subscription, role, credentials, quota — and who you are asking. Then wait. Do not proceed and fill the gap from memory. A blocked story is an honest state; report it.
-4. **Substitutes need permission, not just a reason.** `--dry-run`, `helm template`, `helm search`, sandbox or read-only queries are allowed only after access was asked for and could not be granted in the story's timebox. Record who was asked, what came back, which substitute you used, and what it cannot prove. The Architect approves the substitute at the plan gate; it is not yours to decide alone, and the limitation goes in the pull request.
-5. **Cheap checks never qualify for a substitute.** A chart version, a chart name, a make target, a file path, a label or a taint is settled by one command against the real source, and must be:
-
-   - `helm search repo <chart> --versions` — before pinning any chart version
-   - `helm show chart <repo>/<chart> --version <v>` — before naming a chart that must exist
-   - `grep -n "^<target>" makefile` — before writing "modify the existing <target> target"
-   - `ls <dir>` — before referencing a path
-   - the story's own `data-model.md` and `docs/architectural-decisions.md` — before asserting a label, taint or placement rule
-
-   None of these need a cluster, cost anything, or take longer than a minute. There is no acceptable reason to guess at them.
-
-Propose research findings one at a time, same loop as the section below: propose, stop, wait for the developer to question or approve.
+1. **Read `research.md` in the feature directory.** If it is missing, or has no findings for a story that touches running infrastructure, stop: the spec is not ready. Say so; research goes back to `/speckit.specify`.
+2. **Build on the findings, don't copy them.** Each design decision in `plan.md` cites the finding it rests on (by number or heading). Do not paste the output again.
+3. **A gap is a stop, not a guess.** If the plan needs a fact `research.md` does not have, say which fact and stop. Add it as a new finding under the rules in `/speckit.specify` "Research First" (real command, verbatim output, failures recorded, one finding at a time). If the finding changes what `spec.md` promises, the spec change goes back to the Architect before planning continues.
+4. **Re-check what may have gone stale.** Before writing a version pin, make target or path into `plan.md`, run the one-line check again; the cluster and chart repo may have moved since the spec was written.
 
 ---
 
@@ -99,7 +86,7 @@ Propose research findings one at a time, same loop as the section below: propose
 
 `.specify/memory/constitution.md` principle IX requires that `plan.md` be written one section at a time, with the developer approving each section before the next is started.
 
-Sections, in order: Technical Context → Constitution Check → Phase 0 research findings (one finding at a time, real command output attached, per principle VIII) → Phase 1 design outputs → files to change → verification strategy.
+Sections, in order: Technical Context → Constitution Check → Phase 0 summary (which `research.md` findings each decision rests on; research itself is done in `/speckit.specify`) → Phase 1 design outputs → files to change → verification strategy.
 
 Before writing a version pin, a file path, or a build target into any section, verify it exists. `helm search repo <chart> --versions` for a chart version, `grep -n "^<target>" makefile` for a make target, `ls` for a directory. Paste what the command printed. If you did not run it, do not assert it.
 
