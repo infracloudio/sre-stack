@@ -47,35 +47,35 @@ sre-stack shows how faults are detected, but nothing happens after an alert fire
   - **intent:** Grafana alerts also reach Keep.
   - **success:** A Grafana alert reaches Keep through a webhook contact point, with a recognised severity.
 - **CAP-10** *(later, lower priority)*
-  - **intent:** Kubernetes events reach Keep.
-  - **success:** The OOM-kill event for the cart pod appears in Keep during the fault.
+  - **intent:** The incident summary includes the Kubernetes events behind it. Keep cannot take events in as alerts; it can query them.
+  - **success:** During the cart OOM fault, the Slack summary names the OOM kill or back-off from the cluster's events for robot-shop.
 - **CAP-11** *(later, lower priority)*
   - **intent:** Alerts based on Loki logs reach Keep.
   - **success:** A log-based alert caused by the fault appears in Keep.
 - **CAP-12** *(later, lower priority)*
-  - **intent:** The cause of the failing "AI Summary" button with this model is found.
-  - **success:** A written finding with the cause and either a fix or a decision to leave it. In the try-out the button ran about 40 seconds and saved nothing, and "record root cause" saved empty entries.
+  - **intent:** The cause of the failing "AI Summary" button with this model is found. The button is open-source UI code that calls the model from the frontend, not Keep's backend.
+  - **success:** A written finding with the cause and a minimal repro, then either a configuration fix that keeps the one-model decision or a decision to leave it, and an upstream issue drafted, filed only with approval. In the try-out the button ran about 40 seconds and saved nothing, and "record root cause" saved empty entries.
 
 ## Constraints
 
 - AI uses only Fireworks, model `accounts/fireworks/models/glm-5p3-flash`, called through Keep's `litellm` workflow provider with `api_url` `https://api.fireworks.ai/inference/v1` and `max_tokens` 10000. The model always spends tokens on hidden reasoning first, so a small budget returns nothing. `OPENAI_MODEL_NAME` is set on both backend and frontend.
-- Keep's enterprise tier stays off (`EE_ENABLED` unset). Its built-in summary code is not open source.
+- Keep's enterprise tier stays off (`EE_ENABLED` unset).
 - Slack only through one incoming webhook bound to one channel. No bot token or Slack app scopes beyond the webhook.
-- Alertmanager's only receiver is Keep: `http://keep-backend.keep.svc.cluster.local:8080/alerts/event/prometheus`, basic auth username `api_key`, password read from a mounted Secret through `password_file`, `send_resolved: true`. Because Helm merges maps, `routes: []` has to be set explicitly to drop the old sub-route.
+- Alertmanager's only receiver is Keep, for firing and resolved alerts; the receiver, its credential and its timings are in AD-012.
 - Alert severity labels use Keep's names: critical, error, high, warning or info. The repo's `P1` would show as info. Rules carry `release: prometheus-stack` so Prometheus picks them up. Metrics come from kube-state-metrics and Beyla (`http_server_request_duration_seconds`). `istio_requests_total` has too few robot-shop series to use.
-- Keep's login: `AUTH_TYPE=DB` (uppercase; lowercase caused a redirect loop). `KEEP_DEFAULT_USERNAME`, `KEEP_DEFAULT_PASSWORD` and `KEEP_JWT_SECRET` come from a Secret. Alertmanager uses a real Keep API key, seeded from a Secret with `KEEP_DEFAULT_API_KEYS`, a comma-separated list of `name:role:secret` (`keep/api/core/db_on_start.py:103-125`). `POST /settings/apikey` is the fallback only if the live check fails. The default `NOAUTH` accepts any key as admin, so Keep gets no route through the gateway until the login is on. The try-out never tested this login.
-- The UI and websocket get their own address on the existing gateway, never a sub-path: `http://keep.demo.local`, host-matched as AD-005 does for HotROD (AD-010). The published frontend image has no `basePath`, and Next.js fixes `basePath` when the image is built.
-- Provider secrets never reach repo or values files. Keep's `KEEP_PROVIDERS_DIRECTORY` loader does no environment-variable substitution (`keep/providers/providers_service.py:609-660`), and the chart's `backend.provision.providers` renders values straight into a Secret. So `setup-keep` builds the `KEEP_PROVIDERS` JSON at install time from `~/.secrets/keep/` into our own Secret, loaded with `backend.envFromSecrets`. The repo keeps only a template with the non-secret fields. Start-up provisioning is on by default (`config.py:20`, AD-011).
-- Both workflows are repo files loaded by start-up provisioning; they hold no secrets. The correlation rule is created by a small idempotent script that calls `POST /rules`. Keep's provisioning (`keep/api/config.py:26-44`) covers providers, workflows, dashboards, deduplication and mapping rules, but not correlation rules.
-- Keep has no "incident resolved" trigger, only created, updated and deleted. The resolved message triggers on updated, with a condition on the incident's status being resolved.
-- Alertmanager is turned on in `infra/azure/chart-values/prometheus-stack.yaml` (AKS only). The broken Slack setting is removed from the shared `monitoring/chart-values/prometheus-values.yaml`.
-- Telemetry off: `POSTHOG_DISABLED=true` on backend and frontend, `SENTRY_DISABLED=true` on frontend.
-- Our own Secrets are never named `keep-*`. The chart's uninstall hook deletes every Secret with that prefix.
-- The Fireworks key, Slack webhook URL, Keep API key, Keep login password and JWT secret (the key that signs login sessions) never appear in the tracked `.env`, in values files or in manifests. They are read from an untracked file or shell variables; the Fireworks key and Slack webhook are supplied by the operator and `setup-keep` stops without them; the rest are generated once (AD-008).
-- Chart `keephq/keep` is pinned to 0.1.97 (Keep 0.54.3), with values in a chart-values file. `backend.env` and `frontend.env` are lists, so the values file restates the chart defaults it keeps. The frontend accepts plain values only, so secrets reach it through `envFromSecret`.
-- Images the chart leaves unpinned (`mysql:latest`, `busybox`, `bitnami/kubectl:latest`) are pinned through values to the newest exact versions, looked up when the story is built (busybox through our own init container, AD-013).
-- Database: the chart's bundled MySQL, with `database.pv.enabled: false` (no hostPath volume) and the PersistentVolumeClaim on `gp2`, with a generated root password (AD-013).
-- All Keep pods run on the `workload=o11y` pool and tolerate the o11y and spot taints (AD-003).
+- Keep's login is `AUTH_TYPE=DB` with one default user: the username comes from `.env`, the password and the keys that sign sessions from Secrets. Alertmanager sends a real Keep API key, seeded at start-up (AD-008, AD-009). The default `NOAUTH` accepts any key as admin, so Keep gets no route through the gateway until the login is on. The try-out never tested this login.
+- The UI and websocket get their own address on the existing gateway, never a sub-path: `http://keep.demo.local` (AD-010). The published frontend image has no `basePath`, and Next.js fixes `basePath` when the image is built.
+- Provider secrets never reach repo or values files. `setup-keep` builds Keep's provider settings at install time from the untracked secrets folder into our own Secret (AD-008, AD-011).
+- Both workflows are repo files loaded by Keep at start-up and hold no secrets. The correlation rule is created by a small idempotent script that calls `POST /rules`, because Keep's provisioning (`keep/api/config.py:26-44`) does not cover correlation rules (AD-011).
+- Keep has no "incident resolved" trigger, only created, updated and deleted. Incident triggers take only a list of events, so the resolved message triggers on updated and the status-resolved condition sits on the Slack action, together with a marker set once the message is sent so it posts once.
+- Alertmanager is turned on in the AKS overlay only. The broken Slack setting is removed from the shared `monitoring/chart-values/prometheus-values.yaml` (AD-012).
+- Telemetry off on backend and frontend (AD-013).
+- Our own Secrets are never named `keep-*`; the chart's uninstall hook deletes every Secret with that prefix (AD-008).
+- The Fireworks key, Slack webhook URL, Keep API keys, login password and the keys that sign login sessions never appear in the tracked `.env`, in values files or in manifests. They live in one untracked folder; the operator supplies the Fireworks key and Slack webhook and `setup-keep` stops without them, and the rest are generated once (AD-008).
+- Chart `keephq/keep` is pinned to 0.1.97 (Keep 0.54.3), with all values in one chart-values file that restates the chart defaults it keeps (AD-013).
+- Images the chart leaves unpinned are pinned to exact versions, looked up when the story is built (AD-013).
+- Database: the chart's bundled MySQL, no hostPath volume, volume claim on `gp2`, generated root password (AD-013).
+- All Keep pods run on the `workload=o11y` pool and tolerate the o11y and spot taints (AD-003, AD-013).
 - AKS first. `make setup-local` (k3d) and the EKS path keep working.
 - Delivery: issue #91 is the epic in a GitHub Project. Each story is a sub-issue sized at 1 to 2 days, with Problem, Outcome, Out of scope and Must keep working (AGENTS.md), and can be demoed on its own. The order is in `delivery-slices.md`.
 
@@ -98,4 +98,4 @@ sre-stack shows how faults are detected, but nothing happens after an alert fire
 - Keep is installed on AKS only in this epic. k3d and EKS get no Keep install and must not break.
 - Hotrod alert rules are not in this epic. Decision 6 names robot-shop only.
 - Untracked secrets live in `~/.secrets/keep/`, as in the try-out.
-- Until story 6a, Keep runs under `NOAUTH` and is reached only by port-forward. Stories 3 to 5b read the API key from the same untracked file and Secret that story 6a makes real, and 6a proves Alertmanager still delivers with it. (Accepted by review.)
+- Until story 6a, Keep runs under `NOAUTH` and is reached only by port-forward. Stories 3 to 5b already send the real API key, so 6a only switches the login on (AD-009). (Accepted by review.)

@@ -553,7 +553,11 @@ behaviour seen in the try-out (`research.md` §5); Keep source at
    `helm upgrade`, so `login-password` is always the source of truth.
    `NEXTAUTH_URL` is set in `frontend.env` to Keep's address (AD-010);
    with the chart's ingress off it otherwise defaults to
-   `http://localhost:3000` and the login redirect fails.
+   `http://localhost:3000` and the login redirect fails. Story 6a keeps
+   that default, because its sign-in goes through `kubectl port-forward`
+   on `localhost:3000` and the route to `keep.demo.local` does not exist
+   yet; story 6b sets `NEXTAUTH_URL` to `http://keep.demo.local` in the
+   same pull request that adds the route (AD-010).
 2. **Two API keys, seeded at start-up** through `KEEP_DEFAULT_API_KEYS`
    in `sre-keep-api-keys`, each named after a fingerprint of its value
    (first 8 hex characters of its SHA-256):
@@ -795,7 +799,9 @@ diff (`research.md` §5, `tryout/keep-tryout-findings.md:43`).
    `keep-webhook-api.key` if missing (AD-008). That file is generated,
    never supplied, so this works even when Keep itself is skipped. One
    target owns the `prometheus-stack` release; `setup-keep` never
-   upgrades it.
+   upgrades it. Grafana, which belongs to the same release, also reads
+   this Secret (story 8) through an environment variable used by its
+   provisioning file, so the key has no further copy.
 4. **The broken Slack setting leaves the shared file.** Removed:
    `slack_api_url: "slack-webhook-url"`, the `P1 → slack` sub-route and the
    `slack` receiver; the root receiver becomes `'null'`. This departs from

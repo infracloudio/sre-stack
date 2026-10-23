@@ -8,13 +8,13 @@
 - **litellm provider**: Keep's generic provider for OpenAI-compatible language model APIs. It takes an explicit `api_url`.
 - **Fireworks**: hosted language model service. The model used is GLM-5.3 Flash (`glm-5p3-flash`), which always reasons before answering ("thinking-only").
 - **NOAUTH**: Keep's default no-login mode. Every request, with any API key, is treated as admin. Used only before story 6a.
-- **AUTH_TYPE=DB**: Keep's built-in login, with users stored in its own database. One default user is set from a Secret.
+- **AUTH_TYPE=DB**: Keep's built-in login, with users stored in its own database. One default user (AD-009).
 - **JWT secret**: the key Keep uses to sign login sessions (JWT = JSON Web Token).
 - **Own address**: Keep's UI served at the root of its own hostname, `keep.demo.local`, rather than under a sub-path (AD-010).
 - **nip.io**: a public DNS service where `keep.1.2.3.4.nip.io` resolves to `1.2.3.4`. It gives a hostname to a bare IP address. Considered and rejected in AD-010 (outside dependency).
 - **KEEP_PROVIDERS**: environment variable holding Keep's provider definitions as JSON. Built at install time from the untracked secrets file.
 - **KEEP_DEFAULT_API_KEYS**: environment variable that creates API keys at start-up, as a comma-separated list of `name:role:secret`.
-- **PROVISION_RESOURCES**: Keep setting that switches start-up provisioning of providers and workflows on or off.
+- **PROVISION_RESOURCES**: Keep setting that switches start-up provisioning of providers and workflows on or off. On by default (AD-011).
 - **basePath**: Next.js setting for serving an app under a sub-path. It is fixed when the image is built.
 - **EE (enterprise edition)**: Keep's paid, separately licensed code, turned on with `EE_ENABLED`. Not used.
 - **Alertmanager**: Prometheus component that sends alert notifications. Here it sends only to Keep.
