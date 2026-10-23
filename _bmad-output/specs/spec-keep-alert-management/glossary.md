@@ -1,0 +1,32 @@
+# Glossary
+
+- **Keep**: open-source alert management tool (keephq). It receives alerts, removes duplicates, groups them into incidents and runs workflows.
+- **Incident**: a Keep record grouping related alerts. It opens when a correlation rule matches and closes when the rule's resolve condition is met (here: all alerts resolved).
+- **Correlation rule**: a Keep rule that groups alerts into one incident. In the try-out: robot-shop alerts, grouped by namespace, a 600-second window, opened at 3 alerts.
+- **Workflow**: a Keep YAML file that runs steps on a trigger, such as "incident created". Here: ask Fireworks for a summary, then post it to Slack.
+- **Provider**: Keep's name for a connection to an outside system (Slack, Fireworks through `litellm`, Prometheus).
+- **litellm provider**: Keep's generic provider for OpenAI-compatible language model APIs. It takes an explicit `api_url`.
+- **Fireworks**: hosted language model service. The model used is GLM-5.3 Flash (`glm-5p3-flash`), which always reasons before answering ("thinking-only").
+- **NOAUTH**: Keep's default no-login mode. Every request, with any API key, is treated as admin. Used only before story 6a.
+- **AUTH_TYPE=DB**: Keep's built-in login, with users stored in its own database. One default user (AD-009).
+- **JWT secret**: the key Keep uses to sign login sessions (JWT = JSON Web Token).
+- **Own address**: Keep's UI served at the root of its own hostname, `keep.demo.local`, rather than under a sub-path (AD-010).
+- **nip.io**: a public DNS service where `keep.1.2.3.4.nip.io` resolves to `1.2.3.4`. It gives a hostname to a bare IP address. Considered and rejected in AD-010 (outside dependency).
+- **KEEP_PROVIDERS**: environment variable holding Keep's provider definitions as JSON. Built at install time from the untracked secrets file.
+- **KEEP_DEFAULT_API_KEYS**: environment variable that creates API keys at start-up, as a comma-separated list of `name:role:secret`.
+- **PROVISION_RESOURCES**: Keep setting that switches start-up provisioning of providers and workflows on or off. On by default (AD-011).
+- **basePath**: Next.js setting for serving an app under a sub-path. It is fixed when the image is built.
+- **EE (enterprise edition)**: Keep's paid, separately licensed code, turned on with `EE_ENABLED`. Not used.
+- **Alertmanager**: Prometheus component that sends alert notifications. Here it sends only to Keep.
+- **send_resolved**: Alertmanager setting that also sends a message when an alert clears.
+- **kube-state-metrics**: exporter that turns Kubernetes object state (restarts, replica counts) into Prometheus metrics.
+- **Beyla**: agent already in the stack that watches network calls from the kernel and measures HTTP request duration and status per service.
+- **OOM kill**: Kubernetes stops a container that goes over its memory limit (OOM = out of memory). Scenario: `make aks-cart-oom-start` / `make aks-cart-oom-revert`.
+- **5xx ratio**: share of HTTP responses with status 500 to 599 (server errors).
+- **p95 latency**: the request duration that 95% of requests finish under.
+- **Istio gateway**: the cluster's shared entry point (`robotshop-gateway`), behind the public load balancer address `LB_ENDPOINT`. Grafana is served there at `/grafana`.
+- **Websocket**: the long-lived connection Keep's UI uses for live page updates (served by Keep's Soketi pod, path `/websocket`).
+- **PostHog / Sentry**: outside services Keep reports usage and errors to by default. Turned off.
+- **AD-003**: decision in `docs/architectural-decisions.md`: workloads on tainted node pools also tolerate the spot taint.
+- **gp2**: the repo's StorageClass name for persistent disks.
+- **Epic / story / sub-issue**: issue #91 is the epic, the parent issue. Each story is a GitHub sub-issue of it, sized at 1 to 2 days.

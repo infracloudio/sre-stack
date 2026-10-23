@@ -1,0 +1,38 @@
+workflow:
+  id: notify-slack-with-context
+  name: Notify Slack with AI incident summary
+  description: When Keep opens an incident, ask GLM-5.3 Flash on Fireworks to summarise its alerts and post the summary to Slack.
+  triggers:
+    - type: incident
+      events:
+        - created
+  steps:
+    - name: summarize
+      provider:
+        type: litellm
+        config: "{{ providers.fireworks }}"
+        with:
+          model: accounts/fireworks/models/glm-5p3-flash
+          # Thinking-only model: reasoning tokens count against this budget.
+          max_tokens: 10000
+          temperature: 0.2
+          prompt: |
+            You are an SRE on call. Summarise this incident for a Slack channel in at most 5 short bullet points:
+            what is broken, which services are affected, the most likely cause, and what to check first.
+            Plain text, no headings.
+
+            Incident: {{ incident.user_generated_name }}{{ incident.ai_generated_name }}
+            Severity: {{ incident.severity }}
+            Number of alerts: {{ incident.alerts_count }}
+            Alerts:
+            {{ incident.alerts }}
+  actions:
+    - name: post-to-slack
+      provider:
+        type: slack
+        config: "{{ providers.keep-alerts-srestack }}"
+        with:
+          message: |
+            :rotating_light: *Keep incident:* {{ incident.user_generated_name }}{{ incident.ai_generated_name }} ({{ incident.severity }}, {{ incident.alerts_count }} alerts)
+            {{ steps.summarize.results.response }}
+            Open in Keep: http://localhost:3000/incidents/{{ incident.id }}
