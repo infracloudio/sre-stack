@@ -1,0 +1,68 @@
+# Temporary alert rules for the Keep try-out (2026-10-23). Not committed.
+# Remove with: kubectl -n monitoring delete prometheusrule keep-tryout-robot-shop
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: keep-tryout-robot-shop
+  namespace: monitoring
+  labels:
+    release: prometheus-stack
+spec:
+  groups:
+    - name: robot-shop-keep-tryout
+      interval: 30s
+      rules:
+        - alert: RobotShopContainerOOMKilled
+          expr: |
+            label_replace(
+              (increase(kube_pod_container_status_restarts_total{namespace="robot-shop"}[10m]) > 0)
+              and on (namespace, pod, container)
+              (kube_pod_container_status_last_terminated_reason{namespace="robot-shop", reason="OOMKilled"} == 1),
+              "service", "$1", "container", "(.*)")
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.container }} in {{ $labels.pod }} was OOM-killed"
+        - alert: RobotShopContainerRestarting
+          expr: |
+            label_replace(
+              increase(kube_pod_container_status_restarts_total{namespace="robot-shop"}[5m]) > 0,
+              "service", "$1", "container", "(.*)")
+          labels:
+            severity: high
+          annotations:
+            summary: "{{ $labels.container }} restarted {{ $value | humanize }} times in 5m"
+        - alert: RobotShopReplicasUnavailable
+          expr: |
+            label_replace(
+              kube_deployment_status_replicas_unavailable{namespace="robot-shop"} > 0,
+              "service", "$1", "deployment", "(.*)")
+          for: 1m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.deployment }} has {{ $value }} unavailable replicas"
+        - alert: RobotShopSlowRequests
+          expr: |
+            label_replace(
+              histogram_quantile(0.95, sum by (le, service_name) (
+                rate(http_server_request_duration_seconds_bucket{k8s_namespace_name="robot-shop"}[2m]))) > 1,
+              "service", "$1", "service_name", "(.*)")
+          for: 1m
+          labels:
+            severity: warning
+            namespace: robot-shop
+          annotations:
+            summary: "{{ $labels.service }} p95 latency {{ $value | humanizeDuration }}"
+        - alert: RobotShopHTTPErrors
+          expr: |
+            label_replace(
+              sum by (service_name) (rate(http_server_request_duration_seconds_count{k8s_namespace_name="robot-shop", http_response_status_code=~"5.."}[2m]))
+              / sum by (service_name) (rate(http_server_request_duration_seconds_count{k8s_namespace_name="robot-shop"}[2m])) > 0.05,
+              "service", "$1", "service_name", "(.*)")
+          for: 1m
+          labels:
+            severity: high
+            namespace: robot-shop
+          annotations:
+            summary: "{{ $labels.service }} 5xx ratio {{ $value | humanizePercentage }}"

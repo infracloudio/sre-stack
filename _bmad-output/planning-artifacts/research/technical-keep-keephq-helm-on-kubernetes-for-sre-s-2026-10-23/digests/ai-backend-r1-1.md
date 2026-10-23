@@ -1,0 +1,23 @@
+# Digest: Keep AI backend + Fireworks model ID (round 1, assistant 1)
+
+Accessed 2026-10-23. Caveat from assistant: WebFetch returns small-model summaries, quotes are second-hand unless noted.
+
+1. Model "GLM 5.3 Flash" EXISTS on Fireworks serverless. ID `accounts/fireworks/models/glm-5p3-flash`; type Vision (multimodal); ctx 1,048,576; $0.15/M in, $0.03/M cached in, $0.50/M out | https://fireworks.ai/models/fireworks/glm-5p3-flash , https://fireworks.ai/models | Fireworks AI | created 2026-08-26 | high | model-id
+2. Sibling GLM-5.3 `accounts/fireworks/models/glm-5p3`, LLM type, serverless, $1.4/$4.4, 1,048,576 ctx. Catalog showed 2 GLM of 329 ("Load more" unexpanded); other GLM IDs not enumerated | https://fireworks.ai/models?query=glm | Fireworks AI | n/a | med | model-id
+3. Z.ai released GLM-5.3-Flash 2026-08-26: open weights (MIT), 320B total/18B active MoE, multimodal, up to 1M ctx. Secondary only | https://datanorth.ai/news/z-ai-releases-glm-5-3-flash | DataNorth AI | 2026-08-26 | med | model-id
+4. Fireworks OpenAI-compatible base `https://api.fireworks.ai/inference/v1`; chat completions `/chat/completions`; `Authorization: Bearer <API_KEY>` | https://docs.fireworks.ai/tools-sdks/openai-compatibility , https://docs.fireworks.ai/api-reference/post-chatcompletions | Fireworks AI | n/a | high | config
+5. Caveats: Fireworks lowers max_tokens instead of erroring on context overflow (`context_length_exceeded_behavior`=`error` for OpenAI behaviour); streaming usage in final chunk; docs mention env `OPENAI_API_BASE`/`OPENAI_API_KEY` | same openai-compatibility | high | config
+6. Keep docs env vars (backend+frontend): `OPENAI_API_KEY`; `OPENAI_MODEL_NAME` (default `gpt-4o-2024-08-06`); `OPEN_AI_ORGANIZATION_ID`; `OPENAI_BASE_URL` ("such as a LiteLLM proxy"); `KEEP_AI_DISABLE_TEMPERATURE` (default false, backend); `ARQ_EXPIRES_AI` | https://docs.keephq.dev/deployment/configuration | Keep docs | n/a | high(doc)/med(behaviour untested) | config
+7. Keep LiteLLM guide: set `OPEN_AI_ORGANIZATION_ID`, `OPEN_AI_API_KEY`, `OPENAI_BASE_URL` on BOTH frontend and backend; model chosen in LiteLLM proxy. Key var spelled `OPEN_AI_API_KEY` here vs `OPENAI_API_KEY` on config page | https://docs.keephq.dev/deployment/local-llm/keep-with-litellm | Keep docs | n/a | med | config
+8. AI Incident Assistant: Cloud available; Enterprise On-Prem available; Open Source "experimental" | https://docs.keephq.dev/overview/ai-incident-assistant | Keep docs | n/a | high | config
+9. GH discussion #6533 (2026-05-27, Dosu bot answers, no maintainer confirm): core AI needs `OPENAI_API_KEY` + optional `OPENAI_MODEL_NAME`/`OPENAI_BASE_URL` in frontend and backend; incident summary also needs `EE_ENABLED=true`, Redis, >=5 unique alert fingerprints (`MIN_INCIDENT_ALERTS_FOR_SUMMARY_GENERATION`); `/ee/` proprietary license; core AI hardcoded to OpenAI client. UNVERIFIED (bot-sourced) | https://github.com/keephq/keep/discussions/6533 | GitHub | 2026-05-27 | low-med | code
+10. Workflow OpenAI provider builds `OpenAI(api_key=..., organization=...)`, no base_url; auth fields api_key, organization_id only; default model `gpt-4o-mini` | https://raw.githubusercontent.com/keephq/keep/main/keep/providers/openai_provider/openai_provider.py | GitHub | n/a | med-high | code
+11. OpenAI provider docs list only api_key, organization_id | https://docs.keephq.dev/providers/documentation/openai-provider | Keep docs | n/a | med | config
+12. `keep/api/utils/import_ee.py`: EE loaded only if `EE_ENABLED`="true"; else summary/name generators = NotImplemented | raw main | GitHub | n/a | med-high | code
+13. openai-python `OpenAI.__init__` env inference lists OPENAI_API_KEY etc.; base_url resolution delegated to lib/_client_auth, unread; SDK reading OPENAI_BASE_URL NOT confirmed from source | raw openai-python _client.py | low-med | code
+
+Leads: read actual Keep AI client code (likely under ee/ or keep/api/utils; guessed path 404) via git clone + grep; read openai-python base_url env; check Keep frontend OpenAI client baseURL; Fireworks model list API; temperature/response_format support; Elastic acquisition mention (2025-05-07 per discussion).
+
+Not found: Keep source line constructing the AI client; any Keep issue/PR about base URL/custom LLM; other Fireworks GLM IDs; official Z.ai post; explicit Fireworks statement that glm-5p3-flash supports chat completions.
+
+Contradictions: OPENAI_API_KEY vs OPEN_AI_API_KEY; docs list OPENAI_BASE_URL but workflow provider code ignores it and a Dosu answer says core AI path doesn't pass it (may be different code paths); Fireworks names OPENAI_API_BASE vs Keep OPENAI_BASE_URL; GLM-5.3 Flash price varies across aggregators ($0.075/$0.25 on one) vs Fireworks $0.15/$0.50.

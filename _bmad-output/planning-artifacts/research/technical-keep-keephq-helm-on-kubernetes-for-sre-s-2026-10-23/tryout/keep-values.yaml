@@ -1,0 +1,96 @@
+# Keep chart keephq/keep 0.1.97 (app 0.54.3): manual try-out on AKS, 2026-10-23.
+# Scratchpad only, not committed. env lists replace the chart defaults, so the
+# defaults are carried over verbatim and the AI settings appended.
+
+global:
+  ingress:
+    # Reached by kubectl port-forward during the try-out.
+    enabled: false
+
+backend:
+  env:
+    - name: DATABASE_CONNECTION_STRING
+      value: mysql+pymysql://root@keep-database:3306/keep
+    - name: DATABASE_NAME
+      value: keep-database
+    - name: SECRET_MANAGER_TYPE
+      value: k8s
+    - name: PORT
+      value: "8080"
+    - name: PUSHER_APP_ID
+      value: 1
+    - name: PUSHER_APP_KEY
+      value: keepappkey
+    - name: PUSHER_APP_SECRET
+      value: keepappsecret
+    - name: PUSHER_HOST
+      value: keep-websocket
+    - name: PUSHER_PORT
+      value: 6001
+    - name: PROMETHEUS_MULTIPROC_DIR
+      value: "/tmp/prometheus"
+    - name: OPENAI_BASE_URL
+      value: https://api.fireworks.ai/inference/v1
+    - name: OPENAI_MODEL_NAME
+      value: accounts/fireworks/models/glm-5p3-flash
+    - name: POSTHOG_DISABLED
+      value: "true"
+  # Secret keys are named after the env vars: OPENAI_API_KEY, OPEN_AI_API_KEY.
+  envFromSecret: keep-ai-env
+  nodeSelector:
+    workload: o11y
+  tolerations: &tolerations
+    - key: o11y
+      value: "true"
+      effect: NoSchedule
+    - key: kubernetes.azure.com/scalesetpriority
+      operator: Equal
+      value: spot
+      effect: NoSchedule
+
+frontend:
+  env:
+    - name: NEXTAUTH_SECRET
+      value: secret
+    - name: VERCEL
+      value: 1
+    - name: ENV
+      value: development
+    - name: NODE_ENV
+      value: development
+    - name: HOSTNAME
+      value: 0.0.0.0
+    - name: PUSHER_APP_KEY
+      value: "keepappkey"
+    - name: FRIGADE_DISABLED
+      value: "true"
+    - name: OPENAI_BASE_URL
+      value: https://api.fireworks.ai/inference/v1
+    - name: OPENAI_MODEL_NAME
+      value: accounts/fireworks/models/glm-5p3-flash
+    - name: POSTHOG_DISABLED
+      value: "true"
+    - name: SENTRY_DISABLED
+      value: "true"
+  # frontend.env renders plain values only, so the key comes from envFrom.
+  envFromSecret: keep-ai-env
+  nodeSelector:
+    workload: o11y
+  tolerations: *tolerations
+
+websocket:
+  nodeSelector:
+    workload: o11y
+  tolerations: *tolerations
+
+database:
+  # Chart default (mysql:latest) kept for the try-out; pinning is a finding.
+  type: mysql
+  pv:
+    # The chart's PV is a hostPath volume; let the PVC provision an Azure disk.
+    enabled: false
+  pvc:
+    storageClass: gp2
+  nodeSelector:
+    workload: o11y
+  tolerations: *tolerations
