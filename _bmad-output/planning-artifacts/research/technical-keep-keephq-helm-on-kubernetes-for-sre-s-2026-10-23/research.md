@@ -8,7 +8,7 @@ status: draft
 preset: 'standard'
 validation: 'normal'
 created: '2026-10-23'
-updated: '2026-10-23'
+updated: '2026-10-24'
 ---
 
 # Technical research: Keep (keephq) on Kubernetes for sre-stack alert management
@@ -51,7 +51,7 @@ Also worth a line in the issue: Alertmanager authenticates with HTTP basic auth 
 ## 3. Alertmanager and Grafana into Keep
 
 - **Alertmanager (high confidence, docs + provider code [12]).** Webhook `http://<keep-backend>:8080/alerts/event/prometheus` with `send_resolved: true` and `http_config.basic_auth` username `api_key`, password = Keep API key. In-cluster service names `keep-backend` (8080) are plausible from the install page but unconfirmed end to end. Severity comes from `labels.severity` (unknown becomes INFO); fingerprint is Alertmanager's own; `lastReceived` is set at receipt time [12]. Unverified: how multi-alert groups are split, and a possible TypeError when a payload alert has an `id` key [12].
-- **Grafana (high confidence [13]).** Contact point type Webhook to `/alerts/event/grafana` with header `X-API-KEY`, plus a notification policy with **no matchers** or only matching alerts forward [13]. Unified alerting (Grafana 9+) is the supported path; no explicit matrix for 10/11/12 [13]. No labels required, but without a `severity` label everything is INFO; service defaults to "unknown" [13].
+- **Grafana (high confidence [13]; auth and severity corrected in section 6).** Contact point type Webhook to `/alerts/event/grafana` with header `X-API-KEY` (**correction:** Keep's own setup uses `Authorization: digest <key>`, and the severity map has no `error`; section 6), plus a notification policy with **no matchers** or only matching alerts forward [13]. Unified alerting (Grafana 9+) is the supported path; no explicit matrix for 10/11/12 [13]. No labels required, but without a `severity` label everything is INFO; service defaults to "unknown" [13].
 - **API keys.** Created in UI Settings, Users and Access, API Keys, role `webhook` [16] (medium, search-summary sourced). Declarative alternative: `KEEP_DEFAULT_API_KEYS="name:role:secret"` [5]. There is no `KEEP_API_KEY` variable [5]. With NOAUTH any `x-api-key` value is accepted [16]. `KEEP_ALLOW_MESH_ALERT_INGESTION=true` allows unauthenticated posts and needs network controls [5].
 
 ## 4. Slack (notifications only)
@@ -107,7 +107,43 @@ Run by hand on cluster `sre-stack-452138` (AKS, Kubernetes 1.34) with chart `kee
 - The resolved incident has `end_time: null`; Keep's report computes time-to-resolve only from incidents with an end time, so auto-resolved incidents may count as zero (seen on one incident only).
 - The payment p95 > 1s rule cleared last, 8 minutes after the fix; the threshold may sit near payment's normal latency under loadgen. Tune it.
 - The UI labels rule-correlated alerts "Manually" in its Correlation column.
-- Grafana into Keep, Kubernetes events and Loki were not tried (happy path only).
+- Grafana into Keep, Kubernetes events and Loki were not tried (happy path only). Section 6 covers what the source says about each.
+
+## 6. Source checks during story review (2026-10-24)
+
+While the 13 stories for epic #91 were reviewed (`_bmad-output/specs/spec-keep-alert-management/stories.yaml`), the open points below were settled by reading Keep's source at `e5cd869` [4], rendering the pinned charts, and reading the repo. None of it was run live; each story's live checks prove it. Story ids are the ids in `stories.yaml`.
+
+**Resolved message, exactly once (story 5b) [24].**
+- Incident triggers take only an `events` list (`created`, `updated`, `deleted`); unlike alert triggers they have no `cel` or `filters` (`keep/workflowmanager/workflowmanager.py:147-154`). A "status is resolved" condition therefore goes on the action as `if:`, not on the trigger.
+- The rules engine sends `updated` for every alert event it adds to a visible incident, including the one that resolves it (`keep/rulesengine/rulesengine.py:197-208`); `IncidentBl.resolve_incident_if_require` also sends `updated` when it resolves (`keep/api/bl/incidents_bl.py:455-466`). So a status condition alone can post more than once.
+- Keep's own example `examples/workflows/incident-tier-escalation.yml` shows the fix: the action's `if:` checks a marker and the action sets it with `enrich_incident`. Keep loads incident enrichments onto the incident before each run (`workflowmanager.py:159-162`), so the next run sees the marker. Untested risks: two near-simultaneous updates both passing before the marker is written, and a reopened incident keeping its marker.
+
+**Grafana into Keep (story 8) [25].** Two claims in section 3 were second-hand and are corrected here.
+- Keep's Grafana severity map has only `critical`, `high`, `warning`, `info` (`keep/providers/grafana_provider/grafana_provider.py:120-125`); anything else becomes info (`:413`). The Prometheus provider also accepts `error`; Grafana does not.
+- Authentication: `X-API-KEY` is only the manual instruction in the provider's docs (`:85`). Keep's own setup code, for Grafana newer than 9.4.7, sets the contact point's `authorization_scheme: digest` and `authorization_credentials: <api key>` (`:574-581`), and Keep's auth checker accepts the Digest scheme (`keep/identitymanager/authverifierbase.py:320`).
+- kube-prometheus-stack 52.0.0 depends on Grafana chart `6.60.*` (`helm show chart`), so Grafana 10, newer than 9.4.7.
+- Decision recorded in AD-012 rule 3: Grafana reads the existing Secret `alertmanager-keep-auth` (same `monitoring` namespace, same release) through an environment variable, so the key gets no new copy.
+
+**Kubernetes events (story 9) [24].**
+- Keep cannot take Kubernetes events in as alerts. `keep/providers/kubernetes_provider/kubernetes_provider.py` has no `_get_alerts`, no `_format_alert` and no webhook. It is a query and action provider with commands including `get_events` for a namespace or pod (`:150`, `:170`, `:332-360`), and it can use in-cluster credentials (`use_in_cluster_config`, `:46`, `:109`). No event exporter appears in Keep's code or docs.
+- So CAP-10 was reshaped: the opened-incident workflow queries `get_events` for `robot-shop` and passes them into the Fireworks prompt. Events never become alerts, so the one-incident rule is not at risk.
+- Chart 0.1.97 renders `serviceAccountName: keep` on every Keep pod, already bound to the chart's Role `secret-manager-role` (Secrets in `keep`). A RoleBinding in `robot-shop` for service account `keep` (namespace `keep`), get and list events only, is all the provider needs.
+
+**Loki log alerts (story 10) [26].**
+- The AKS Loki is `grafana-community/loki` 18.13.7 (`makefile:218`), Monolithic mode (`infra/azure/chart-values/loki.yaml`). Its chart values have the ruler on by default (`ruler.enabled: true`), a `loki.rulerConfig` block for Loki's ruler settings including `alertmanager_url`, and a rules sidecar on by default (`sidecar.rules.enabled: true`) that loads ConfigMaps labelled `loki_rule`.
+- So a log alert can go Loki ruler → the existing Alertmanager → Keep, with no new key, and with the Prometheus provider's severity list. Left for the live check: which pod runs the ruler in Monolithic mode, the tenant folder (the chart defaults auth on), and the Alertmanager Service name.
+
+**"AI Summary" button (story 11) [24].**
+- It is open-source UI code, not the enterprise tier. `keep-ui/app/(keep)/incidents/[id]/incident-overview.tsx:85-110` runs a CopilotKit `CopilotTask` asking the model to call the tool `setGeneratedSummary(summary)`; its handler saves `user_summary` through `updateIncident`.
+- The request goes to the frontend's own route `keep-ui/app/api/copilotkit/route.ts:9-25` (CopilotKit `OpenAIAdapter`, `OPEN_AI_API_KEY`, `OPENAI_MODEL_NAME`, base URL from the OpenAI client's environment), then Fireworks. Keep's backend is not involved. CopilotKit runtime `^1.8.11` (`keep-ui/package.json:24`).
+- With the try-out's empty tool arguments and a working non-streaming curl tool call, the likely cause is streamed tool-call chunks. The first check needs no cluster: the same tool call with `stream: true`. This repo runs upstream images, so any fix can only be configuration.
+
+**Repo facts used by the stories.**
+- AKS `make cleanup` is `cleanup-cluster` only (`makefile:456`), so anything applied with `kubectl` goes with the cluster.
+- `makefile:125` installs `prometheus-stack` from the shared values alone (EKS, k3d); `makefile:213` adds the AKS overlay. The shared file's `additionalPrometheusRulesMap` holds only the unused Bookinfo rule.
+- AKS-only extras are plain files under `infra/azure/` applied with `kubectl apply`, for example `makefile:167` (`infra/azure/dashboards/`). HotROD's route is `app/hotrod/istio-gateway.yaml`, applied at `makefile:345`.
+- `make setup-aks` does not start the load generator; it only prints the commands (`makefile:309-310`).
+- The OOM scenario's output rules are in `specs/007-aks-oom-kill/contracts/commands.md`; section 3 makes `RESULT:` the one line each run prints at the end.
 
 **Cleanup (done 17:14 UTC, cluster left running).** All of the following were removed and verified: `keep` namespace gone; `prometheus-stack` revision 3 = rollback to 1 (no Alertmanager pod, no `alerting` block on Prometheus); only the original rule group remains; Secret gone; loadgen at 0. The uninstall hook worked (`bitnami/kubectl:latest` pulled) and deleted every `keep-*` Secret, including Keep's stored provider credentials. Kept on the laptop for the implementation: `~/.secrets/keep/` (Fireworks key, Slack webhook, an API key for a Keep install that no longer exists). The commands used, per item:
 - Helm release `keep` (revision 2) in namespace `keep`, with Secrets `keep-secrets` and `keep-ai-env`. Undo: `helm uninstall keep -n keep` (its hook deletes the `keep-*` Secrets), then `kubectl delete ns keep`.
@@ -128,8 +164,8 @@ Run by hand on cluster `sre-stack-452138` (AKS, Kubernetes 1.34) with chart `kee
 2. ~~Is the EE tier acceptable for incident summaries?~~ **Answered: no EE.** The summary is produced by a workflow; verified (section 5).
 3. ~~Which Helm values path injects the AI env vars?~~ **Answered for AI vars:** plain `env` entries plus `envFromSecret` on backend and frontend (section 5). `AUTH_TYPE` and `KEEP_PROVIDERS_DIRECTORY` still unread.
 4. ~~Kubernetes 1.34 behaviour of Keep 0.54.3?~~ **Answered: runs, no frontend crash** (section 5). Minimum version still undocumented.
-5. New: why do CopilotKit actions ("AI Summary", "record RCA") get empty arguments with GLM-5.3 Flash?
-6. New: should the epic declare Keep providers, rule and workflow through the chart's provisioning (`backend.provision`, `KEEP_PROVIDERS_DIRECTORY`, `KEEP_WORKFLOWS_DIRECTORY`) instead of API calls?
+5. New: why do CopilotKit actions ("AI Summary", "record RCA") get empty arguments with GLM-5.3 Flash? **Narrowed** (section 6): the call path is frontend-only through CopilotKit; streamed tool-call chunks are the likely cause. Story 11 tests it.
+6. ~~New: should the epic declare Keep providers, rule and workflow through the chart's provisioning instead of API calls?~~ **Answered in AD-011:** providers and workflows by start-up provisioning; the correlation rule by an idempotent `POST /rules` script, because provisioning does not cover rules.
 
 ## Sources
 
@@ -158,3 +194,6 @@ Run by hand on cluster `sre-stack-452138` (AKS, Kubernetes 1.34) with chart `kee
 | 21 | github.com/keephq/keep commit `bdc8e52d` (PR #2578) deleting `ee/experimental/`; `keep/api/bl/incidents_bl.py:224-252` @e5cd869 | keephq | 2024-11-25 | read via git history |
 | 22 | https://www.keephq.dev/ | Keep | 2026-10-23 | "KEEP ENTERPRISE ONLY" summarisation |
 | 23 | Manual try-out on AKS `sre-stack-452138`, files in `tryout/` | this project | 2026-10-23 | live run |
+| 24 | github.com/keephq/keep @e5cd869: `keep/workflowmanager/workflowmanager.py`, `keep/rulesengine/rulesengine.py`, `keep/api/bl/incidents_bl.py`, `examples/workflows/incident-tier-escalation.yml`, `keep/providers/kubernetes_provider/kubernetes_provider.py`, `keep-ui/app/(keep)/incidents/[id]/incident-overview.tsx`, `keep-ui/app/api/copilotkit/route.ts`, `keep-ui/package.json` | keephq | 2026-10-22 | read during story review |
+| 25 | github.com/keephq/keep @e5cd869: `keep/providers/grafana_provider/grafana_provider.py`, `keep/identitymanager/authverifierbase.py`; `helm show chart prometheus-community/kube-prometheus-stack --version 52.0.0` | keephq, prometheus-community | 2026-10-24 | corrects section 3 |
+| 26 | `helm show values grafana-community/loki --version 18.13.7`; `helm template keep keephq/keep --version 0.1.97` | Grafana community, keephq | 2026-10-24 | chart render, read during story review |
