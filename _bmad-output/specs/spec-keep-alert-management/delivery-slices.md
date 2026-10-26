@@ -1,24 +1,74 @@
-# Delivery slices (proposed story order)
+# Story flow for the Keep epic (issue #91)
 
-Each slice becomes one sub-issue of epic #91, sized at 1 to 2 days, and can be demoed on its own. "Needs" lists the slices it depends on. Problem, Outcome, Out of scope and Must keep working get written when each story is filed (`write-intent`).
+This page shows the order of the stories and what you can see after each one.
+The full text of every story is in `stories.yaml`. The architecture behind the
+stories is in `docs/keep/architecture.md`. Terms are explained in
+`glossary.md`.
 
-Order: 1 and 2 in parallel → 3 → 4 → 5a → 5b → 6a → 6b → 7. That makes 9 main stories.
+## The idea in one paragraph
 
-| # | Slice | Capabilities | Needs | Demo on its own |
-|---|---|---|---|---|
-| 1 | Robot-shop alert rules, payment latency threshold tuned and recorded | CAP-2 | none | Cart OOM fault: OOM, restart, unavailable-replica and 5xx alerts fire on the Prometheus Alerts page; quiet for 30 min under load with no fault |
-| 2 | Install Keep: `setup-keep`, secrets check, telemetry off, o11y pool, gp2, chart images pinned; wired into `setup-aks`, where it is skipped with a message when secrets are missing | CAP-1 | none | `make setup-keep` on AKS; UI through port-forward; a missing secret stops it; `make setup-aks` without secrets still finishes |
-| 3 | Alertmanager on (AKS overlay only), sending only to Keep; broken Slack setting removed from the shared values | CAP-3 | 1, 2 | OOM fault: alerts appear in Keep and resolve after revert |
-| 4 | Correlation rule created by an idempotent `POST /rules` script, run by `setup-keep` | CAP-4, CAP-7 | 3 | OOM fault: exactly one incident; it closes on its own; re-running adds no duplicate rule |
-| 5a | Slack and Fireworks providers built from the secrets file into our own Secret (`KEEP_PROVIDERS`), plus the opened-incident summary workflow as a repo file | CAP-5, CAP-7 | 4 | OOM fault: summary in Slack within 2 min; providers survive uninstall and reinstall; no secret in any repo or values file |
-| 5b | Resolved message: workflow triggered on incident updated; the Slack action runs only if status is resolved and a marker is not yet set, and sets it | CAP-5, CAP-7 | 5a | After revert, exactly one resolved message in Slack, not one per update |
-| 6a | Login (`AUTH_TYPE=DB`) and real API key seeded with `KEEP_DEFAULT_API_KEYS` | CAP-6 | 3, 4, 5b | Login required through port-forward; a made-up API key is rejected; Alertmanager alerts still arrive with the real key |
-| 6b | Own address `keep.demo.local` for UI and websocket (AD-010), listed in `get-service-endpoints` | CAP-6 | 6a | Login page at the listed address; live updates without refresh |
-| 7 | One-take demo: README section, diagram, screenshots, scenario ends by pointing at Keep and Slack | CAP-8 | 5b, 6b | Newcomer runs the success signal from the README |
+Today the stack shows that a fault happened, but nothing happens after an alert
+fires. This epic adds the next step. A fault raises several alerts. Keep (an
+open-source alert-management tool) groups them into one incident. A language
+model writes a short summary, and the summary goes to Slack. When the fault is
+fixed, the incident closes by itself and Slack gets one more message.
 
-Later, lower priority, each its own story after the main nine: Grafana alerts (CAP-9, needs 3), incident summary with Kubernetes events (CAP-10, needs 5a), Loki log alerts (CAP-11, needs 3), AI Summary button investigation (CAP-12, needs 2).
+## Order of the stories
 
-Notes:
-- The route (6b) never goes live before the login (6a).
-- Live checks the architecture decisions hand to stories: story 2 (image pins, a hook image with a shell, `MYSQL_ROOT_PASSWORD_FILE` on the pinned MySQL, AD-013); story 3 (the seeded webhook key and the before-and-after render, AD-009, AD-012); story 6a (the DB login, AD-009); story 6b (the `/websocket/app/` route, AD-010). If a check fails beyond its fallback, stop and come back to the spec.
-- Stories 2 to 5b run Keep under `NOAUTH`, reached only by port-forward.
+```mermaid
+flowchart LR
+    S1["1 Alert rules"] --> S3
+    S2["2 Install Keep"] --> S3
+    S3["3 Alertmanager to Keep"] --> S4["4 One incident per fault"]
+    S4 --> S5a["5a Slack summary"]
+    S5a --> S5b["5b Resolved message"]
+    S5b --> S6a["6a Keep login"]
+    S6a --> S6b["6b Own address"]
+    S6b --> S7["7 README demo"]
+    S5b --> S7
+    S3 -.-> S8["8 Grafana alerts"]
+    S5a -.-> S9["9 Events in summary"]
+    S3 -.-> S10["10 Loki log alerts"]
+    S2 -.-> S11["11 AI Summary button"]
+```
+
+- Solid arrows are the nine main stories. Stories 1 and 2 can run at the same
+  time. After that the order is a straight line.
+- Dotted arrows are the four lower-priority stories. Do them after story 7.
+- Every story can be shown on its own (a demo) and is sized at 1 to 2 days.
+
+## What you can see after each story
+
+| Story | What it adds | Demo you can show | Comes after |
+|---|---|---|---|
+| 1 | Prometheus alert rules for robot-shop | Start the cart OOM fault. The OOM, restart, unavailable-replica and 5xx alerts fire on the Prometheus Alerts page. Nothing fires for 30 minutes with load and no fault. | nothing |
+| 2 | `make setup-keep` installs Keep on AKS | Keep pods are Running. The UI opens through a port-forward. A missing secret stops the command. `make setup-aks` without secrets still finishes. | nothing |
+| 3 | Alertmanager (AKS only) sends alerts only to Keep | Run the fault. The alerts appear in Keep and resolve after the revert. | 1, 2 |
+| 4 | A correlation rule that groups alerts | One fault gives exactly one incident. It closes by itself. Running `setup-keep` again adds no second rule. | 3 |
+| 5a | Providers (Fireworks, Slack) and the "incident opened" workflow | A Fireworks summary appears in Slack within 2 minutes. A reinstall brings everything back with no manual step. | 4 |
+| 5b | The "incident resolved" workflow | After the revert, exactly one resolved message appears in Slack. | 5a |
+| 6a | Keep login (`AUTH_TYPE=DB`) and checked API keys | You must sign in. A made-up API key is rejected. Alertmanager still delivers. | 3, 4, 5b |
+| 6b | Own address `keep.demo.local` on the Istio gateway | The login page opens at the address. New alerts appear without a refresh. | 6a |
+| 7 | README section, diagram, screenshots, scenario output | A newcomer follows only the README and reaches the end result. | 5b, 6b |
+| 8 | Grafana alerts reach Keep (lower priority) | A Grafana alert shows in Keep with its severity. | 3 |
+| 9 | Kubernetes events in the AI summary (lower priority) | The Slack summary names the OOM kill or back-off. | 5a |
+| 10 | Loki log alerts reach Keep (lower priority) | A log-based alert caused by the fault shows in Keep. | 3 |
+| 11 | Find why the "AI Summary" button fails (lower priority) | A written finding with the cause and a repro. | 2 |
+
+## Rules that apply to every story
+
+- A story is done only after it was shown to work on a real AKS cluster.
+- Run `make lint` and paste its output. No secret value in any tracked file.
+- Author and approver must be different people. One pull request per story,
+  squash-merged.
+- The route to Keep (story 6b) never goes live before the login (story 6a).
+- Stories 2 to 5b run Keep without a login, reached only through
+  `kubectl port-forward`.
+- Live checks that the architecture decisions hand to a story:
+  - Story 2: image pins, a hook image with a shell, `MYSQL_ROOT_PASSWORD_FILE` on
+    the pinned MySQL (AD-013).
+  - Story 3: the seeded webhook key and the before-and-after render (AD-009,
+    AD-012).
+  - Story 6a: the DB login and the real key checks (AD-009).
+  - Story 6b: the `/websocket/app/` route (AD-010).
+- If a live check fails beyond its fallback, stop and go back to the spec.
