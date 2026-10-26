@@ -1,17 +1,41 @@
 - id: "1"
-  title: Robot-shop alert rules, with the payment latency threshold tuned
+  title: Add alert rules for robot-shop
   description: |-
-    Priority: main. Size: 1 to 2 days. Needs: none. AD numbers: none of AD-008 to AD-013 apply. Capability: CAP-2.
+    Priority: main. Size: 1 to 2 days. Comes after: nothing. Capability: CAP-2.
 
-    Problem: Robot-shop has no Prometheus alert rules, so a fault produces no alert at all and nothing downstream (Keep, Slack) has anything to react to.
+    In one line: add Prometheus alert rules for robot-shop, so a fault raises alerts.
 
-    Outcome: The rules live in `infra/azure/alert-rules/robot-shop.yaml` as a standalone PrometheusRule carrying the label `release: prometheus-stack`, applied by `kubectl apply` from the AKS branch of the monitoring setup, the way `infra/azure/dashboards/` is applied (makefile line 167). It is AKS-only, so k3d and EKS are untouched. Reason: same pattern as `infra/azure/dashboards` and scenario-02, and tuning a threshold is one `kubectl apply`, not a `helm upgrade` of `prometheus-stack`. Rules exist for OOM kills, container restarts, unavailable replicas, slow requests and a high share of 5xx responses. Each carries a severity Keep recognises (critical, error, high, warning or info) and `namespace` and `service` labels. During the cart OOM fault (`make aks-cart-oom-start`, load generator running), the OOM kill, restart, unavailable-replica and 5xx alerts show as firing on the Prometheus Alerts page. The slow-request alert fires only if latency crosses the tuned threshold. With the load generator running and no fault, nothing fires for 30 minutes. The tuned payment latency threshold and the reason for it are written down. AKS `make cleanup` deletes the cluster (`cleanup-cluster`), so the PrometheusRule goes with it; `helm uninstall` alone would not remove a file applied with `kubectl`.
+    Problem
+    - Robot-shop has no alert rules today. When a fault happens, no alert fires.
+    - Without alerts, Keep and Slack have nothing to react to.
 
-    Out of scope: Alertmanager and Keep (stories 2 and 3). Rules for hotrod. Grafana alerts. Dashboards. The unused Bookinfo rule in `monitoring/chart-values/prometheus-values.yaml` under `additionalPrometheusRulesMap` (shared values, k3d and EKS use it): log it as a follow-up, do not touch it here.
+    Outcome
+    - The rules are in `infra/azure/alert-rules/robot-shop.yaml`. It is a PrometheusRule (a Prometheus Operator object that holds alert rules) with the label `release: prometheus-stack`.
+    - The rules are applied with `kubectl apply` from the AKS part of the monitoring setup, in the same way as `infra/azure/dashboards/` (makefile line 167). They apply to AKS only, so k3d and EKS do not change.
+    - Why this way: it is the same pattern as `infra/azure/dashboards` and scenario-02. Changing a threshold is one `kubectl apply`, not a `helm upgrade` of `prometheus-stack`.
+    - There is one rule each for OOM kills (a container stopped for using too much memory), container restarts, unavailable replicas, slow requests and a high share of 5xx (server error) responses.
+    - Every alert has a severity that Keep understands (critical, error, high, warning or info) and the labels `namespace` and `service`.
+    - During the cart OOM fault, with the load generator running, the OOM kill, restart, unavailable-replica and 5xx alerts show as firing on the Prometheus Alerts page.
+    - The slow-request alert fires only if latency goes over the tuned payment threshold. The tuned value and the reason for it are written down.
+    - With the load generator running and no fault, nothing fires for 30 minutes.
+    - Deleting the AKS cluster (`make cleanup`) removes the rules. A `helm uninstall` alone would not, because the rules are applied with `kubectl`.
 
-    Must keep working (AGENTS.md): `make setup-local` and the EKS path are untouched. Existing Prometheus, Grafana and Beyla behaviour. The cart OOM scenario still starts and reverts. `make lint` passes.
+    Out of scope
+    - Alertmanager and Keep (stories 2 and 3).
+    - Rules for hotrod, Grafana alerts, dashboards.
+    - The unused Bookinfo rule in `monitoring/chart-values/prometheus-values.yaml` (`additionalPrometheusRulesMap`). It is in the shared values that k3d and EKS use. Log it as a follow-up and do not touch it here.
 
-    Live check: the quiet-for-30-minutes run and the fault run, on AKS.
+    Must keep working
+    - `make setup-local` and the EKS path.
+    - Prometheus, Grafana and Beyla.
+    - The cart OOM scenario start and revert.
+    - `make lint`.
+
+    Decisions followed: none of AD-008 to AD-013 apply.
+
+    Live checks on AKS
+    - The 30-minute quiet run under load.
+    - The fault run.
   spec_checkpoint: true
   done_checkpoint: true
   invoke_dev_with: >-
@@ -22,19 +46,46 @@
     ends unless told otherwise. Author and approver must be different
     people. One pull request, squash-merged.
 - id: "2"
-  title: Install Keep on AKS with `make setup-keep`
+  title: Install Keep on AKS with make setup-keep
   description: |-
-    Priority: main. Size: 1 to 2 days. Needs: none (runs in parallel with story 1). AD numbers: AD-008, AD-013, AD-011 (file layout), AD-003. Capability: CAP-1.
+    Priority: main. Size: 1 to 2 days. Comes after: nothing (can run at the same time as story 1). Capability: CAP-1.
 
-    Problem: There is no Keep in the stack, and no safe way to install it: the chart's defaults send usage data out, leave several images floating, run MySQL with no root password and put the database on a hostPath volume.
+    In one line: add one command, `make setup-keep`, that installs Keep on AKS safely.
 
-    Outcome: `make setup-keep` on AKS brings the backend, frontend, websocket server and MySQL pods to Running on the `workload=o11y` pool, with the database volume on gp2, telemetry off and every chart image pinned to an exact version. Everything is in `infra/azure/chart-values/keep.yaml` and `infra/azure/keep/` (chart `keephq/keep` 0.1.97). The Fireworks key is read from the untracked secrets folder and reaches Keep as the Secret `sre-keep-ai-env`, with `OPENAI_MODEL_NAME` set on backend and frontend. The database root password is generated once into the folder and reaches Keep as `sre-keep-db`. No Secret of ours is named `keep-*`. Run again, it changes nothing and restarts nothing. Run on its own with `fireworks.key` missing, it stops before touching the cluster and names the file. Inside `make setup-aks` with the file missing, Keep is skipped with a message and the rest of AKS setup finishes. The UI loads through `kubectl port-forward`, with Keep running without a login (story 6a adds it).
+    Problem
+    - There is no Keep in the stack yet.
+    - The Keep Helm chart defaults are not safe for us. They send usage data out, leave some images unpinned (`latest`), run MySQL with no root password and store the database on a hostPath volume.
 
-    Out of scope: Alertmanager, API keys, the correlation rule, Slack and Fireworks providers, workflows, the login, the gateway route and `get-service-endpoints` (stories 3 to 6b). Any Keep install on k3d or EKS.
+    Outcome
+    - `make setup-keep` on AKS brings four pods to Running: backend, frontend, websocket server and MySQL. They run on the `workload=o11y` node pool.
+    - The database volume is on `gp2`. Telemetry is off. Every chart image is pinned to an exact version.
+    - All Helm values are in `infra/azure/chart-values/keep.yaml`. The scripts are in `infra/azure/keep/`. The chart is `keephq/keep` 0.1.97.
+    - The Fireworks key is read from the untracked secrets folder and reaches Keep as the Kubernetes Secret `sre-keep-ai-env`. `OPENAI_MODEL_NAME` is set on backend and frontend.
+    - The database root password is generated once into the folder and reaches Keep as the Secret `sre-keep-db`.
+    - No Secret of ours has a name that starts with `keep-` (the chart's uninstall hook deletes those).
+    - A second run changes nothing and restarts nothing.
+    - Run on its own with `fireworks.key` missing, `make setup-keep` stops before it touches the cluster and names the missing file.
+    - Run inside `make setup-aks` with that file missing, it skips Keep with a message and the rest of setup finishes.
+    - The Keep UI opens through `kubectl port-forward`. There is no login yet (story 6a adds it).
 
-    Must keep working (AGENTS.md): `make setup-local` and the EKS path. `make setup-aks` without Keep secrets still finishes. Every other pod on the o11y pool still schedules. `make lint` passes, including Helm lint on the new values file. AKS `make cleanup` still removes everything, since it deletes the cluster.
+    Out of scope
+    - Alertmanager, API keys, the correlation rule, Slack and Fireworks providers, workflows, the login and the gateway route (stories 3 to 6b).
+    - Any Keep install on k3d or EKS.
 
-    Live checks from the architecture decisions (AD-013): (1) the exact tag chosen for each of MySQL, the uninstall hook image and busybox is recorded in `plan.md` and the pod runs on it; (2) the hook image has a shell with `grep` and `xargs` and kubectl, shown by a real `helm uninstall keep` that removes the `keep-*` Secrets without error; after `helm uninstall keep`, the Secrets `sre-keep-ai-env` and `sre-keep-db` still exist (this proves the naming rule), and a second `make setup-keep` brings Keep back to Running with the database login still working on the same generated password; (3) the pinned MySQL honours `MYSQL_ROOT_PASSWORD_FILE`, shown by Keep's database migrations completing and a login to the database with the generated password working and an empty password refused.
+    Must keep working
+    - `make setup-local` and the EKS path.
+    - `make setup-aks` without Keep secrets.
+    - Other pods on the o11y pool still schedule.
+    - `make lint`, including Helm lint of the new values file.
+    - AKS `make cleanup` (it deletes the cluster, so everything goes with it).
+
+    Decisions followed: AD-008 (secrets), AD-013 (install baseline), AD-011 (file layout), AD-003 (node pool and tolerations).
+
+    Live checks on AKS
+    - Image pins (AD-013): the exact tag chosen for MySQL, the uninstall hook image and busybox is written in `plan.md`, and the pod runs on it.
+    - Hook image: it has a shell with `grep`, `xargs` and kubectl. Show it with a real `helm uninstall keep` that removes the `keep-*` Secrets without error.
+    - Naming rule: after `helm uninstall keep`, the Secrets `sre-keep-ai-env` and `sre-keep-db` still exist. A second `make setup-keep` brings Keep back to Running, and the database login still works with the same generated password.
+    - MySQL: the pinned image honours `MYSQL_ROOT_PASSWORD_FILE`. Show that Keep's database migrations finish, a login with the generated password works, and an empty password is refused.
   spec_checkpoint: true
   done_checkpoint: true
   invoke_dev_with: >-
@@ -45,19 +96,43 @@
     ends unless told otherwise. Author and approver must be different
     people. One pull request, squash-merged.
 - id: "3"
-  title: Alertmanager on for AKS, sending firing and resolved alerts only to Keep
+  title: Send Alertmanager alerts to Keep (AKS only)
   description: |-
-    Priority: main. Size: 1 to 2 days. Needs: stories 1 and 2. AD numbers: AD-012, AD-009 (rules 2 and 3), AD-008 (rules 2 and 4). Capability: CAP-3.
+    Priority: main. Size: 1 to 2 days. Comes after: stories 1 and 2. Capability: CAP-3.
 
-    Problem: Alertmanager is off, and its Slack setting in the shared values file is a placeholder that never worked. Even with rules (story 1) and Keep (story 2), no alert reaches Keep.
+    In one line: turn Alertmanager on for AKS and make Keep its only receiver.
 
-    Outcome: On AKS, Alertmanager runs and its only receiver is Keep, posting firing and resolved alerts to `http://keep-backend.keep.svc.cluster.local:8080/alerts/event/prometheus` with the receiver, timings and `routes: []` set as AD-012 says, in `infra/azure/chart-values/prometheus-stack.yaml`. The header comment of that AKS overlay records that the shared file was edited, departing from specs/005 (AD-012 rule 4). The broken Slack setting, the `P1 -> slack` route and the `slack` receiver are gone from `monitoring/chart-values/prometheus-values.yaml`, and that file keeps `alertmanager.enabled: false`. Keep seeds a `webhook` API key from the generated `keep-webhook-api.key` through `sre-keep-api-keys` (`KEEP_DEFAULT_API_KEYS`, key named with the fingerprint of its value). Alertmanager sends that key from the Secret `alertmanager-keep-auth` in `monitoring`, created by `setup-aks-prometheus-stack` before its `helm upgrade` from the same file, so the Alertmanager pod always starts. A test alert reaches Keep within one minute and shows as resolved after it clears. During the cart OOM fault, the alerts from story 1 appear in Keep and resolve after `make aks-cart-oom-revert`.
+    Problem
+    - Alertmanager is off today. Its Slack setting in the shared values file is a placeholder that never worked.
+    - Even with rules (story 1) and Keep (story 2), no alert reaches Keep.
 
-    Out of scope: the `admin` setup key (story 4). The login (story 6a), which is also where the real key checks are proven: Keep runs without a login until then and accepts any key. Any Slack or Fireworks wiring (story 5a). Grafana alerts. A second receiver of any kind.
+    Outcome
+    - On AKS, Alertmanager runs and sends firing and resolved alerts only to Keep: `http://keep-backend.keep.svc.cluster.local:8080/alerts/event/prometheus`. The settings are in `infra/azure/chart-values/prometheus-stack.yaml` (AD-012).
+    - The header comment of that AKS file says the shared file was edited, which departs from specs/005 (AD-012 rule 4).
+    - The broken Slack setting, the `P1 -> slack` route and the `slack` receiver are removed from `monitoring/chart-values/prometheus-values.yaml`. That file keeps `alertmanager.enabled: false`, so k3d and EKS still run no Alertmanager.
+    - Keep creates a `webhook` API key at start-up from the generated file `keep-webhook-api.key`, through the Secret `sre-keep-api-keys` (`KEEP_DEFAULT_API_KEYS`). The key's name includes a fingerprint of its value.
+    - Alertmanager sends that key from the Secret `alertmanager-keep-auth` in the `monitoring` namespace. `setup-aks-prometheus-stack` creates this Secret before its `helm upgrade`, so the Alertmanager pod always starts.
+    - A test alert reaches Keep within one minute and shows as resolved after it clears.
+    - During the cart OOM fault, the alerts from story 1 appear in Keep and resolve after `make aks-cart-oom-revert`.
 
-    Must keep working (AGENTS.md): EKS and k3d render and install exactly as before: the output of `helm template` on the shared values alone is the same before and after the edit. `make setup-aks` without Keep secrets still finishes (Alertmanager then runs and logs failed deliveries, which AD-012 accepts). `setup-keep` never upgrades the `prometheus-stack` release. `make lint` passes.
+    Out of scope
+    - The `admin` setup key (story 4).
+    - The login and the real key checks (story 6a). Keep has no login until then and accepts any key.
+    - Slack and Fireworks (story 5a), Grafana alerts, any second receiver.
 
-    Live checks from the architecture decisions. Keep runs without a login (`NOAUTH`) in this story and accepts any API key, so "the key is accepted" proves nothing here; checks compare what exists, and never print a secret value. (1) The seeded key appears in Keep's API key list under its fingerprint name, and `alertmanager-keep-auth` holds the same value as `keep-webhook-api.key`, compared by hash (AD-009 rule 3); if seeding does not work, fall back to `POST /settings/apikey` and say so in `plan.md`. (2) The before-and-after `helm template` comparison of the shared values file, pasted into the pull request (AD-012 rule 4). (3) After a change to the key file and a re-run of both `setup-aks-prometheus-stack` and `make setup-keep`, the Secrets match the file and Keep lists the new fingerprint-named key; `plan.md` says who restarts `keep-backend` (`setup-keep`, when the Secret changed, because Keep reads `KEEP_DEFAULT_API_KEYS` only at pod start, AD-008 rule 4) and that Alertmanager's mounted file updates by itself. This check is the cut point if the story runs long.
+    Must keep working
+    - EKS and k3d render exactly as before. The `helm template` output of the shared values alone is the same before and after the edit.
+    - `make setup-aks` without Keep secrets. (Alertmanager then runs and logs failed deliveries. AD-012 accepts that.)
+    - `setup-keep` never upgrades the `prometheus-stack` release.
+    - `make lint`.
+
+    Decisions followed: AD-012 (Alertmanager), AD-009 rules 2 and 3 (API keys), AD-008 rules 2 and 4 (Secrets and restarts).
+
+    Live checks on AKS
+    - Because Keep has no login here, it accepts any key, so "the key is accepted" proves nothing. Compare what exists instead, and never print a secret value.
+    - Key check: the seeded key is listed in Keep's API key list under its fingerprint name, and `alertmanager-keep-auth` holds the same value as `keep-webhook-api.key` (compare hashes). If seeding does not work, fall back to `POST /settings/apikey` and say so in `plan.md`.
+    - Render check: paste the before-and-after `helm template` comparison of the shared values file into the pull request.
+    - Key change check (the cut point if the story runs long): change the key file and re-run `setup-aks-prometheus-stack` and `make setup-keep`. The Secrets match the file and Keep lists the new fingerprint-named key. `plan.md` says who restarts `keep-backend`: `setup-keep`, when the Secret changed, because Keep reads `KEEP_DEFAULT_API_KEYS` only at pod start (AD-008 rule 4). Alertmanager's mounted file updates by itself.
   spec_checkpoint: true
   done_checkpoint: true
   invoke_dev_with: >-
@@ -68,19 +143,47 @@
     ends unless told otherwise. Author and approver must be different
     people. One pull request, squash-merged.
 - id: "4"
-  title: One incident per fault, from a correlation rule created by an idempotent script
+  title: Group the alerts of one fault into one incident
   description: |-
-    Priority: main. Size: 1 to 2 days. Needs: story 3. AD numbers: AD-011 (rules 1, 4 and 5), AD-009 (rules 2 and 3), AD-008 (rule 2). Capabilities: CAP-4, CAP-7 (the rule part).
+    Priority: main. Size: 1 to 2 days. Comes after: story 3. Capabilities: CAP-4, CAP-7 (the rule part).
 
-    Problem: Keep receives the alerts (story 3) but shows them one by one. A single fault produces five separate alerts, and nothing groups them into one incident.
+    In one line: create a Keep correlation rule (a rule that groups alerts into one incident) from a file in the repo, with a script that is safe to run again.
 
-    Outcome: `infra/azure/keep/correlation-rule.json` holds the correlation rule in the shape `POST /rules` takes, from the try-out (research.md section 5): CEL `namespace == "robot-shop"` with an `sqlQuery` object next to the `celQuery` (the API refuses the rule without it), `groupingCriteria` `[namespace]`, timeframe 600 seconds, threshold 3, `createOn` any, `resolveOn` all resolved. `setup-keep` creates it through the backend API: it opens `kubectl port-forward svc/keep-backend` on a free port chosen by kubectl and closes it on exit, and it sends the `admin` key. It lists the rules and matches by rule name: absent, it creates the rule; present and different, it updates it in place with `PUT /rules/{rule_id}`; identical, it does nothing. "Different" means the fields `correlation-rule.json` sets differ from the same fields in the `GET /rules` response. It does not compare the whole response, which adds an id, timestamps, an author and its own SQL form, and may name the rule `name` instead of `ruleName`. The builder records the request-to-response field mapping in `plan.md` from one live `GET`. Keep seeds the `admin` key from the generated `setup-api.key`, added to `sre-keep-api-keys` next to story 3's key under its own fingerprint name. If the backend is not reachable, `setup-keep` stops with a message instead of continuing. One cart OOM fault (`make aks-cart-oom-start`, load generator running) produces exactly one incident in Keep. It closes on its own after `make aks-cart-oom-revert` and the last alert clears. Running `make setup-keep` again leaves exactly one rule.
+    Problem
+    - Keep now receives the alerts (story 3) but shows them one by one.
+    - One fault raises five alerts. Nothing groups them into one incident.
 
-    Out of scope: Slack and Fireworks (stories 5a and 5b). The login (6a). Fixing Keep's own limits: a resolved incident's `end_time` stays empty and the UI labels rule-grouped alerts "Manually" (SPEC non-goals). Rules for hotrod. Any other correlation rule.
+    Outcome
+    - The file `infra/azure/keep/correlation-rule.json` holds the rule in the shape `POST /rules` takes. The values come from the try-out (research.md section 5):
+      - CEL (Keep's rule language) `namespace == "robot-shop"`, with an `sqlQuery` object next to the `celQuery`. The API refuses the rule without it.
+      - `groupingCriteria` is `[namespace]`.
+      - Time window is 600 seconds, and the incident opens at 3 alerts (`createOn` any).
+      - `resolveOn` is all resolved.
+    - `make setup-keep` creates the rule through the backend API. It opens `kubectl port-forward svc/keep-backend` on a free port chosen by kubectl, closes it on exit, and sends the `admin` key.
+    - It lists the rules and matches by rule name. Absent: create the rule. Present and different: update it in place with `PUT /rules/{rule_id}`. Identical: do nothing.
+    - "Different" means the fields in `correlation-rule.json` differ from the same fields in the `GET /rules` response. Do not compare the whole response. It adds an id, timestamps, an author and its own SQL form, and it may name the rule `name` instead of `ruleName`. The builder records the request-to-response field mapping in `plan.md` from one live `GET`.
+    - Keep creates the `admin` key from the generated `setup-api.key`. It is added to `sre-keep-api-keys` next to story 3's key, under its own fingerprint name.
+    - If the backend is not reachable, `setup-keep` stops with a message.
+    - One cart OOM fault (load generator running) gives exactly one incident in Keep. It closes by itself after `make aks-cart-oom-revert` and after its last alert clears.
+    - Running `make setup-keep` again leaves exactly one rule.
 
-    Must keep working (AGENTS.md): stories 2 and 3 as built: `setup-keep` stays idempotent, Alertmanager still delivers. `make setup-aks` without Keep secrets still finishes, since the rule script runs only when Keep is installed. EKS and k3d are untouched. `make lint` passes, including shell lint on the new script.
+    Out of scope
+    - Slack and Fireworks (stories 5a and 5b), the login (story 6a).
+    - Keep's own limits: a resolved incident's `end_time` stays empty, and the UI labels rule-grouped alerts "Manually".
+    - Rules for hotrod, any other correlation rule.
 
-    Live checks from the architecture decisions: (1) the seeded `setup` key is listed in Keep under its fingerprint name. Keep runs without a login in this story, so the check shows the key exists, not that the login accepts it; story 6a proves the second part; (2) the update path works live: change one field in `correlation-rule.json` (for example the window), re-run `make setup-keep`, and the same rule id changes with the rule count still one (`PUT /rules/{id}`, AD-011 rule 4); (3) a re-run with an unchanged file makes no write, which depends on the field comparison above.
+    Must keep working
+    - Stories 2 and 3 as built. `setup-keep` stays idempotent (a second run changes nothing). Alertmanager still delivers.
+    - `make setup-aks` without Keep secrets. The rule script runs only when Keep is installed.
+    - EKS and k3d.
+    - `make lint`, including shell lint of the new script.
+
+    Decisions followed: AD-011 rules 1, 4 and 5 (configuration as files, the rule by API), AD-009 rules 2 and 3 (API keys), AD-008 rule 2 (Secrets).
+
+    Live checks on AKS
+    - The seeded `setup` key is listed in Keep under its fingerprint name. Keep has no login in this story, so this shows the key exists, not that the login accepts it. Story 6a proves the second part.
+    - Update path: change one field in `correlation-rule.json` (for example the window) and re-run `make setup-keep`. The same rule id changes, and the rule count stays one.
+    - A re-run with an unchanged file makes no write. This depends on the field comparison above.
   spec_checkpoint: true
   done_checkpoint: true
   invoke_dev_with: >-
@@ -91,19 +194,51 @@
     ends unless told otherwise. Author and approver must be different
     people. One pull request, squash-merged.
 - id: "5a"
-  title: Slack summary from Fireworks when an incident opens, with providers built from the secrets folder
+  title: Post an AI summary to Slack when an incident opens
   description: |-
-    Priority: main. Size: 1 to 2 days. Needs: story 4. AD numbers: AD-011 (rules 2 and 3), AD-008 (rules 1, 2, 4 and 5), AD-010 (rule 2, the link), AD-013 (rule 2, the env lists). Capabilities: CAP-5 (opened message), CAP-7 (providers and first workflow).
+    Priority: main. Size: 1 to 2 days. Comes after: story 4. Capabilities: CAP-5 (opened message), CAP-7 (providers and first workflow).
 
-    Problem: Keep now opens one incident per fault (story 4), but nobody is told. The try-out produced a good summary only through hand-made provider setup and a workflow pasted in by hand, which a reinstall loses.
+    In one line: when Keep opens an incident, a Keep workflow asks Fireworks for a summary and posts it to Slack.
 
-    Outcome: `infra/azure/keep/providers.template.json` holds every non-secret provider field. `setup-keep` fills in the Fireworks key and the Slack webhook URL from the untracked secrets folder with `jq` and writes the result as `KEEP_PROVIDERS` into the Secret `sre-keep-providers`, loaded through `backend.envFromSecrets`. The providers are named `fireworks` (type `litellm`, `api_url` `https://api.fireworks.ai/inference/v1`) and `slack`. `infra/azure/keep/workflows/` holds the opened-incident workflow as a Keep workflow file, starting from the try-out's `notify-slack-with-context.yaml`: model `accounts/fireworks/models/glm-5p3-flash`, `max_tokens` 10000, then a Slack post that carries the summary, the severity, the alert count and an "Open in Keep" link to `http://keep.demo.local/incidents/<id>`. The workflow refers to the providers by the two fixed names, not by the try-out's `keep-alerts-srestack`. `setup-keep` loads the folder into the ConfigMap `sre-keep-workflows`, mounts it, and sets `KEEP_WORKFLOWS_DIRECTORY`. Keep reads `KEEP_PROVIDERS` and the workflows only at backend start, so `setup-keep` restarts `keep-backend` when either the `sre-keep-providers` content or the workflows folder changes, decided by a hash; a run with nothing changed restarts nothing. `slack-webhook.url` now joins `fireworks.key` as a required supplied file: `setup-keep` run on its own stops when either is missing and names it, and inside `make setup-aks` it skips Keep with a message that lists the missing files. The README or `plan.md` says that `slack-webhook.url` is now required. During the cart OOM fault, Slack shows a Fireworks summary within two minutes of the incident opening. It names the failing service and what to check first. After `helm uninstall keep` and `make setup-keep` the providers and the workflow are back with no manual API or UI step, and no secret value appears in any repo file, values file or ConfigMap.
+    Problem
+    - Keep now opens one incident per fault, but nobody is told.
+    - In the try-out the summary worked, but only with provider setup done by hand and a workflow pasted in by hand. A reinstall loses both.
 
-    Out of scope: the resolved message (story 5b). The login and the gateway route (6a, 6b): the "Open in Keep" link starts to resolve only once 6b is live. Jira, PagerDuty, automatic remediation. Grafana or Tempo links in the message. The "AI Summary" button (a later story).
+    Outcome
+    - `infra/azure/keep/providers.template.json` holds every non-secret provider field.
+    - `make setup-keep` fills in the Fireworks key and the Slack webhook URL from the untracked secrets folder with `jq`. It writes the result as `KEEP_PROVIDERS` into the Secret `sre-keep-providers`, loaded through `backend.envFromSecrets`.
+    - The providers have fixed names: `fireworks` (type `litellm`, `api_url` `https://api.fireworks.ai/inference/v1`) and `slack`.
+    - `infra/azure/keep/workflows/` holds the opened-incident workflow as a Keep workflow file. It starts from the try-out file `notify-slack-with-context.yaml`:
+      - model `accounts/fireworks/models/glm-5p3-flash`, `max_tokens` 10000;
+      - then a Slack post with the summary, the severity, the alert count and an "Open in Keep" link to `http://keep.demo.local/incidents/<id>`.
+    - The workflow uses the two fixed provider names, not the try-out name `keep-alerts-srestack`.
+    - `setup-keep` loads the folder into the ConfigMap `sre-keep-workflows`, mounts it and sets `KEEP_WORKFLOWS_DIRECTORY`.
+    - Keep reads `KEEP_PROVIDERS` and the workflows only at backend start. So `setup-keep` restarts `keep-backend` when the `sre-keep-providers` content or the workflows folder changes, decided by a hash. A run with nothing changed restarts nothing.
+    - `slack-webhook.url` is now a required file, next to `fireworks.key`. Run on its own, `setup-keep` stops and names a missing file. Inside `make setup-aks` it skips Keep with a message that lists the missing files. The README or `plan.md` says that `slack-webhook.url` is now required.
+    - During the cart OOM fault, Slack shows a Fireworks summary within two minutes of the incident opening. It names the failing service and says what to check first.
+    - After `helm uninstall keep` and `make setup-keep`, the providers and the workflow are back with no manual step.
+    - No secret value is in any repo file, values file or ConfigMap.
 
-    Must keep working (AGENTS.md): stories 2 to 4 as built, including one incident per fault and Alertmanager delivery. `setup-keep` stays idempotent: a second run changes nothing and restarts nothing. `make setup-aks` without Keep secrets still finishes. `make setup-local` and EKS untouched. `make lint` passes, including its secrets check.
+    Out of scope
+    - The resolved message (story 5b).
+    - The login and the gateway route (stories 6a and 6b). The "Open in Keep" link works only after story 6b.
+    - Jira, PagerDuty, automatic remediation, Grafana or Tempo links in the message, the AI Summary button.
 
-    Live checks from the architecture decisions: (1) the Fireworks reply is not empty with `max_tokens` 10000 on a real incident, since the model reasons first (SPEC, research.md section 5); (2) after `helm uninstall keep`, `sre-keep-providers` still exists, and after the next `make setup-keep` both providers and the workflow are present and the next OOM fault posts a summary; (3) what start-up provisioning does is observed and written down in `plan.md`, as AD-011 rule 2 says it is not a gate: the workflow loads from the mounted ConfigMap, the ConfigMap's `..data` entries are ignored, and a deleted workflow file is gone after the next backend restart; (4) a search of the tracked files, the rendered ConfigMap, the output of `helm get values keep` and the output of `helm get manifest keep` finds neither the Fireworks key nor the Slack webhook URL; (5) change `slack-webhook.url` (for example to a second test webhook), re-run `make setup-keep`, and the next message arrives on the new webhook.
+    Must keep working
+    - Stories 2 to 4 as built, including one incident per fault and Alertmanager delivery.
+    - `setup-keep` stays idempotent.
+    - `make setup-aks` without Keep secrets.
+    - `make setup-local` and EKS.
+    - `make lint`, including its secrets check.
+
+    Decisions followed: AD-011 rules 2 and 3 (workflows and providers), AD-008 rules 1, 2, 4 and 5 (secrets), AD-010 rule 2 (the link), AD-013 rule 2 (env lists).
+
+    Live checks on AKS
+    - The Fireworks reply is not empty with `max_tokens` 10000 on a real incident. The model thinks first, so a small budget returns nothing (SPEC, research.md section 5).
+    - After `helm uninstall keep`, the Secret `sre-keep-providers` still exists. After the next `make setup-keep`, both providers and the workflow are present, and the next OOM fault posts a summary.
+    - Write down in `plan.md` what start-up provisioning does (AD-011 rule 2 says this is not a gate): the workflow loads from the mounted ConfigMap, the ConfigMap's `..data` entries are ignored, and a deleted workflow file is gone after the next backend restart.
+    - Search the tracked files, the rendered ConfigMap, the output of `helm get values keep` and the output of `helm get manifest keep`. None may contain the Fireworks key or the Slack webhook URL.
+    - Change `slack-webhook.url` (for example to a second test webhook) and re-run `make setup-keep`. The next message arrives on the new webhook.
   spec_checkpoint: true
   done_checkpoint: true
   invoke_dev_with: >-
@@ -114,19 +249,46 @@
     ends unless told otherwise. Author and approver must be different
     people. One pull request, squash-merged.
 - id: "5b"
-  title: One resolved message in Slack when the incident closes
+  title: Post one message to Slack when the incident resolves
   description: |-
-    Priority: main. Size: 1 to 2 days. Needs: story 5a. AD numbers: AD-011 (rule 2, workflows as files). Capabilities: CAP-5 (resolved message), CAP-7 (second workflow).
+    Priority: main. Size: 1 to 2 days. Comes after: story 5a. Capabilities: CAP-5 (resolved message), CAP-7 (second workflow).
 
-    Problem: Slack is told when an incident opens (5a) but never when it closes, so the channel shows a fault that seems to run forever. Keep has no "incident resolved" trigger, only created, updated and deleted (SPEC), and the try-out never tried the updated trigger.
+    In one line: add a second Keep workflow that posts exactly one message to Slack when an incident resolves.
 
-    Outcome: `infra/azure/keep/workflows/` gets a second workflow file, separate from story 5a's, triggered on incident updated. Incident triggers take only a list of events, with no condition or filter (Keep `keep/workflowmanager/workflowmanager.py:147-154`, commit e5cd8698), so the "status is resolved" condition goes on the Slack action as an `if:`, not on the trigger. The rules engine sends "updated" for every alert event added to a visible incident (`keep/rulesengine/rulesengine.py:206-208`), so a condition on status alone can post more than once. The story therefore follows Keep's own pattern in `examples/workflows/incident-tier-escalation.yml`: the action's `if:` checks that the status is resolved and that a marker (for example `resolved_notified`) is not set, and the action sets the marker with `enrich_incident`. Keep loads incident enrichments before each run (`workflowmanager.py:159-162`). The action posts one short message to the same Slack channel through the `slack` provider: the incident name, that it resolved, and the "Open in Keep" link. No summary call. After `make aks-cart-oom-revert`, once the last alert clears and Keep resolves the incident, exactly one resolved message appears in Slack, not one per incident update. In the try-out the incident resolved about 8 minutes after the revert (research.md section 5), so the check waits that long and counts messages over a further 10 minutes. After the live run, `plan.md` records two known limits: whether two near-simultaneous updates can both post (the 10-minute count shows it), and that a resolved incident which reopens keeps the marker, so its second close posts nothing (accepted for the demo; a follow-up story if needed).
+    Problem
+    - Slack hears when an incident opens (story 5a) but never when it closes. The channel looks like the fault never ends.
+    - Keep has no "incident resolved" trigger. It has only created, updated and deleted. The try-out never tried the updated trigger.
 
-    Out of scope: any change to the opened-incident workflow. A new summary at resolve time. Fixing Keep's `end_time` or time-to-resolve (SPEC non-goals). A message when an incident is deleted.
+    Outcome
+    - `infra/azure/keep/workflows/` has a second workflow file, separate from story 5a's. It runs on incident updated.
+    - Incident triggers take only a list of events, with no condition or filter (Keep `keep/workflowmanager/workflowmanager.py:147-154`, commit e5cd8698). So the condition "status is resolved" goes on the Slack action as an `if:`, not on the trigger.
+    - The rules engine sends "updated" for every alert event added to a visible incident (`keep/rulesengine/rulesengine.py:206-208`). A condition on status alone can therefore post more than once.
+    - So the story follows Keep's own pattern in `examples/workflows/incident-tier-escalation.yml`. The action's `if:` checks that the status is resolved and that a marker (for example `resolved_notified`) is not set. The action then sets the marker with `enrich_incident`. Keep loads incident enrichments before each run (`workflowmanager.py:159-162`).
+    - The action posts one short message to the same Slack channel through the `slack` provider: the incident name, that it resolved, and the "Open in Keep" link. It makes no summary call.
+    - After `make aks-cart-oom-revert`, once the last alert clears and Keep resolves the incident, exactly one resolved message appears in Slack, not one per update.
+    - In the try-out the incident resolved about 8 minutes after the revert (research.md section 5). The check waits that long and then counts messages for 10 more minutes.
+    - After the live run, `plan.md` records two known limits. First: whether two near-simultaneous updates can both post (the 10-minute count shows it). Second: a resolved incident that reopens keeps the marker, so its second close posts nothing. This is accepted for the demo. If needed, it becomes a follow-up story.
 
-    Must keep working (AGENTS.md): story 5a's opened-incident message and its workflow file, unchanged. One incident per fault (story 4). `setup-keep` stays idempotent and restarts nothing when the workflows folder is unchanged (the hash rule from 5a). `make setup-aks` without Keep secrets still finishes. `make lint` passes.
+    Out of scope
+    - Any change to the opened-incident workflow.
+    - A new summary at resolve time.
+    - Keep's `end_time` or time-to-resolve.
+    - A message when an incident is deleted.
 
-    Live checks from the architecture decisions: (1) the story starts with the one thing the try-out never ran: does a workflow triggered on incident updated, with the `if:` on status resolved and the marker, fire when an incident resolves, and how many times does it fire over the next ten minutes? The count and the way the workflow was made to fire once are recorded in `plan.md`; (2) the opened-incident workflow does not fire a second summary when the incident is updated or resolved, and the resolved workflow does not fire while the incident is still open; (3) the final proof is the exact-once count above, on a real fault and revert. If no condition can make the message fire exactly once, stop and return to the spec; do not ship a version that posts more than once.
+    Must keep working
+    - Story 5a's opened-incident message and its workflow file, unchanged.
+    - One incident per fault (story 4).
+    - `setup-keep` stays idempotent and restarts nothing when the workflows folder is unchanged (the hash rule from story 5a).
+    - `make setup-aks` without Keep secrets.
+    - `make lint`.
+
+    Decisions followed: AD-011 rule 2 (workflows as files).
+
+    Live checks on AKS
+    - Start with the thing the try-out never ran. Does a workflow on incident updated, with the `if:` on status resolved and the marker, fire when an incident resolves? How many times does it fire over the next ten minutes? Record the count, and how the workflow was made to fire once, in `plan.md`.
+    - The opened-incident workflow does not send a second summary when the incident is updated or resolved. The resolved workflow does not fire while the incident is still open.
+    - Final proof: the exactly-once count above, on a real fault and revert.
+    - Stop rule: if no condition can make the message fire exactly once, stop and return to the spec. Do not ship a version that posts more than once.
   spec_checkpoint: true
   done_checkpoint: true
   invoke_dev_with: >-
@@ -137,19 +299,51 @@
     ends unless told otherwise. Author and approver must be different
     people. One pull request, squash-merged.
 - id: "6a"
-  title: Keep login on, with the real API keys proven
+  title: Turn on the Keep login and check the API keys
   description: |-
-    Priority: main. Size: 1 to 2 days. Needs: stories 3, 4 and 5b. AD numbers: AD-009 (rules 1 to 4), AD-008 (rules 1, 2, 3 and 4), AD-013 (rule 2). Capability: CAP-6 (login part).
+    Priority: main. Size: 1 to 2 days. Comes after: stories 3, 4 and 5b. Capability: CAP-6 (login part).
 
-    Problem: Keep runs in `NOAUTH`, where every request with any API key is treated as admin. It cannot be reachable from outside the cluster in that mode (AD-009), and since then no story has proven that Alertmanager's key or the setup key is actually checked.
+    In one line: switch Keep from "no login" to a real login, and prove that the API keys are checked.
 
-    Outcome: Keep requires a login. `AUTH_TYPE=DB` (uppercase) is set on backend and frontend. The one default user's name comes from `.env` (`KEEP_DEFAULT_USERNAME`); its password, `KEEP_JWT_SECRET` and `NEXTAUTH_SECRET` come from the new Secret `sre-keep-auth`, built by `setup-keep` from the generated files `login-password`, `jwt-secret` and `nextauth-secret` in the secrets folder, and wired through `backend.envFromSecrets` and `frontend.envFromSecrets`. `KEEP_FORCE_RESET_DEFAULT_PASSWORD=true` makes `login-password` the source of truth on every start. The login password is never printed; the operator reads it from the file. `NEXTAUTH_URL` keeps the chart default `http://localhost:3000` in this story, because sign-in goes through `kubectl port-forward` and the route to `keep.demo.local` does not exist yet; story 6b sets it to `http://keep.demo.local` (AD-009 rule 1). The login page loads through `kubectl port-forward`, the default user signs in, and new alerts show after a page refresh (live updates need the websocket route of story 6b: through a port-forward the try-out's websocket fails). A request with a made-up API key is rejected. Alertmanager still delivers with its real key. The story 4 to 5b work (rule, providers, workflows) still works with the login on.
+    Problem
+    - Keep runs in `NOAUTH` mode. In that mode every request with any API key counts as admin. Keep cannot be reachable from outside the cluster in that mode (AD-009).
+    - So far no story has proven that Alertmanager's key or the setup key is really checked.
 
-    Out of scope: the gateway route and `keep.demo.local` (6b), and live updates without a refresh. Single sign-on, roles, more users. TLS. Changing the password in Keep's UI (a restart resets it, AD-009). Any README work (story 7).
+    Outcome
+    - Keep requires a login. `AUTH_TYPE=DB` (uppercase) is set on backend and frontend.
+    - One default user exists. Its name comes from `.env` (`KEEP_DEFAULT_USERNAME`). Its password, `KEEP_JWT_SECRET` and `NEXTAUTH_SECRET` come from the new Secret `sre-keep-auth`. `setup-keep` builds it from the generated files `login-password`, `jwt-secret` and `nextauth-secret` in the secrets folder. It is wired through `backend.envFromSecrets` and `frontend.envFromSecrets`.
+    - `KEEP_FORCE_RESET_DEFAULT_PASSWORD=true` makes `login-password` the source of truth on every start.
+    - The login password is never printed. The operator reads it from the file.
+    - `NEXTAUTH_URL` keeps the chart default `http://localhost:3000` in this story. Sign-in goes through `kubectl port-forward`, and the route to `keep.demo.local` does not exist yet. Story 6b sets it to `http://keep.demo.local` (AD-009 rule 1).
+    - The login page opens through `kubectl port-forward`. The default user signs in. New alerts show after a page refresh. (Live updates need the websocket route of story 6b. Through a port-forward the try-out's websocket fails.)
+    - A request with a made-up API key is rejected.
+    - Alertmanager still delivers with its real key.
+    - The rule, providers and workflows from stories 4 to 5b still work with the login on.
 
-    Must keep working (AGENTS.md): the whole earlier chain: one cart OOM fault still ends in one incident, a Slack summary and one resolved message. `setup-keep` stays idempotent and a second run restarts nothing. `make setup-aks` without Keep secrets still finishes. `make setup-local` and EKS untouched. `make lint` passes, including its secrets check.
+    Out of scope
+    - The gateway route and `keep.demo.local`, and live updates without a refresh (story 6b).
+    - Single sign-on, roles, more users, TLS.
+    - Changing the password in Keep's UI (a restart resets it, AD-009).
+    - README work (story 7).
 
-    Live checks from the architecture decisions: (1) the `AUTH_TYPE=DB` login the try-out never ran: the default user signs in with `login-password` through the port-forward; (2) a changed `login-password`, after a re-run of `make setup-keep`, signs in with the new value and refuses the old (`KEEP_FORCE_RESET_DEFAULT_PASSWORD`, AD-009 rule 1); (3) the real key checks moved here from stories 3 and 4, since `NOAUTH` accepted anything: Alertmanager's deliveries return 202 with the right key and 401 with a wrong one, a made-up key is rejected, and `setup-keep`'s admin key still creates and updates the correlation rule with the login on (AD-009 rule 3); (4) after a key-file change and a re-run of both `setup-aks-prometheus-stack` and `make setup-keep`, deliveries still return 202 with the new value (AD-008 rule 4); this check is the cut point if the story runs long; (5) if seeding does not work, the fallback is `POST /settings/apikey`, and if that fails too, stop and return to the spec (AD-009 rule 4).
+    Must keep working
+    - The whole chain so far: one cart OOM fault still ends in one incident, a Slack summary and one resolved message.
+    - `setup-keep` stays idempotent, and a second run restarts nothing.
+    - `make setup-aks` without Keep secrets.
+    - `make setup-local` and EKS.
+    - `make lint`, including its secrets check.
+
+    Decisions followed: AD-009 rules 1 to 4 (login and API keys), AD-008 rules 1 to 4 (secrets), AD-013 rule 2 (env lists).
+
+    Live checks on AKS
+    - Login: the default user signs in with `login-password` through the port-forward. The try-out never ran this.
+    - Password change: after you change `login-password` and re-run `make setup-keep`, the new value signs in and the old one is refused (AD-009 rule 1).
+    - Key checks (moved here from stories 3 and 4, because `NOAUTH` accepted anything):
+      - Alertmanager's deliveries return 202 with the right key and 401 with a wrong one.
+      - A made-up key is rejected.
+      - `setup-keep`'s admin key still creates and updates the correlation rule with the login on (AD-009 rule 3).
+    - Key change (the cut point if the story runs long): after a key-file change and a re-run of `setup-aks-prometheus-stack` and `make setup-keep`, deliveries still return 202 with the new value (AD-008 rule 4).
+    - If seeding does not work, the fallback is `POST /settings/apikey`. If that fails too, stop and return to the spec (AD-009 rule 4).
   spec_checkpoint: true
   done_checkpoint: true
   invoke_dev_with: >-
@@ -160,19 +354,48 @@
     ends unless told otherwise. Author and approver must be different
     people. One pull request, squash-merged.
 - id: "6b"
-  title: Keep at its own address, keep.demo.local, with live updates
+  title: Give Keep its own address, keep.demo.local
   description: |-
-    Priority: main. Size: 1 to 2 days. Needs: story 6a. AD numbers: AD-010 (rules 1 to 4), AD-009 (rule 1, the `NEXTAUTH_URL` move), AD-005 (the host-matched pattern it extends). Capability: CAP-6 (address and live updates).
+    Priority: main. Size: 1 to 2 days. Comes after: story 6a. Capability: CAP-6 (address and live updates).
 
-    Problem: Keep's UI is reachable only through `kubectl port-forward`, and there its live updates fail: the browser tries `ws://localhost:3000/websocket` and `wss://localhost/websocket` and both fail (try-out findings). A presenter has no address to open, and the "Open in Keep" link in Slack points nowhere.
+    In one line: serve the Keep UI and its websocket at `http://keep.demo.local` through the Istio gateway.
 
-    Outcome: Keep's UI and websocket are served at the root of `http://keep.demo.local`, through a host-matched `Gateway` and `VirtualService` pair in the `keep` namespace on the shared `istio: ingressgateway`, kept in `infra/azure/keep/istio-gateway.yaml`. That is the same file name as HotROD's `app/hotrod/istio-gateway.yaml` (applied at makefile line 345), but in the AKS-only folder AD-011 gives Keep. One `VirtualService` sends `/websocket/app/` to `keep-websocket:6001` with the prefix rewritten to `/app/`, and everything else to `keep-frontend:3000`. The backend gets no route. `NEXTAUTH_URL` in `frontend.env` becomes `http://keep.demo.local`, in the same pull request as the route (AD-009 rule 1). `setup-keep` applies the route only after confirming that both `keep-backend` and `keep-frontend` run with `AUTH_TYPE=DB`, and refuses otherwise (a frontend in `NOAUTH` skips the login page). `make get-service-endpoints` prints, for AKS, the address and the `/etc/hosts` line (`<LB_ENDPOINT> keep.demo.local`). Scripts and checks use `curl -H "Host: keep.demo.local"`. The address shows Keep's login page, the default user signs in, and new alerts appear without a refresh. Slack's "Open in Keep" link opens the incident.
+    Problem
+    - The Keep UI opens only through `kubectl port-forward`. There its live updates fail: the browser tries `ws://localhost:3000/websocket` and `wss://localhost/websocket`, and both fail (try-out findings).
+    - A presenter has no address to open, and the "Open in Keep" link in Slack goes nowhere.
 
-    Out of scope: TLS (plain HTTP is accepted, AD-010). A nip.io hostname or a gateway port (rejected in AD-010, can be added later). A route to the backend. Any change to the shared gateway release. README and screenshots (story 7).
+    Outcome
+    - The file `infra/azure/keep/istio-gateway.yaml` holds a Gateway and a VirtualService in the `keep` namespace. They are host-matched on the shared `istio: ingressgateway`. It has the same file name as HotROD's `app/hotrod/istio-gateway.yaml` (applied at makefile line 345), but it sits in the AKS-only folder that AD-011 gives Keep.
+    - One VirtualService sends `/websocket/app/` to `keep-websocket:6001`, with the prefix rewritten to `/app/`. Everything else goes to `keep-frontend:3000`. The backend gets no route.
+    - `NEXTAUTH_URL` in `frontend.env` becomes `http://keep.demo.local`, in the same pull request as the route (AD-009 rule 1).
+    - `make setup-keep` applies the route only after it confirms that both `keep-backend` and `keep-frontend` run with `AUTH_TYPE=DB`. It refuses otherwise. (A frontend in `NOAUTH` skips the login page.)
+    - On AKS, `make get-service-endpoints` prints the address and the `/etc/hosts` line (`<LB_ENDPOINT> keep.demo.local`). Scripts and checks use `curl -H "Host: keep.demo.local"`.
+    - The address shows Keep's login page. The default user signs in. New alerts appear without a refresh.
+    - Slack's "Open in Keep" link opens the incident.
 
-    Must keep working (AGENTS.md): HotROD at `hotrod.demo.local`, Grafana at `/grafana` and the other gateway routes. The login and the whole earlier chain (stories 3 to 6a): a cart OOM fault still ends in one incident and Slack messages. `make get-service-endpoints` output for k3d and EKS is unchanged. `make setup-keep` stays idempotent. `make setup-aks` without Keep secrets still finishes. `make lint` passes.
+    Out of scope
+    - TLS. (Plain HTTP is accepted, AD-010.)
+    - A nip.io hostname or a gateway port (rejected in AD-010, can be added later).
+    - A route to the backend.
+    - Any change to the shared gateway release.
+    - README and screenshots (story 7).
 
-    Live checks from the architecture decisions: (1) the story starts with the check the try-out never ran: the narrow `/websocket/app/` route carries live updates, shown in the browser console connecting to `ws://keep.demo.local/websocket/app/keepappkey` and a new alert appearing without a refresh; if it fails, fall back to the whole `/websocket` prefix rewritten to `/` and say so in `plan.md` (AD-010 rule 1). This is a manual step on the operator's machine; attach the console line and a screenshot as evidence; (2) Soketi's HTTP publish API (`/apps/...`) is not reachable from outside through the route; (3) sign-in at `keep.demo.local` redirects back to `keep.demo.local`, not to localhost; (4) `setup-keep` refuses to apply the route while the backend is not on `AUTH_TYPE=DB`: run `kubectl set env deploy/keep-backend AUTH_TYPE=NOAUTH`, run the route step, show it refuses, then re-run `make setup-keep` to restore; no throwaway Keep is used; (5) HotROD and Grafana still answer through the same gateway.
+    Must keep working
+    - HotROD at `hotrod.demo.local`, Grafana at `/grafana` and the other gateway routes.
+    - The login and the whole chain from stories 3 to 6a. A cart OOM fault still ends in one incident and Slack messages.
+    - `make get-service-endpoints` output for k3d and EKS.
+    - `make setup-keep` stays idempotent.
+    - `make setup-aks` without Keep secrets.
+    - `make lint`.
+
+    Decisions followed: AD-010 (the address), AD-009 rule 1 (the `NEXTAUTH_URL` move), AD-005 (the host-matched pattern it extends).
+
+    Live checks on AKS
+    - Start here. The narrow `/websocket/app/` route carries live updates. Show the browser console connecting to `ws://keep.demo.local/websocket/app/keepappkey` and a new alert appearing without a refresh. This is a manual step on the operator's machine. Attach the console line and a screenshot as evidence. If it fails, fall back to the whole `/websocket` prefix rewritten to `/`, and say so in `plan.md` (AD-010 rule 1).
+    - Soketi's HTTP publish API (`/apps/...`) is not reachable from outside through the route.
+    - Sign-in at `keep.demo.local` redirects back to `keep.demo.local`, not to localhost.
+    - The guard works. Run `kubectl set env deploy/keep-backend AUTH_TYPE=NOAUTH`, run the route step, and show that it refuses. Then re-run `make setup-keep` to restore. No throwaway Keep is used.
+    - HotROD and Grafana still answer through the same gateway.
   spec_checkpoint: true
   done_checkpoint: true
   invoke_dev_with: >-
@@ -183,19 +406,48 @@
     ends unless told otherwise. Author and approver must be different
     people. One pull request, squash-merged.
 - id: "7"
-  title: "One-take demo: README section, diagram, screenshots, and the scenario pointing at Keep and Slack"
+  title: Make the demo repeatable from the README
   description: |-
-    Priority: main. Size: 1 to 2 days. Needs: stories 5b and 6b. AD numbers: AD-008 (rule 1, the supplied files; rule 5, the skip), AD-010 (rule 3, the address and the hosts line). Capability: CAP-8.
+    Priority: main. Size: 1 to 2 days. Comes after: stories 5b and 6b. Capability: CAP-8.
 
-    Problem: Every part of the alert story works, but only someone who built it knows the steps. A presenter cannot run it in one take, and a newcomer cannot follow it.
+    In one line: write the README section, diagram and screenshots, and make the scenario point at Keep and Slack, so anyone can run the demo in one take.
 
-    Outcome: The README has an "Alert management (Keep)" section, placed with the AKS monitoring sections, with: an architecture diagram as a Mermaid block (fault, Prometheus rules, Alertmanager, Keep incident, Fireworks summary, Slack); the setup steps, including the two files the operator must supply in the secrets folder (`fireworks.key`, `slack-webhook.url`), where the generated login password is (the file, never printed), and the `/etc/hosts` line from `make get-service-endpoints`; the demo steps for the cart OOM fault and its revert, which start the load generator before the fault, because `make setup-aks` only prints its commands (makefile lines 309-310) and without traffic the 5xx and slow-request alerts do not fire; the note that the incident closes about 8 minutes after the revert (the payment latency alert clears last in the try-out), so a presenter knows to wait; and screenshots of the incident with its grouped alerts, the Slack summary and a workflow run. The cart OOM scenario's start command prints where to watch (the Keep address and a pointer to the Slack channel). The pointer is printed before the `RESULT:` line so that `RESULT:` stays the last line (`specs/007-aks-oom-kill/contracts/commands.md` section 3), on start's success paths only, nothing on revert, and nothing about Keep when Keep is not installed. The contract file is updated in the same pull request. The success signal reads: after `make setup-aks` and starting the load generator, the fault starts, one incident and an accurate Slack summary appear within about two minutes, and after `make aks-cart-oom-revert` the incident closes by itself and Slack gets one resolved message. "Nothing by hand" means: the operator supplies `fireworks.key` and `slack-webhook.url` and adds the `/etc/hosts` line once; nothing else. Someone new to the repo can follow only the README on AKS.
+    Problem
+    - Every part of the alert story works, but only the people who built it know the steps.
+    - A presenter cannot run it in one take. A newcomer cannot follow it.
 
-    Out of scope: new Keep features. The later stories (Grafana alerts, the incident summary with Kubernetes events, Loki, the "AI Summary" button). Changes to the fault itself, the rules or any Keep setting. TLS. Screenshots of anything outside this flow.
+    Outcome
+    - The README has an "Alert management (Keep)" section, next to the AKS monitoring sections. It has:
+      - a Mermaid diagram: fault, Prometheus rules, Alertmanager, Keep incident, Fireworks summary, Slack;
+      - setup steps: the two files the operator must supply in the secrets folder (`fireworks.key`, `slack-webhook.url`), where the generated login password is (the file, never printed), and the `/etc/hosts` line from `make get-service-endpoints`;
+      - demo steps for the cart OOM fault and its revert. They start the load generator before the fault, because `make setup-aks` only prints its commands (makefile lines 309-310), and without traffic the 5xx and slow-request alerts do not fire;
+      - a note that the incident closes about 8 minutes after the revert (in the try-out the payment latency alert cleared last), so a presenter knows to wait;
+      - screenshots of the incident with its grouped alerts, the Slack summary and a workflow run.
+    - The cart OOM scenario's start command prints where to watch: the Keep address and a pointer to the Slack channel. The pointer is printed before the `RESULT:` line, so `RESULT:` stays the last line (`specs/007-aks-oom-kill/contracts/commands.md` section 3). It prints this on start's success paths only, nothing on revert, and nothing about Keep when Keep is not installed. The contract file is updated in the same pull request.
+    - The success signal reads: after `make setup-aks` and starting the load generator, the fault starts. One incident and an accurate Slack summary appear within about two minutes. After `make aks-cart-oom-revert`, the incident closes by itself and Slack gets one resolved message.
+    - "Nothing by hand" means: the operator supplies `fireworks.key` and `slack-webhook.url` and adds the `/etc/hosts` line once. Nothing else.
+    - Someone new to the repo can follow only the README on AKS.
 
-    Must keep working (AGENTS.md): the scenario's `RESULT:` lines and exit codes for start, status and revert as the story 007 contract records them; the contract change above is the only one. The scenario still works with Keep skipped. Existing README sections and links. `make lint` passes, including the secrets check: no screenshot, command example or diagram shows a secret value (the webhook URL, API keys, passwords).
+    Out of scope
+    - New Keep features.
+    - The four lower-priority stories (8 to 11).
+    - Changes to the fault, the rules or any Keep setting.
+    - TLS.
+    - Screenshots of anything outside this flow.
 
-    Live checks: (1) a person who did not build Keep, with only the README, runs the success signal on AKS from a cluster created by `make setup-aks`, and notes every step they had to guess (book this person ahead; author and approver must differ); (2) the scenario's start output on a cluster with Keep installed shows the address and the Slack pointer, and on one without Keep shows neither; (3) every command in the README section was run as written, with its output kept as evidence in the pull request; (4) the README section is checked against the story files so the demo steps and the supplied-file list match what the earlier stories built.
+    Must keep working
+    - The scenario's `RESULT:` lines and exit codes for start, status and revert, as the story 007 contract records them. The contract change above is the only one.
+    - The scenario with Keep skipped.
+    - Existing README sections and links.
+    - `make lint`, including the secrets check. No screenshot, command example or diagram shows a secret value (the webhook URL, API keys, passwords).
+
+    Decisions followed: AD-008 rules 1 and 5 (the supplied files and the skip), AD-010 rule 3 (the address and the hosts line).
+
+    Live checks
+    - A person who did not build Keep, with only the README, runs the success signal on AKS from a cluster created by `make setup-aks`. They note every step they had to guess. Book this person ahead: author and approver must differ.
+    - The scenario's start output on a cluster with Keep shows the address and the Slack pointer. On a cluster without Keep it shows neither.
+    - Every command in the README section was run as written. Keep the output as evidence in the pull request.
+    - The README section is checked against the story files, so the demo steps and the supplied-file list match what the earlier stories built.
   spec_checkpoint: true
   done_checkpoint: true
   invoke_dev_with: >-
@@ -206,19 +458,44 @@
     ends unless told otherwise. Author and approver must be different
     people. One pull request, squash-merged.
 - id: "8"
-  title: "Lower priority: Grafana alerts also reach Keep"
+  title: "Lower priority: send Grafana alerts to Keep"
   description: |-
-    Priority: LOWER, after the main nine. Size: 1 to 2 days. Needs: story 3 (in practice after 6a, so the real key is checked). AD numbers: AD-012 (rule 3, which now says Grafana also reads the key Secret), AD-008 (rule 4), AD-009 (rules 2 and 3). Capability: CAP-9.
+    Priority: LOWER, after the nine main stories. Size: 1 to 2 days. Comes after: story 3 (in practice after story 6a, so the real key is checked). Capability: CAP-9.
 
-    Problem: Keep only hears from Prometheus rules through Alertmanager. Grafana's own alerts, which many teams use, go nowhere, so a fault seen in Grafana never joins an incident.
+    In one line: make Grafana's own alerts reach Keep through a webhook.
 
-    Outcome: On AKS, Grafana has a webhook contact point that posts to Keep at `/alerts/event/grafana`, and a notification policy that forwards alerts to it. For Grafana newer than 9.4.7 Keep's own setup uses the contact point's `authorization_scheme` `digest` with `authorization_credentials` set to the key (Keep `grafana_provider.py:574-581`, commit e5cd8698), and Keep accepts the Digest scheme (`keep/identitymanager/authverifierbase.py:320`); this replaces the `X-API-KEY` header that research.md mentions. kube-prometheus-stack 52.0.0 ships Grafana chart 6.60.* (Grafana 10). Grafana reads the existing Secret `alertmanager-keep-auth` (same `monitoring` namespace, same `prometheus-stack` release) through an environment variable used by its provisioning file; the settings go in `infra/azure/chart-values/prometheus-stack.yaml`, where one target owns the release (AD-012). There is no new copy of the key. A sample Grafana alert rule, kept as a file in the repo, uses a condition no Prometheus rule covers (noted in `plan.md`) and carries one of the four severities Keep's Grafana map knows: critical, high, warning or info (`grafana_provider.py:120-125`; anything else becomes info, `:413`). When it fires it appears in Keep with that severity and resolves when it clears.
+    Problem
+    - Keep hears only from Prometheus rules, through Alertmanager.
+    - Grafana's own alerts go nowhere. A fault seen in Grafana never joins an incident.
 
-    Out of scope: changing the correlation rule so Grafana alerts join the robot-shop incident (a separate decision). Replacing or removing Alertmanager. Moving the repo's Prometheus rules into Grafana. Dashboards. Slack from Grafana. EKS and k3d. A new decision (AD) is added only if the builder finds Grafana 10 cannot read the Secret this way.
+    Outcome
+    - On AKS, Grafana has a webhook contact point and a notification policy that post to Keep at `/alerts/event/grafana`.
+    - Auth: for Grafana newer than 9.4.7, Keep's own setup uses the contact point's `authorization_scheme` `digest` with `authorization_credentials` set to the key (Keep `grafana_provider.py:574-581`, commit e5cd8698). Keep accepts the Digest scheme (`keep/identitymanager/authverifierbase.py:320`). This replaces the `X-API-KEY` header that research.md mentions.
+    - kube-prometheus-stack 52.0.0 ships Grafana chart 6.60.* (Grafana 10).
+    - Grafana reads the existing Secret `alertmanager-keep-auth` (same `monitoring` namespace, same `prometheus-stack` release) through an environment variable used by its provisioning file. The settings go in `infra/azure/chart-values/prometheus-stack.yaml`, where one target owns the release (AD-012). There is no new copy of the key.
+    - A sample Grafana alert rule is kept as a file in the repo. It uses a condition that no Prometheus rule covers (note this in `plan.md`). It has one of the four severities Keep's Grafana map knows: critical, high, warning or info (`grafana_provider.py:120-125`; anything else becomes info, `:413`).
+    - When the sample alert fires, it appears in Keep with that severity. It resolves when it clears.
 
-    Must keep working (AGENTS.md): Grafana at `/grafana`, its admin login and its dashboards. Story 3's Alertmanager path to Keep and the whole main chain. `make setup-aks` without Keep secrets still finishes. `make setup-local` and EKS untouched. `make lint` passes, including its secrets check.
+    Out of scope
+    - Changing the correlation rule so Grafana alerts join the robot-shop incident (a separate decision).
+    - Replacing or removing Alertmanager. Moving Prometheus rules into Grafana. Slack from Grafana. EKS and k3d.
+    - A new decision (AD) is added only if the builder finds that Grafana 10 cannot read the Secret this way.
 
-    Live checks: (1) the contact point delivers: a test notification from Grafana reaches Keep and is accepted with the real key and refused with a wrong one (the login is on by then); (2) severity: the sample alert shows in Keep with the severity set on it, one of the four above, not as info; (3) no secret: `helm get values` and `helm get manifest` for `prometheus-stack` show no key value, and the Secret that holds it is not named `keep-*`; (4) a changed key file, after a re-run of the targets involved, still delivers, and Grafana is restarted after the key change because environment variables are read at start (AD-008 rule 4); (5) nothing was tried before: the live Grafana version is confirmed and the contact point and policy provisioning with the digest scheme is checked on it, and the result is written into `plan.md`.
+    Must keep working
+    - Grafana at `/grafana`, its admin login and its dashboards.
+    - Story 3's Alertmanager path to Keep, and the whole main chain.
+    - `make setup-aks` without Keep secrets.
+    - `make setup-local` and EKS.
+    - `make lint`, including its secrets check.
+
+    Decisions followed: AD-012 rule 3 (it now says Grafana also reads the key Secret), AD-008 rule 4, AD-009 rules 2 and 3.
+
+    Live checks on AKS
+    - Delivery: a test notification from Grafana reaches Keep. It is accepted with the real key and refused with a wrong one (the login is on by then).
+    - Severity: the sample alert shows in Keep with the severity set on it, not as info.
+    - No secret: `helm get values` and `helm get manifest` for `prometheus-stack` show no key value. The Secret that holds the key is not named `keep-*`.
+    - Key change: a changed key file, after a re-run of the targets involved, still delivers. Grafana is restarted after the key change, because environment variables are read at start (AD-008 rule 4).
+    - Nothing was tried before: confirm the live Grafana version, check the contact point and policy provisioning with the digest scheme on it, and write the result in `plan.md`.
   spec_checkpoint: true
   done_checkpoint: true
   invoke_dev_with: >-
@@ -229,19 +506,42 @@
     ends unless told otherwise. Author and approver must be different
     people. One pull request, squash-merged.
 - id: "9"
-  title: "Lower priority: the incident summary includes the Kubernetes events behind it"
+  title: "Lower priority: add Kubernetes events to the AI summary"
   description: |-
-    Priority: LOWER, after the main nine. Size: 1 to 2 days. Needs: story 5a (in practice after 7). AD numbers: AD-011 (providers and workflows as files). No new decision. Capability: CAP-10.
+    Priority: LOWER, after the nine main stories. Size: 1 to 2 days. Comes after: story 5a (in practice after story 7). Capability: CAP-10.
 
-    Problem: Prometheus shows that a container restarted, but Kubernetes events say why (for example `OOMKilled`, `BackOff`). The Slack summary is written from the alerts alone, so it often cannot name the reason. Keep cannot take Kubernetes events in as alerts: its `kubernetes` provider (`keep/providers/kubernetes_provider/kubernetes_provider.py`, commit e5cd8698) has no alert intake or webhook; it is a query provider with commands such as `get_events` for a namespace or a pod (lines 150, 170, 332-360), and it can use in-cluster credentials (`use_in_cluster_config`, lines 46 and 109). No event exporter appears in Keep's code or docs.
+    In one line: let the Slack summary use Kubernetes events, so it can say why a container restarted.
 
-    Outcome: The opened-incident workflow (story 5a) gains a step that calls `get_events` for the `robot-shop` namespace through a Keep `kubernetes` provider, and passes the result into the Fireworks prompt. The provider uses the cluster's own credentials, is added to `providers.template.json`, and holds no secret. A Role and RoleBinding let the service account `keep` in the `keep` namespace (the chart renders `serviceAccountName: keep` on all Keep pods, already bound to the chart's own Role `secret-manager-role`) get and list events in `robot-shop` only; the Role and the binding live in `robot-shop`. During the cart OOM fault, the Slack summary names the OOM kill or the back-off, taken from those events.
+    Problem
+    - Prometheus shows that a container restarted. Kubernetes events say why (for example `OOMKilled`, `BackOff`).
+    - The Slack summary is written from the alerts alone, so it often cannot name the reason.
+    - Keep cannot take Kubernetes events in as alerts. Its `kubernetes` provider (`keep/providers/kubernetes_provider/kubernetes_provider.py`, commit e5cd8698) has no alert intake or webhook. It is a query provider with commands such as `get_events` for a namespace or a pod (lines 150, 170, 332-360), and it can use in-cluster credentials (`use_in_cluster_config`, lines 46 and 109). No event exporter appears in Keep's code or docs.
 
-    Out of scope: events as alerts in Keep (Keep cannot take them in), any event exporter, other namespaces, the resolved workflow. This story changes the opened workflow only.
+    Outcome
+    - The opened-incident workflow (story 5a) has a new step. It calls `get_events` for the `robot-shop` namespace through a Keep `kubernetes` provider, and passes the result into the Fireworks prompt.
+    - The provider uses the cluster's own credentials, is added to `providers.template.json`, and holds no secret.
+    - A Role and a RoleBinding let the service account `keep` in the `keep` namespace get and list events in `robot-shop` only. (The chart renders `serviceAccountName: keep` on all Keep pods. It is already bound to the chart's own Role `secret-manager-role`.) The Role and the binding live in `robot-shop`.
+    - During the cart OOM fault, the Slack summary names the OOM kill or the back-off, taken from those events.
 
-    Must keep working (AGENTS.md): the main chain: one cart OOM fault still produces exactly one incident and one resolved message (events never become alerts). Story 5a's Slack message and link. `setup-keep` stays idempotent and restarts nothing when nothing changed. `make setup-aks` without Keep secrets still finishes. EKS and k3d untouched. `make lint` passes, including its secrets check.
+    Out of scope
+    - Events as alerts in Keep (Keep cannot take them in), any event exporter, other namespaces.
+    - The resolved workflow. This story changes the opened workflow only.
 
-    Live checks: (1) the provider and the access rule work in-cluster: events for `robot-shop` come back, events from another namespace are refused; (2) during the cart OOM fault the Slack summary names the OOM kill or back-off from the events; (3) there is still exactly one incident and one resolved message; (4) the Fireworks reply is still not empty with the larger prompt (the model reasons first, `max_tokens` 10000).
+    Must keep working
+    - One cart OOM fault still produces exactly one incident and one resolved message (events never become alerts).
+    - Story 5a's Slack message and link.
+    - `setup-keep` stays idempotent and restarts nothing when nothing changed.
+    - `make setup-aks` without Keep secrets.
+    - EKS and k3d.
+    - `make lint`, including its secrets check.
+
+    Decisions followed: AD-011 (providers and workflows as files). No new decision.
+
+    Live checks on AKS
+    - The provider and the access rule work in the cluster: events for `robot-shop` come back, events from another namespace are refused.
+    - During the cart OOM fault, the Slack summary names the OOM kill or back-off from the events.
+    - There is still exactly one incident and one resolved message.
+    - The Fireworks reply is still not empty with the larger prompt. The model thinks first, with `max_tokens` 10000.
   spec_checkpoint: true
   done_checkpoint: true
   invoke_dev_with: >-
@@ -252,19 +552,42 @@
     ends unless told otherwise. Author and approver must be different
     people. One pull request, squash-merged.
 - id: "10"
-  title: "Lower priority: alerts based on Loki logs reach Keep"
+  title: "Lower priority: send Loki log alerts to Keep"
   description: |-
-    Priority: LOWER, after the main nine. Size: 1 to 2 days. Needs: story 3 (in practice after 6a, so the real key is checked). AD numbers: AD-012 (Alertmanager is the one receiver, set up in story 3). No new key and no new Secret. Capability: CAP-11.
+    Priority: LOWER, after the nine main stories. Size: 1 to 2 days. Comes after: story 3 (in practice after story 6a, so the real key is checked). Capability: CAP-11.
 
-    Problem: Some faults show up first in logs, such as the OOM kill, an error message or a crash loop, and Keep only hears about metrics. A log-based alert would add that signal to the same incident.
+    In one line: add an alert rule on Loki logs that reaches Keep through Alertmanager.
 
-    Outcome: On AKS, at least one alert rule written on Loki logs, kept as a file in the repo, fires during the cart OOM fault and appears in Keep with a severity from the Prometheus provider's list (critical, error, high, warning or info, as in story 1) and `namespace` and `service` labels, and resolves when it clears. The route is the one already in place: Loki's built-in ruler (`ruler.enabled` is true by default in the pinned chart `grafana-community/loki` 18.13.7, makefile line 218) sends alerts to the existing Alertmanager through `loki.rulerConfig` (`alertmanager_url`), and Alertmanager already sends to Keep (story 3). The rule is kept next to story 1's, in `infra/azure/alert-rules/`, and sets `namespace` `robot-shop` and a `severity` label explicitly. The chart's rules sidecar is on by default (`sidecar.rules.enabled: true`) and loads ConfigMaps labelled `loki_rule`, so the rule reaches Loki as such a ConfigMap.
+    Problem
+    - Some faults show up first in the logs, such as an OOM kill, an error message or a crash loop.
+    - Keep hears only about metrics today. A log-based alert adds that signal to the same incident.
 
-    Out of scope: changing the correlation rule so the log alert joins the robot-shop incident, unless the live check shows it must. Moving the metric rules into Loki. Dashboards. Slack changes. A Grafana-managed alert on a Loki query, which is dropped unless the ruler route fails live. EKS and k3d.
+    Outcome
+    - At least one alert rule on Loki logs is kept as a file in the repo, next to story 1's rules, in `infra/azure/alert-rules/`. It sets `namespace` to `robot-shop` and a `severity` label explicitly.
+    - The route uses what is already in place, with no new key and no new Secret. Loki's built-in ruler (`ruler.enabled` is true by default in the pinned chart `grafana-community/loki` 18.13.7, makefile line 218) sends alerts to the existing Alertmanager through `loki.rulerConfig` (`alertmanager_url`). Alertmanager already sends to Keep (story 3).
+    - The chart's rules sidecar is on by default (`sidecar.rules.enabled: true`) and loads ConfigMaps labelled `loki_rule`. So the rule reaches Loki as such a ConfigMap.
+    - The alert fires during the cart OOM fault and appears in Keep. Its severity comes from the Prometheus provider's list (critical, error, high, warning or info, as in story 1). It has `namespace` and `service` labels. It resolves when it clears.
 
-    Must keep working (AGENTS.md): Loki's log intake and the Grafana log views. Story 3's Alertmanager path. One cart OOM fault still produces exactly one incident and one resolved message, unless the story proves otherwise and says so in `plan.md`. `make setup-aks` without Keep secrets still finishes. `make setup-local` and EKS untouched. `make lint` passes, including its secrets check.
+    Out of scope
+    - Changing the correlation rule so the log alert joins the robot-shop incident, unless the live check shows it must.
+    - Moving metric rules into Loki, dashboards, Slack changes, EKS and k3d.
+    - A Grafana-managed alert on a Loki query. Drop this unless the ruler route fails live.
 
-    Live checks: (1) in Monolithic mode, which pod runs the ruler and which runs the sidecar, the tenant folder the rule must sit in (authentication is on by the chart default, per `infra/azure/chart-values/loki.yaml`), and the Alertmanager Service name read from the cluster, are confirmed and recorded in `plan.md`; (2) the log alert fires during the fault and reaches Keep with its set severity, not as info (Keep reads `labels.severity`, research.md); (3) the log alert's labels and the correlation rule are compared on a real fault: the result, whether it joins the one incident or opens a second, is recorded; (4) no secret: `helm get values` and `helm get manifest` for `loki` and `prometheus-stack` show no key value.
+    Must keep working
+    - Loki's log intake and the Grafana log views.
+    - Story 3's Alertmanager path.
+    - One cart OOM fault still produces exactly one incident and one resolved message, unless the story proves otherwise and says so in `plan.md`.
+    - `make setup-aks` without Keep secrets.
+    - `make setup-local` and EKS.
+    - `make lint`, including its secrets check.
+
+    Decisions followed: AD-012 (Alertmanager is the one receiver, set up in story 3). No new key.
+
+    Live checks on AKS
+    - In Monolithic mode, confirm which pod runs the ruler and which runs the sidecar, the tenant folder the rule must sit in (authentication is on by the chart default, per `infra/azure/chart-values/loki.yaml`), and the Alertmanager Service name read from the cluster. Record them in `plan.md`.
+    - The log alert fires during the fault and reaches Keep with its set severity, not as info (Keep reads `labels.severity`, research.md).
+    - Compare the log alert's labels with the correlation rule on a real fault. Record whether it joins the one incident or opens a second.
+    - No secret: `helm get values` and `helm get manifest` for `loki` and `prometheus-stack` show no key value.
   spec_checkpoint: true
   done_checkpoint: true
   invoke_dev_with: >-
@@ -275,19 +598,43 @@
     ends unless told otherwise. Author and approver must be different
     people. One pull request, squash-merged.
 - id: "11"
-  title: "Lower priority: find why the Keep 'AI Summary' button fails with this model"
+  title: "Lower priority: find why the AI Summary button fails"
   description: |-
-    Priority: LOWER, after the main nine. Size: 1 to 2 days, time-boxed to two days. Needs: story 2 (in practice after 5a, which brings the Fireworks provider). AD numbers: none. Capability: CAP-12.
+    Priority: LOWER, after the nine main stories. Size: 1 to 2 days, time-boxed to two days. Comes after: story 2 (in practice after story 5a, which brings the Fireworks provider). Capability: CAP-12.
 
-    Problem: In the try-out, Keep's "AI Summary" button ran for about 40 seconds and saved nothing, and "record root cause" saved empty entries (tool calls arrived with empty arguments, for example `rca_points` `[{},{},{}]`). The epic gets its summary from a workflow instead (story 5a), so the button is unexplained and nobody knows whether it can work with Fireworks and GLM-5.3 Flash. The button is open-source UI code, not the enterprise tier. `keep-ui/app/(keep)/incidents/[id]/incident-overview.tsx:85-110` runs a CopilotTask that asks the model to call the tool `setGeneratedSummary(summary)`, whose handler saves `user_summary` through `updateIncident`. The request goes to the frontend's own route `keep-ui/app/api/copilotkit/route.ts:9-25` (CopilotKit `OpenAIAdapter`, `OPEN_AI_API_KEY`, `OPENAI_MODEL_NAME`, base URL from the OpenAI client's environment) and then to Fireworks; Keep's backend is not involved (Keep commit e5cd8698). The CopilotKit runtime is `^1.8.11` (`keep-ui/package.json:24`).
+    In one line: find out why Keep's "AI Summary" button fails with this model, and write it down.
 
-    Outcome: A written finding with the cause and a minimal repro, in `research.md` for this story's folder under `specs/`, with the evidence (the browser's request and the frontend log lines, with no secret values). The finding names where the request goes, whether it reaches Fireworks, what comes back, and why nothing is saved. Because this repo runs upstream images, a fix can only be configuration. Using a different model for the button would break the one-model decision (SPEC): stop and ask, do not decide inside the story. Otherwise the outcome is the finding, the repro, and an upstream issue drafted for Keep or CopilotKit, filed only with explicit approval.
+    Problem
+    - In the try-out the button ran for about 40 seconds and saved nothing. "Record root cause" saved empty entries. The tool calls arrived with empty arguments (for example `rca_points` `[{},{},{}]`).
+    - The epic gets its summary from a workflow (story 5a). The button is unexplained, and nobody knows whether it can work with Fireworks and GLM-5.3 Flash.
+    - The button is open-source UI code, not the enterprise tier. `keep-ui/app/(keep)/incidents/[id]/incident-overview.tsx:85-110` runs a CopilotTask that asks the model to call the tool `setGeneratedSummary(summary)`. Its handler saves `user_summary` through `updateIncident`.
+    - The request goes to the frontend's own route `keep-ui/app/api/copilotkit/route.ts:9-25` (CopilotKit `OpenAIAdapter`, `OPEN_AI_API_KEY`, `OPENAI_MODEL_NAME`, base URL from the OpenAI client's environment). From there it goes to Fireworks. Keep's backend is not involved (Keep commit e5cd8698). The CopilotKit runtime is `^1.8.11` (`keep-ui/package.json:24`).
 
-    Out of scope: turning on the enterprise tier. Another AI provider or another model. Building a replacement button. Changes to the 5a or 5b workflows. EKS and k3d.
+    Outcome
+    - A written finding exists with the cause and a minimal repro. It is in `research.md` for this story's folder under `specs/`, with the evidence (the browser's request and the frontend log lines, with no secret values).
+    - The finding says where the request goes, whether it reaches Fireworks, what comes back, and why nothing is saved.
+    - The repo runs upstream images, so a fix can only be configuration. Using a different model for the button would break the one-model decision (SPEC). In that case stop and ask. Do not decide inside the story.
+    - Otherwise the outcome is the finding, the repro, and an upstream issue drafted for Keep or CopilotKit. File it only with explicit approval.
 
-    Must keep working (AGENTS.md): the main chain: one incident, the Slack summary, one resolved message. `EE_ENABLED` stays unset. `setup-keep` stays idempotent. `make setup-aks` without Keep secrets still finishes. `make lint` passes, including its secrets check.
+    Out of scope
+    - Turning on the enterprise tier, another AI provider or model, a replacement button.
+    - Changes to the workflows of stories 5a and 5b. EKS and k3d.
 
-    Live checks: (1) first, with no cluster needed: the same tool call as the button's, sent to Fireworks with `stream: true`, recording whether the argument deltas arrive (the try-out's non-streaming `curl` tool call worked); (2) the failure is reproduced on a live incident, with the time it takes and what the page shows; (3) the frontend log and the browser's request for the button are read and the result written down with no secret value; (4) the setting names the route reads (the model and key variables from `sre-keep-ai-env`) are listed with whether each is set, without printing their values; (5) the time box is two days: if the cause is not found by then, the finding records what was ruled out and the story ends.
+    Must keep working
+    - The main chain: one incident, the Slack summary, one resolved message.
+    - `EE_ENABLED` stays unset.
+    - `setup-keep` stays idempotent.
+    - `make setup-aks` without Keep secrets.
+    - `make lint`, including its secrets check.
+
+    Decisions followed: none.
+
+    Live checks
+    - First, with no cluster needed: send the same tool call as the button to Fireworks with `stream: true`, and record whether the argument deltas arrive. (The try-out's non-streaming `curl` tool call worked.)
+    - Reproduce the failure on a live incident. Record how long it takes and what the page shows.
+    - Read the frontend log and the browser's request for the button. Write the result down with no secret value.
+    - List the setting names the route reads (the model and key variables from `sre-keep-ai-env`) and whether each is set, without printing their values.
+    - The time box is two days. If the cause is not found by then, the finding records what was ruled out and the story ends.
   spec_checkpoint: true
   done_checkpoint: true
   invoke_dev_with: >-
