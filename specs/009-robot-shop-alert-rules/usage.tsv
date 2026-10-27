@@ -1,0 +1,2 @@
+harness	session_id	model	branch	input	output	cache_write	cache_write_1h	cache_read	reasoning	usd	source_cost	flag	first_ts	last_ts
+claude	43f14e67-23be-49a6-ba05-cd8f9a86b91b	claude-sonnet-5-5	009-robot-shop-alert-rules	128	66943	94887	94887	9994916	0	2.048726		ok	2026-10-27T13:05:50Z	2026-10-27T14:18:50Z
