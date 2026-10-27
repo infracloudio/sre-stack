@@ -1,0 +1,13 @@
+CREATE TABLE session (id text PRIMARY KEY, project_id text NOT NULL, parent_id text, slug text NOT NULL, directory text NOT NULL, title text NOT NULL, version text NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, cost real DEFAULT 0 NOT NULL, tokens_input integer DEFAULT 0 NOT NULL, tokens_output integer DEFAULT 0 NOT NULL, tokens_reasoning integer DEFAULT 0 NOT NULL, tokens_cache_read integer DEFAULT 0 NOT NULL, tokens_cache_write integer DEFAULT 0 NOT NULL);
+CREATE TABLE message (id text PRIMARY KEY, session_id text NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL);
+INSERT INTO session VALUES ('oc-s1','p',NULL,'s1','@REPO@','one','x',1,1,999,999999,999999,999999,999999,999999);
+INSERT INTO session VALUES ('oc-s2','p','oc-s1','s2','@REPO@','sub','x',1,1,999,999999,999999,999999,999999,999999);
+INSERT INTO session VALUES ('oc-s3','p',NULL,'s3','/fixture/other/dir','other','x',1,1,0,0,0,0,0,0);
+INSERT INTO message VALUES ('msg_oc_1','oc-s1',1700000500000,1,'{"role":"assistant","modelID":"glm-5.3-flash","providerID":"opencode-go","cost":0.1,"tokens":{"input":1000,"output":1000,"reasoning":0,"cache":{"write":0,"read":0}}}');
+INSERT INTO message VALUES ('msg_oc_2','oc-s1',1700001500000,1,'{"role":"assistant","modelID":"glm-5.3-flash","providerID":"opencode-go","cost":0,"tokens":{"input":1000,"output":200,"reasoning":300,"cache":{"write":0,"read":2000}}}');
+INSERT INTO message VALUES ('msg_oc_3','oc-s1',1700001600000,1,'{"role":"assistant","modelID":"glm-5.3-flash","providerID":"opencode-go","cost":0.25,"tokens":{"input":500,"output":100,"reasoning":0,"cache":{"write":0,"read":0}}}');
+INSERT INTO message VALUES ('msg_oc_4','oc-s2',1700001700000,1,'{"role":"assistant","modelID":"deepseek-flash","providerID":"opencode-go","cost":0,"tokens":{"input":100,"output":50,"reasoning":0,"cache":{"write":0,"read":0}}}');
+INSERT INTO message VALUES ('msg_oc_5','oc-s1',1700002500000,1,'{"role":"assistant","modelID":"deepseek-flash","providerID":"opencode-go","cost":0,"tokens":{"input":50,"output":50,"reasoning":0,"cache":{"write":0,"read":0}}}');
+INSERT INTO message VALUES ('msg_oc_6','oc-s1',1700003500000,1,'{"role":"assistant","modelID":"deepseek-flash","providerID":"opencode-go","cost":0,"tokens":{"input":10,"output":10,"reasoning":0,"cache":{"write":0,"read":0}}}');
+INSERT INTO message VALUES ('msg_oc_7','oc-s3',1700001500000,1,'{"role":"assistant","modelID":"glm-5.3-flash","providerID":"opencode-go","cost":0,"tokens":{"input":777,"output":777,"reasoning":0,"cache":{"write":0,"read":0}}}');
+INSERT INTO message VALUES ('msg_oc_8','oc-s1',1700001550000,1,'{"role":"user","tokens":{"input":888}}');

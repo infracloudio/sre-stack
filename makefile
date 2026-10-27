@@ -471,6 +471,11 @@ lint:
 	@bash agent/tests/azure/check-o11y-routes-offline.sh
 	@bash agent/hooks/check-speckit-version.sh
 	@bash agent/tools/loom.sh --check
+	@bash agent/tests/story-cost/run-tests.sh
+	@bash agent/tools/story-cost.sh --check
+
+story-cost:
+	@bash agent/tools/story-cost.sh $(if $(STORY),--story $(STORY))
 
 hooks:
 	git config core.hooksPath .githooks

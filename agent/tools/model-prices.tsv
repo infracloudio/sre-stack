@@ -1,0 +1,16 @@
+# Pinned model prices for agent/tools/story-cost.sh.
+# Units: US dollars per million tokens. Columns are tab-separated:
+# model, provider, variant, input, output, cache_write_5m, cache_write_1h, cache_read, source_url, checked_on
+# model is the id exactly as the harness logs it. provider is "anthropic" for Claude Code,
+# or the OpenCode providerID; "*" matches any provider. variant is standard, fast or over100k.
+# A "-" means no charge for that kind of token. OpenCode messages that store a non-zero
+# cost use that stored cost; the OpenCode rows here only price messages that store
+# cost 0 (free models, subscriptions), at list rate. See AD-014.
+claude-opus-5-5	anthropic	standard	4	20	5	8	0.20	https://platform.claude.com/docs/en/about-claude/pricing	2026-10-27
+claude-opus-5-5	anthropic	fast	8	40	10	16	0.80	https://platform.claude.com/docs/en/about-claude/pricing	2026-10-27
+claude-sonnet-5-5	anthropic	standard	2	10	2.50	4	0.10	https://platform.claude.com/docs/en/about-claude/pricing	2026-10-27
+claude-haiku-5-5	anthropic	standard	0.10	0.50	0.125	0.20	0.01	https://platform.claude.com/docs/en/about-claude/pricing	2026-10-27
+claude-haiku-5-5	anthropic	over100k	0.50	2.50	0.625	1	0.05	https://platform.claude.com/docs/en/about-claude/pricing	2026-10-27
+glm-5.3-flash	opencode-go	standard	0.15	0.50	-	-	0.03	https://opencode.ai/docs/zen	2026-10-27
+deepseek-flash	opencode-go	standard	0.30	1.20	-	-	0.006	https://opencode.ai/docs/zen	2026-10-27
+muse-spark-1.3-contributor-free	opencode	standard	1.25	4.25	-	-	0.15	https://opencode.ai/docs/zen	2026-10-27
