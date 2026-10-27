@@ -1,9 +1,10 @@
 ---
 name: story-cost
 description: Record the tokens and dollars this Spec Kit story has used. Use after
-  /speckit-implement or /speckit-converge (the hooks in .specify/extensions.yml
-  call it), or when someone asks "what did this story cost", "story cost", or
-  "update the usage ledger".
+  /speckit-specify, /speckit-tasks, /speckit-analyze, /speckit-implement or
+  /speckit-converge (the hooks in .specify/extensions.yml call it), or when
+  someone asks "what did this story cost", "story cost", or "update the usage
+  ledger".
 ---
 # Story cost
 

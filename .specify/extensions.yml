@@ -1,6 +1,33 @@
 installed: []
 settings: {}
 hooks:
+  after_specify:
+    - extension: story-cost
+      command: story-cost
+      enabled: true
+      optional: false
+      priority: 50
+      description: "Record this story's token usage and cost"
+      prompt: "Run make story-cost and report the totals"
+      condition: null
+  after_tasks:
+    - extension: story-cost
+      command: story-cost
+      enabled: true
+      optional: false
+      priority: 50
+      description: "Record this story's token usage and cost"
+      prompt: "Run make story-cost and report the totals"
+      condition: null
+  after_analyze:
+    - extension: story-cost
+      command: story-cost
+      enabled: true
+      optional: false
+      priority: 50
+      description: "Record this story's token usage and cost"
+      prompt: "Run make story-cost and report the totals"
+      condition: null
   after_implement:
     - extension: story-cost
       command: story-cost
