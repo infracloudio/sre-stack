@@ -1,0 +1,9 @@
+# Fixture prices: round fake rates, US dollars per million tokens.
+# model, provider, variant, input, output, cache_write_5m, cache_write_1h, cache_read, source_url, checked_on
+claude-opus-5-5	anthropic	standard	10	100	12	20	1	fixture	2026-01-01
+claude-opus-5-5	anthropic	fast	20	200	24	40	2	fixture	2026-01-01
+claude-sonnet-5-5	anthropic	standard	1	5	1.5	2	0.1	fixture	2026-01-01
+claude-haiku-5-5	anthropic	standard	1	5	1.5	2	0.1	fixture	2026-01-01
+claude-haiku-5-5	anthropic	over100k	5	25	7	10	0.5	fixture	2026-01-01
+glm-5.3-flash	opencode-go	standard	1	2	-	-	0.1	fixture	2026-01-01
+deepseek-flash	opencode-go	standard	1	2	-	-	0.1	fixture	2026-01-01

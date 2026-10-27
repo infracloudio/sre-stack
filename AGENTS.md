@@ -49,6 +49,9 @@ AWS EKS or local k3d. Application code comes from upstream images.
   applied from `infra/azure/kiali/kiali.yaml` (v2.32.0) because the shared
   v1.63 graph API crashes on Kubernetes 1.34.
 - `make get-service-endpoints`: application and dashboard URLs.
+- `make story-cost [STORY=<nnn-slug>]`: writes `specs/<story>/usage.tsv` and
+  `cost.md` from Claude Code and OpenCode logs (AD-014); set `cleanupPeriodDays`
+  in `~/.claude/settings.json` (not 0) or the logs vanish after 30 days.
 - `make install-check` then `make install`: preview/bootstrap developer tools.
 - `make hooks`: enable pre-commit hooks (done by `make install`; `make lint`
   and the agent edit hooks refuse to run until it is).

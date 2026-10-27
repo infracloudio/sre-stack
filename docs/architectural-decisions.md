@@ -936,3 +936,34 @@ pass over the Keep alert-management SPEC (epic #91, CAP-1); chart
 - Pins age: a newer MySQL or kubectl needs a deliberate bump.
 - Deleting `db-password` after the first install breaks Keep's database
   connection until the volume is recreated (AD-008).
+
+## AD-014 — Story cost ledger: local logs, a pinned price table, a per-story upsert file
+
+**Date**: 2026-10-27 · **Status**: Proposed (built ahead of the story issue and `gate:plan-approved` on the owner's say-so) · **Raised by**: owner request to see tokens and dollars per Spec Kit story; plan `story-cost-ledger`.
+
+### Decision
+
+1. **Local logs, not billing APIs.** `agent/tools/story-cost.sh` reads Claude Code transcripts (`~/.claude/projects/<repo path with / and . as ->/`, including worktrees and `subagents/`) and the OpenCode database (read with `python3 -I` and its built-in `sqlite3`, on a copy, so the live file is never opened for writing). Other harnesses need one new reader function.
+2. **One row per harness + session + model + branch** in `specs/<story>/usage.tsv`. A fresh run replaces rows with the same key and keeps the others, so rows survive after the harness deletes its logs. A fresh row with fewer tokens than the stored one is a sign of deleted logs: the stored row stays and is flagged `shrunk`. `cost.md` is rebuilt from `usage.tsv` only and has no timestamp, so a re-run changes nothing.
+3. **Branch decides the story.** A reply belongs to story `<branch>` only if `specs/<branch>/` exists. Claude Code gives the branch on every reply. OpenCode has none, so it is read from the checkout's git reflog at the message time. Everything else (`main`, `planning/*`, deleted `/tmp` worktrees, reflog older than 90 days) is dropped and only counted in a "skipped" line. There is no override map and no all-stories mode.
+4. **Pinned price table in `agent/tools/model-prices.tsv`**, not `agent/policies/` (prices are data, and an agent must be able to update them in a reviewed PR). Each reply is priced on its own, because fast mode and the Haiku over-100k-token tier are per reply. An unknown model is flagged `unpriced` with an empty `usd` (never 0).
+5. **No Spec Kit extension package.** It would generate `speckit-*` skills and commands, which are protected paths. Instead `.specify/extensions.yml` has plain `after_implement` and `after_converge` hooks (`optional: false`) that call a hand-written `story-cost` skill (and `.opencode/commands/story-cost.md`). The hooks are a convenience; `make story-cost` is the trigger. `make lint` only warns when a story with ticked tasks has no `usage.tsv`.
+6. **OpenCode token meaning, checked against stored cost** (OpenCode v2.1.4; `opencode-go` replies with non-zero stored cost): `tokens.input` excludes cache reads and writes, and `tokens.reasoning` is billed in addition to `tokens.output` at the output rate. With `deepseek-flash` rates input 0.15, output 0.60, cache read 0.003 dollars per million, adding reasoning at the output rate matched the stored cost to within 1% on 652 of 652 replies with reasoning; leaving it out matched 16. A second model, `deepseek-v4.1-flash`, fits the same way (1096 of 1096). The script constant is `OPENCODE_REASONING_SEPARATE=1`.
+7. **OpenCode's stored cost wins when it is non-zero.** An OpenCode message that stores a cost above 0 is counted at that cost. Only messages that store cost 0 (free models, subscriptions) are priced from the table, meaning "what this would cost at list price". This was chosen because the stored cost for `opencode-go` did not match the published Zen list rates (see below).
+8. **Retention is a user-level setting.** `cleanupPeriodDays` in `~/.claude/settings.json` (not 0; 3650 suggested), otherwise Claude Code deletes transcripts after 30 days. The repo does not change `.claude/settings.json`.
+
+### Why
+
+- Provider billing APIs do not split cost by story or branch; the local logs do.
+- Keeping rows after logs vanish makes the ledger a record, not a view.
+- Splitting by branch matches how stories are worked (one branch per story) with no manual tagging.
+- A table in `agent/tools/` avoids protected paths and stays reviewable.
+
+### What we gave up
+
+- Planning work done on `main` or `planning/*`, and older OpenCode work (deleted worktrees, expired reflog), is never counted.
+- Older stories are not back-filled, and Codex and Devin are not read.
+- Dollars are list price: the table has to be kept current by hand. A check against OpenCode's own stored cost showed the `opencode-go` stored cost is exactly half of the table rates for `deepseek-flash` and `deepseek-v4.1-flash` (and for about half of the `glm-5.3-flash` replies), so the ledger uses the stored cost for those messages instead of the table. The table rates for OpenCode models now matter only for zero-cost messages, and the id-to-name match for `deepseek-flash` on the Zen price page is still unconfirmed.
+- Rates were taken from the vendors' pricing pages on 2026-10-27 and not re-fetched while building.
+- The session that runs a hook is recorded only up to that moment; the next run tops it up.
+- A future `specify extension add` or `remove` may rewrite `.specify/extensions.yml`.
