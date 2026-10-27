@@ -248,7 +248,22 @@ RESULT: fault removed (shipping lookup 1.2s, ratings lookup 0.3s)
 make: *** [makefile:282: aks-db-latency-status] Error 1
 ```
 
-**Failure, not explained.** The status command exited with `Error 1` right after the revert. My command printed only the last line, so the script's own message was cut off. A re-run a minute later printed `RESULT: fault not active`. The cause was not investigated.
+**Failure, not explained.** The status command exited with `Error 1` right after the revert. My command printed only the last line, so the script's own message was cut off. A re-run a minute later printed `RESULT: fault not active`. The cause was not investigated at the time.
+
+**Failure, explained later (2026-10-27, same session).** The same `Error 1` came back when the status command was run again with the fault off. Five more runs, printing the full output on failure:
+
+```
+run 1 rc=0
+run 2 rc=0
+run 3 rc=0
+run 4 rc=0
+run 5 rc=2
+bash infra/azure/scenario-03/db-latency.sh status
+RESULT: fault not active, but the lookups are slow for another reason: shipping 2.6s, ratings 0.3s
+make: *** [makefile:282: aks-db-latency-status] Error 1
+```
+
+With no fault active, one shipping test request took 2.6 seconds, above the 2-second limit the 008 spec uses for "slow". The status command treats that as a failure. So shipping is occasionally slower than 2 seconds on a healthy shop (consistent with its normal p95 of about 1 s above). A shipping slow-request limit of 2 seconds sits inside its normal slow tail; the plan has to choose the limit and the wait time with that in mind.
 
 **What it means.**
 - Ratings is the clearest signal: p95 about 0.14 s normally, about 1.5 s during the fault. Shipping p95 rose from about 1.0 s to about 4.8 s; its normal p95 is already about 1 s because of a slow tail (its typical request is 13 ms). Payment did not react to the database fault (p95 went from 1.9 s down to 1.0 s).
