@@ -41,3 +41,5 @@ Run date: 2026-10-28. Cluster: AKS sre-stack-452138, started at 16:02 and kept r
 
 - **Dashboard and trace evidence (FR-017, plan check 7 step 5).** The "Slow shop requests" dashboard screenshot and an opened trace were not taken. They need Grafana, and the Grafana login is a credential I do not handle. Someone with access needs to take them.
 - **The cluster is still running.** It costs money while it runs. Stopping it is a decision for the developer (`az aks stop`).
+
+Cluster stopped by the developer's go-ahead at 19:19 (az aks stop); power state Stopped, provisioning Succeeded at 19:22.
