@@ -2,4 +2,5 @@ harness	session_id	model	branch	input	output	cache_write	cache_write_1h	cache_re
 claude	43f14e67-23be-49a6-ba05-cd8f9a86b91b	claude-sonnet-5-5	009-robot-shop-alert-rules	156	74911	105802	105802	12731600	0	2.445790		ok	2026-10-27T13:05:50Z	2026-10-27T14:40:15Z
 claude	baba4771-0b89-4f6d-88e9-fef8069b8d48	claude-sonnet-5-5	009-robot-shop-alert-rules	6	1073	50170	50170	165300	0	0.227952		ok	2026-10-27T14:40:40Z	2026-10-27T14:40:57Z
 claude	66da495b-2ab0-4e6f-83a2-0b62bec8c35e	claude-sonnet-5-5	009-robot-shop-alert-rules	244	178404	318145	318145	24198772	0	5.476985		ok	2026-10-28T07:09:21Z	2026-10-28T09:43:22Z
-claude	ca0d42a4-0596-40c1-9af2-ba73336e789f	claude-sonnet-5-5	009-robot-shop-alert-rules	16	15839	114609	114609	525215	0	0.669379		ok	2026-10-28T09:44:14Z	2026-10-28T09:46:11Z
+claude	ca0d42a4-0596-40c1-9af2-ba73336e789f	claude-sonnet-5-5	009-robot-shop-alert-rules	18	17517	114986	114986	639824	0	0.699132		ok	2026-10-28T09:44:14Z	2026-10-28T09:46:24Z
+claude	ffdc8a3c-4d27-47e7-8303-4f2ad7b23b7a	claude-sonnet-5-5	009-robot-shop-alert-rules	16	12715	105730	105730	594369	0	0.609539		ok	2026-10-28T10:01:40Z	2026-10-28T10:03:22Z
