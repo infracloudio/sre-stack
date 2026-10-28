@@ -14,7 +14,7 @@ The later Keep stories (#123 onward) read these. Keep turns Prometheus labels in
 
 Every alert also carries the alert name (the rule's name) and a plain `summary` that names the service. Alert names are unique and start with `RobotShop`.
 
-**What a later story may rely on:** these three labels exist on all six alerts. **What it may not rely on:** any other label, or the exact limits and wait times, which can change (FR-015).
+**What a later story may rely on:** these three labels exist on active instances of all six alerts. An inactive rule has no active alert instance; its static labels alone need not contain labels produced by its expression. **What it may not rely on:** any other label, or the exact limits and wait times, which can change (FR-015).
 
 ## Contract 2: Installing and changing the rules
 
@@ -26,5 +26,5 @@ Every alert also carries the alert name (the rule's name) and a plain `summary` 
 | Changing a rule | Edit the rule file, then run the same command. It does not reinstall or upgrade the monitoring chart (FR-015). |
 | Part of the one-shot setup | It is a prerequisite of `setup-aks-o11y` (placed after `setup-aks-prometheus-stack`), and `setup-aks` already calls `setup-aks-o11y`. No extra step (FR-014, SC-009). |
 | Needs | The monitoring chart installed first, because the rule object type (`prometheusrules.monitoring.coreos.com`) comes from it. |
-| Azure only | It is not part of the local (k3d) or AWS setups, and no file those setups use changes (FR-013, SC-010). |
+| Azure only | It is not part of the local (k3d) or AWS setups. Their behavior stays unchanged; shared setup files and documentation may receive only the Azure-only additions and explanations (FR-013, SC-010). |
 | Not covered | Sending alerts anywhere. That is the next stories. |

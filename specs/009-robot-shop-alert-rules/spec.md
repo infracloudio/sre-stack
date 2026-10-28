@@ -102,8 +102,8 @@ Each requirement has an ID. "FR" stands for Functional Requirement, and the numb
 
 **Where and how they are installed**
 
-- **FR-013 — Azure only.** The alert rules MUST be installed on the Azure setup only. The local (k3d) setup and the AWS setup MUST NOT change in any way.
-- **FR-014 — Part of the one-shot Azure setup.** The rules MUST be installed by the one-shot Azure setup, the single command that deploys the whole Azure stack, with no extra manual step. They are added to the Azure monitoring setup that the one-shot setup already runs, so running that part on its own installs them too. Running either a second time MUST be safe: it succeeds and creates nothing new.
+- **FR-013 — Azure only.** The alert rules MUST be installed on the Azure setup only. The local (k3d) setup and the AWS setup MUST keep their existing behavior and MUST NOT install these rules. Shared setup files and documentation MAY change to add and explain the Azure-only step, provided those changes do not affect either other setup.
+- **FR-014 — Part of the one-shot Azure setup.** The rules MUST be installed by the one-shot Azure setup, the single command that deploys the whole Azure stack, with no extra manual step. They are added to the Azure monitoring setup that the one-shot setup already runs, so running that part on its own installs them too. Running either a second time MUST succeed. On that second run, this story's alert-rule step MUST create nothing new and leave the installed rules unchanged. This does not promise that the rest of the existing monitoring setup leaves no record of being run again.
 - **FR-015 — Change without reinstalling.** A person MUST be able to change a rule and apply it with one command, without reinstalling or upgrading the monitoring system.
 
 **What must not change**
@@ -124,10 +124,10 @@ Each requirement has an ID. "FR" stands for Functional Requirement, and the numb
 - **SC-005 — Each fault raises only its own alerts.** During the cart memory fault, 0 of the 2 slow-request alerts fire. During the slow-database fault, 0 of the out-of-memory, restarting and no-ready-copy alerts fire.
 - **SC-006 — Every alert is readable.** 6 of 6 alerts name their shop service and the part of the cluster it runs in, and 6 of 6 carry a severity from the five allowed levels.
 - **SC-007 — A change is quick.** A person can change one limit and see the new limit in use within 2 minutes, by running one command and without reinstalling the monitoring system.
-- **SC-008 — Setup is safe to repeat.** Running the Azure monitoring setup a second time succeeds and creates or changes 0 things.
+- **SC-008 — Setup is safe to repeat.** Running the Azure monitoring setup a second time succeeds. This story’s alert-rule step creates 0 new objects and changes 0 installed rules. Records that the rest of the existing monitoring setup keeps of its own rerun do not count as rule changes.
 - **SC-009 — Part of the one-shot setup.** After the one-shot Azure setup finishes on a new cluster, 6 of 6 alerts are present on the alerts page, and the person ran 0 extra steps to get them.
-- **SC-010 — Other setups are untouched.** 0 lines change in anything the local (k3d) setup or the AWS setup uses, and the existing Bookinfo rule is unchanged.
-- **SC-011 — Faults and monitoring still work.** Starting and reverting each of the two faults still ends with its own "done" message, as before, and the repository's lint check passes with 0 errors.
+- **SC-010 — Other setups are untouched.** The local (k3d) setup and the AWS setup have 0 behavior changes and install 0 of these alert rules. Shared setup files and documentation may change only to add and explain the Azure-only step. The existing Bookinfo rule is unchanged.
+- **SC-011 — Faults and monitoring still work.** Starting and reverting each of the two faults still ends with its own "done" message, as before, and the repository's lint check passes with 0 errors. Before the rules are installed and after verification, shop measurements still update, an existing dashboard shows current shop data, and a newly recorded shop request opens as a trace showing its individual steps.
 - **SC-012 — The limits are explained.** 3 of 3 tuned limits (shipping slow, ratings slow, server-error share) have their value and the reason for it written down.
 
 ## Assumptions
@@ -176,7 +176,7 @@ This list is closed when the spec is approved. Later review steps check the work
 - **EC-005 — Very few requests.** If a service receives only a handful of requests, one failure is a huge share of them (rabbitmq showed 1 error in Finding 3). The server-error alert MUST NOT fire on a handful of requests. The same applies to the slow-request alerts for shipping and ratings: a few slow requests out of a few do not raise an alert.
 - **EC-006 — Both faults at once.** If the cart memory fault and the slow-database fault run together, the alerts of both show. SC-005 (each fault raises only its own alerts) is about one fault at a time.
 - **EC-007 — A normal redeploy of the shop.** Replacing a shop service's pods on purpose leaves it without a ready copy for a short time. The wait before firing (FR-009) is meant to keep that quiet. This has not been tested; the plan confirms it.
-- **EC-008 — Running the setup twice.** The second run succeeds and changes nothing (FR-014, SC-008).
+- **EC-008 — Running the setup twice.** The second run succeeds, and this story’s alert-rule step creates nothing new and leaves the installed rules unchanged (FR-014, SC-008).
 
 ## Out of Scope
 
@@ -187,5 +187,5 @@ These are not part of this story. A reviewer who finds one of them missing has n
 - **Other alert sources.** Rules for the traffic demo (hotrod), Grafana's own alerts, and dashboards are not part of this story.
 - **Other kinds of alerts.** Only the six alerts in this spec are in scope. Alerts for things such as node health, disk space or CPU use are not.
 - **The old Bookinfo rule.** It is in the settings shared with the local and AWS setups. It is left as it is (FR-016) and recorded as a follow-up story.
-- **The local (k3d) and AWS setups.** They do not change (FR-013, SC-010).
+- **The local (k3d) and AWS setups.** Their behavior does not change, and they do not receive these alert rules. Shared files may receive only the Azure-only additions and explanations allowed by FR-013 and SC-010.
 - **Changing the faults or the load generator.** The cart memory fault, the slow-database fault and the load generator are used as they are.

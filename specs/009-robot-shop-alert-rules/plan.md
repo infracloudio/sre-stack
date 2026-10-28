@@ -394,7 +394,7 @@ The repo's rule is that a decision with a cost gets one entry there, newest last
 - `.env`: the limits stay in the rule file (Complexity Tracking).
 - `monitoring/chart-values/prometheus-values.yaml`: the Bookinfo rule stays (FR-016), and this file is shared with the local and AWS setups (FR-013).
 - `infra/azure/chart-values/prometheus-stack.yaml`: no Alertmanager here. That is story #123 and AD-012.
-- The fault scripts, the load generator and every file the local (k3d) or AWS setup uses (FR-013, FR-017).
+- The fault scripts, the load generator and local/AWS setup behavior (FR-013, FR-017). The shared makefile and documentation receive only the Azure-only additions and explanations listed above.
 - Nothing under `agent/`, `.github/` or `.specify/`.
 
 ### Departures and follow-ups to record
@@ -406,11 +406,11 @@ The repo's rule is that a decision with a cost gets one entry there, newest last
 
 ## Verification strategy
 
-This section says how the story is proven: which checks run, in what order, who runs them, what counts as pass, what is attached to the pull request, and what is not proven. The checks themselves, with their commands, are in `quickstart.md` (ten checks). Nothing here has been run yet, because the rule file is not applied until the build.
+This section says how the story is proven: which checks run, in what order, who runs them, what counts as pass, what is attached to the pull request, and what is not proven. The checks themselves, with their commands, are in `quickstart.md` (eleven check groups, including the local traffic-guard tests). Nothing here has been run yet, because the rule file is not applied until the build.
 
 ### What proves each requirement
 
-Every success criterion (SC) and every named edge case (EC) has a check. The edge-case list is closed (spec "Edge Cases"), and constitution principle X asks for a proving check for each. Checks 8 to 10 were added for the three edge cases that had none.
+Every success criterion (SC) and every named edge case (EC) has a check. The edge-case list is closed (spec "Edge Cases"), and constitution principle X asks for a proving check for each. Checks 8 to 10 cover no traffic, overlapping faults and redeploys. Check 11 adds local tests of the real request-count guards for zero traffic and very few requests. Check 7 also captures before-and-after proof that metrics, dashboards and traces work (FR-017). These additions are planned verification, not claims that the checks have run.
 
 | Requirement | Proved by (quickstart check) |
 |---|---|
@@ -419,38 +419,39 @@ Every success criterion (SC) and every named edge case (EC) has a check. The edg
 | SC-003 healthy shop quiet for 30 minutes | 4 |
 | SC-004 alerts clear and stay clear | 2, 3, 9 |
 | SC-005 each fault raises only its own alerts | 2, 3 |
-| SC-006 every alert readable (service, namespace, severity) | 2 (step 4), and a saved copy of the rules API output in the evidence |
+| SC-006 every alert readable (service, namespace, severity) | 2 (step 4) and 3 (step 3), with rules API output saved while each fault is active |
 | SC-007 a change is quick, no reinstall | 5 |
 | SC-008 setup is safe to repeat | 1 |
 | SC-009 part of the one-shot setup | 1 (wiring check), and the new-cluster proof below |
 | SC-010 other setups untouched | 6 |
-| SC-011 faults and monitoring still work, lint passes | 7 |
+| SC-011 faults and monitoring still work, lint passes | 2, 3 and 7, including monitoring before/after evidence |
 | SC-012 limits explained | 7 |
-| EC-001 no shop traffic | 8 |
+| EC-001 no shop traffic | 8 (all three request-based alerts) and 11 (zero/absent traffic inputs) |
 | EC-002 just after a cluster start | "Before you start" (what "ready" means) and the start of check 4 |
 | EC-003 an alert lingers after the fix | the clear times in 2 and 3 |
 | EC-004 a pod is replaced during a fault | 2 (step 3) |
-| EC-005 very few requests | 2 (step 3) and 4 |
+| EC-005 very few requests | 11 (each request-based rule below 30 requests, plus a high-traffic positive control); 2 (step 3) observes the live cart case |
 | EC-006 both faults at once | 9 |
 | EC-007 a normal redeploy | 10 |
 | EC-008 running the setup twice | 1 |
 
 ### Order, and why
 
-1. **Without the cluster first** (they cost no waiting): `make lint`, the `yamllint` and `promtool` check of the rule file (check 7), the scope check (check 6), and the `make -n setup-aks` wiring check (check 1, step 4). If any of these fail, nothing live is worth running.
+1. **Before the first rule apply**: run `make lint`, the `yamllint` and `promtool` syntax checks (check 7), the local traffic-guard tests (check 11), the file-scope portion of check 6 (committed, staged, unstaged and untracked files), and the `make -n setup-aks` wiring check (check 1, step 4). These are the offline gate in T016 and T035. If any fail, stop before the server dry run or apply. Also record the live monitoring baseline in check 7 step 5 before installation (T003); it is read-only and must pass.
 2. **Apply, then prove repeat-safety** (check 1). Everything after needs the rules loaded. Before the first live check, confirm the shop is ready (`kubectl get deploy,sts -n robot-shop`, every READY column complete), the load generator is running, and the rules API lists the six `RobotShop` rules.
 3. **The quiet 30 minutes** (check 4), before any fault, so no fault leaves residue in it.
 4. **A normal redeploy** (check 10), still on a quiet shop.
 5. **The cart fault** (check 2), then **the slow-database fault** (check 3), one at a time.
-6. **No traffic** (check 8), then **both faults at once** (check 9).
-7. **Change a limit** (check 5) last among the live checks, because it edits the rule file. Restore the file with `git checkout -- infra/azure/alert-rules/robot-shop-alerts.yaml` and apply it again afterwards.
-8. **The new-cluster proof of SC-009** is not run for now (developer decision, 2026-10-28; see "Decided" below).
+6. **No traffic** (check 8), then **both faults at once** (check 9). Allow the full 5-minute request window to drain for check 8, record background traffic, and check all three request-based alerts.
+7. **Change a limit** (check 5) after the fault checks, as the last check that changes a rule. Restore the file with `git checkout -- infra/azure/alert-rules/robot-shop-alerts.yaml` and apply it again afterwards.
+8. **Final regression checks**: repeat the monitoring query, dashboard and trace check after the faults are removed and the original limit is restored; save the after evidence alongside the baseline (check 7 step 5, T030). Re-run lint and the complete file-scope check after final edits.
+9. **The new-cluster proof of SC-009** is not run for now (developer decision, 2026-10-28; see "Decided" below).
 
 My estimate of the waiting time is 2.5 to 3 hours, mostly the 30-minute quiet run and the fault checks, which each need about 5 minutes to fire plus 10 to clear plus 10 to stay clear. It comes from the fire and clear times in Finding 8. The second `setup-aks-o11y` run was not timed.
 
 ### Who runs what
 
-The builder runs all ten checks during `/speckit-implement` and records the output. The independent human reviewer (author and approver must differ) can re-run a shorter set that covers the main claims: checks 1, 2, 6 and 7, which is about an hour. A reviewer may ask for any other check to be repeated.
+The builder runs all eleven check groups during `/speckit-implement` and records the output. Check 11 is local and runs before the first rule apply; monitoring checks run both before and after live verification. The independent human reviewer (author and approver must differ) can re-run a shorter set that covers the main claims: checks 1, 2, 6 and 7, which is about an hour. A reviewer may ask for any other check to be repeated.
 
 ### What counts as pass, and what to do when a check fails
 
@@ -463,9 +464,12 @@ The builder runs all ten checks during `/speckit-implement` and records the outp
 
 Following stories 007 and 008, a folder `specs/009-robot-shop-alert-rules/evidence/` holds:
 - `quickstart-run.txt`: each check's commands and real output, with times.
-- `lint-output.txt`: the actual `make lint` output and exit code.
-- `scope-check.txt`: `git diff --name-only main...HEAD` showing only the intended files, and zero diff in `monitoring/chart-values/prometheus-values.yaml`.
-- `rules-api.json`: a saved copy of the rules API output showing the six rules with their labels (SC-006).
+- `lint-before.txt` and `lint-output.txt`: actual `make lint` output and exit codes before installation and after verification.
+- `scope-before.txt` and `scope-check.txt`: committed, staged, unstaged and untracked file lists plus shared-file diffs, showing only the intended Azure additions and zero diff in the shared Bookinfo settings. Repeat the final file check after the last edits.
+- `rules-api.json`: inactive rule definitions with their static labels. `rules-api-cart.json` and `rules-api-database.json`: responses saved during the respective faults, showing the namespace, service and severity on active instances of all six alerts (SC-006).
+- `replicas-unavailable-rules.yaml`, `replicas-unavailable-test.yaml` and its real test output: the retained rule snapshot and stateful-set test. T013 extracts its own snapshot after T012 and finishes before T014 edits the source file.
+- `traffic-guards-rules.yaml`, `traffic-guards-test.yaml` and its real test output: snapshot and local cases for absent/zero traffic, very few bad requests, and high-traffic positive controls.
+- `monitoring-before/` and `monitoring-after/`: shop-traffic query output, dashboard screenshots, request times, trace IDs and screenshots showing newly recorded request steps before installation and after verification (FR-017, SC-011).
 - Screenshots of the alerts page: before any fault, during the cart fault (four firing), during the database fault (two firing), and with both faults (six firing).
 - `pr-entries.md`: the list above and any departures from this plan.
 
@@ -483,5 +487,9 @@ Remove both faults (`make aks-cart-oom-revert`, `make aks-db-latency-revert`), p
 
 ### Decided by the developer, 2026-10-28
 
-1. **No new cluster for now.** The only full proof that "one command on a new cluster gives six alerts" (SC-009) is to run `make setup-aks` on a new cluster. That creates a real Azure cluster, which costs money and takes time I have not measured. You decided on 2026-10-28 not to create one for now and to keep working on the existing cluster. So the pull request says SC-009 was proven only by the `make -n setup-aks` wiring check, and names it as not proven live. Running the proof later is a separate go-ahead, and it would be removed afterwards with `make cleanup`.
-2. **How SC-008 is read (my recommendation, accepted).** It says running the Azure monitoring setup a second time "creates or changes 0 things". `setup-aks-o11y` runs `helm upgrade --install` for each chart, and Helm records a new revision for each upgrade (the monitoring release has 3 revisions today). I have not checked whether an unchanged re-run adds one. SC-008 is read as: the second run exits 0, the alert rule object is unchanged (same `resourceVersion`), and this story's step creates nothing new. The Helm revision numbers before and after are recorded as plain evidence, and a change there is reported, not hidden.
+1. **No new cluster for now.** The only full proof that "one command on a new cluster gives six alerts" (SC-009) is to run `make setup-aks` on a new cluster. That creates a real Azure cluster, which costs money and takes time I have not measured. You decided on 2026-10-28 not to create one for now and to keep working on the existing cluster. So the pull request records the `make -n setup-aks` wiring evidence and explicitly says the new-cluster outcome is not proven live. Running the proof later is a separate go-ahead, and it would be removed afterwards with `make cleanup`.
+2. **SC-008 clarified (developer-approved analysis fixes, 2026-10-28).** The spec now states the accepted distinction: the monitoring rerun succeeds, and this story’s alert-rule step creates no new objects and changes no installed rules. The earlier whole-setup "creates or changes 0 things" wording was too broad. `setup-aks-o11y` runs `helm upgrade --install` for each chart, and Helm records a new revision for each upgrade (the monitoring release has 3 revisions today). I have not checked whether an unchanged re-run adds one. SC-008 is read as: the second run exits 0, the alert rule object is unchanged (same `resourceVersion`), and this story's step creates nothing new. The Helm revision numbers before and after are recorded as plain evidence, and a change there is reported, not hidden.
+
+### Analysis fixes approved by the developer, 2026-10-28
+
+The developer approved all fixes in one pass. FR-013, SC-010 and the installation contract now permit the agreed Azure-only edits to shared files while preserving AWS/local behavior. FR-014, SC-008 and EC-008 use the recorded rule-step repeat-safety decision. SC-011 and quickstart check 7 explicitly require before-and-after metrics, dashboard and trace proof. The quickstart and tasks now cover all request-based rules for zero and low traffic, inspect labels on active alert instances, retain a separate test snapshot, include uncommitted files in scope checks, and enforce lint before installation as well as after verification. These are documentation corrections; the rule YAML above is unchanged. Architect approval of the revised spec and plan, including the existing principle III exception, is still required before implementation. SC-009 remains unproven on a new cluster.
