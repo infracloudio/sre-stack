@@ -32,7 +32,7 @@ AWS EKS or local k3d. Application code comes from upstream images.
 - `make setup-aks`: one-shot AKS deploy (cluster → istio → o11y → Kiali →
   robot-shop → hotrod → gateway → endpoints; prints the optional loadgen
   commands, does not run them), each step its own `$(MAKE)` call.
-- `make setup-aks-o11y`: AKS monitoring stack (Prometheus, Grafana,
+- `make setup-aks-o11y`: AKS monitoring stack (Prometheus, the robot-shop alert rules via `setup-aks-alert-rules` (specs/009), Grafana,
   Loki, the Grafana Alloy log shipper via `setup-aks-log-shipper`,
   routes, dashboards, then Tempo, Beyla and Caretta via
   `setup-aks-tempo/beyla/caretta`, specs/005) after

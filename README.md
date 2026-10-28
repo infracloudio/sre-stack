@@ -141,7 +141,7 @@ With `STACK_MODE=aks`, the monitoring stack has its own commands — the
 make setup-cluster     # empty AKS cluster + node pools
 make setup-istio       # Istio mesh + ingress gateway
 make setup-gateway     # routing entry point (also needed before the URLs resolve)
-make setup-aks-o11y    # monitoring stack (Prometheus, Grafana, Loki, Alloy, routes, dashboards, Tempo, Beyla, Caretta)
+make setup-aks-o11y    # monitoring stack (Prometheus, the robot-shop alert rules, Grafana, Loki, Alloy, routes, dashboards, Tempo, Beyla, Caretta)
 make setup-aks-kiali   # Kiali, separately — it refuses when the mesh is not running
 ```
 
@@ -160,9 +160,9 @@ before the apps: Robot Shop's chart needs the ServiceMonitor CRDs). Every
 step is safe to re-run, so after a failure fix the cause and run it again.
 
 `make setup-aks-o11y` chains (in order) `setup-db-grafana-psql
-setup-aks-prometheus-stack setup-aks-loki setup-aks-log-shipper
+setup-aks-prometheus-stack setup-aks-alert-rules setup-aks-loki setup-aks-log-shipper
 setup-aks-o11y-routes setup-dashboards setup-aks-tempo setup-aks-beyla
-setup-aks-caretta`. It deliberately skips `setup-metric-server` — AKS's
+setup-aks-caretta`. The alert rules are in `infra/azure/alert-rules/robot-shop-alerts.yaml`; change a limit there and run `make setup-aks-alert-rules` (no chart upgrade). It deliberately skips `setup-metric-server` — AKS's
 built-in metrics-server addon already serves the same API, and installing a
 second one collides (see `docs/architectural-decisions.md`).
 

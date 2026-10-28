@@ -967,3 +967,23 @@ pass over the Keep alert-management SPEC (epic #91, CAP-1); chart
 - Rates were taken from the vendors' pricing pages on 2026-10-27 and not re-fetched while building.
 - The session that runs a hook is recorded only up to that moment; the next run tops it up.
 - A future `specify extension add` or `remove` may rewrite `.specify/extensions.yml`.
+
+## AD-015 — Robot-shop alert limits live in the rule file, not in .env; slow requests are measured as a share
+
+**Date**: 2026-10-28 · **Status**: Proposed (with spec 009's plan, PR #138, `gate:plan-approved` pending the Architect) · **Raised by**: story #122, keep alert rules for the demo shop on Azure; plan `specs/009-robot-shop-alert-rules/plan.md`.
+
+### Decision
+
+1. **Alert limits and waits live in `infra/azure/alert-rules/robot-shop-alerts.yaml`**, next to each rule, with the reason in a comment. They are not in `.env`. This is the exception to principle III (one configuration surface) in the plan's Complexity Tracking table. The file is applied by `make setup-aks-alert-rules`, so a limit changes with no chart upgrade (FR-015).
+2. **Slow requests are measured as a share, not a 95th percentile.** The shipping and ratings rules fire when more than 15% (shipping, over 2.5 s) or more than 10% (ratings, over 0.5 s) of requests in the window are slower than the limit. Each rule also needs at least 30 requests in its window, so a service with a handful of requests stays quiet.
+
+### Why
+
+- The alert rule and its limit are read together, so a person changing a limit sees the reason at once. A template filled from `.env` would hide the condition and would not let `promtool` check the real expression (research Findings 5, 7 and 8).
+- A 95th-percentile limit leaves almost no room: a healthy shop reached 3.8 s and the slow-database fault sat at 4.4 to 5.0 s (Findings 5 and 7). The share separates them: 0.5% to 7.4% healthy, 7% to 24% during the fault (Finding 8).
+
+### What we gave up
+
+- One configuration surface. Limits for the shop alerts now sit in a monitoring file, not with the other tunable settings in `.env`.
+- The simpler 95th-percentile rule. The share rule needs a request-count guard and a short explanation for each limit.
+- Each limit rests on one run plus the verification run. Changes must be written down with a new finding (plan, "What counts as pass").

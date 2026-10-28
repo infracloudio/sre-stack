@@ -28,6 +28,7 @@ help:
 	@echo "	setup-aks-loki                    - Setup Loki (AKS-specific chart and values)"
 	@echo "	setup-aks-log-shipper             - Setup the Grafana Alloy log shipper (AKS)"
 	@echo "	setup-aks-o11y-routes             - Apply the observability routes and scrape configs (AKS)"
+	@echo "	setup-aks-alert-rules             - Apply the robot-shop alert rules (AKS)"
 	@echo "	setup-aks-kiali                   - Setup Kiali (AKS, refuses when the mesh is not running)"
 	@echo "	aks-ratings-abort-start           - Start scenario 01 on AKS: ratings answers every request with error 500"
 	@echo "	aks-ratings-abort-status          - Report whether the scenario 01 ratings fault is active (AKS, changes nothing)"
@@ -202,7 +203,7 @@ endif
 # addons/ folder (that shared apply stays EKS/local's). This coupling is
 # recorded in docs/architectural-decisions.md (AD for story 002): a file
 # added to that folder later does not automatically reach AKS.
-setup-aks-o11y: setup-db-grafana-psql setup-aks-prometheus-stack setup-aks-loki setup-aks-log-shipper setup-aks-o11y-routes setup-dashboards setup-aks-tempo setup-aks-beyla setup-aks-caretta
+setup-aks-o11y: setup-db-grafana-psql setup-aks-prometheus-stack setup-aks-alert-rules setup-aks-loki setup-aks-log-shipper setup-aks-o11y-routes setup-dashboards setup-aks-tempo setup-aks-beyla setup-aks-caretta
 
 # Same chart pin as setup-kube-prometheus-stack, plus the AKS-only overlay
 # (specs/005): it fixes the Tempo datasource URL (:3200) and adds the
@@ -239,6 +240,15 @@ setup-aks-log-shipper:
 
 setup-aks-o11y-routes:
 	bash $(CLUSTER_SCRIPT_PATH)/setup-aks-o11y-routes.sh
+
+# Alert rules for the demo shop (specs/009-robot-shop-alert-rules). The
+# PrometheusRule type comes from the monitoring chart, so run this after it.
+# Edit the rule file and run this again to change a limit; no chart upgrade.
+setup-aks-alert-rules:
+ifneq ($(STACK_MODE),aks)
+	$(error setup-aks-alert-rules needs STACK_MODE=aks (currently '$(STACK_MODE)'))
+endif
+	kubectl apply -f infra/azure/alert-rules/robot-shop-alerts.yaml
 
 # Separate from setup-aks-o11y on purpose (FR-013): it refuses when the mesh
 # is not actually running, instead of failing the core stack.
