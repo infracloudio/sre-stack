@@ -1,0 +1,4 @@
+Unit Testing:  specs/009-robot-shop-alert-rules/evidence/replicas-unavailable-test.yaml
+  SUCCESS
+
+exit=0

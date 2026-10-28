@@ -1,0 +1,18 @@
+== cart fault start 2026-10-28T17:10:30+05:30
+bash infra/azure/scenario-02/cart-oom-kill.sh start
+Lowering the cart memory allowance to 24Mi (cart container only)...
+deployment.apps/cart resource requirements updated
+deployment.apps/cart annotated
+Waiting up to 60s for the cluster to kill the cart container for running out of memory...
+RESULT: fault active (cart container was killed for running out of memory within 60s)
+exit=0
+== 2026-10-28T17:10:43+05:30 cart fault start done
+== cart revert 2026-10-28T17:17:12+05:30
+bash infra/azure/scenario-02/cart-oom-kill.sh revert
+Restoring the cart memory allowance the shop is installed with (requests 50Mi, limits 100Mi)...
+deployment.apps/cart resource requirements updated
+deployment.apps/cart annotated
+Waiting up to 60s for cart to run cleanly...
+RESULT: fault reverted (cart runs at the allowance the shop is installed with, no further out-of-memory kills)
+exit=0
+== revert done 2026-10-28T17:17:22+05:30

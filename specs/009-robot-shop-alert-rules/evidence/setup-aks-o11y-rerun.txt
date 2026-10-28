@@ -1,0 +1,253 @@
+kubectl create ns monitoring --dry-run=client -o yaml | kubectl apply -f -
+namespace/monitoring configured
+kubectl apply -f infra/azure/grafana-postgres/statefulset.yaml
+service/postgres unchanged
+statefulset.apps/postgresql-psql configured
+kubectl wait --for=condition=ready pod -l app=postgresql --timeout=300s -n monitoring
+pod/postgresql-psql-0 condition met
+kubectl apply -f infra/azure/grafana-postgres/job.yaml
+job.batch/create-grafana-database unchanged
+kubectl wait --for=condition=complete  jobs create-grafana-database --timeout=300s -n monitoring
+job.batch/create-grafana-database condition met
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+"prometheus-community" already exists with the same configuration, skipping
+helm repo update
+Hang tight while we grab the latest from your chart repositories...
+...Successfully got an update from the "kedacore" chart repository
+...Successfully got an update from the "keda" chart repository
+...Successfully got an update from the "metrics-server" chart repository
+...Successfully got an update from the "kiali" chart repository
+...Successfully got an update from the "ingress-nginx" chart repository
+...Successfully got an update from the "nfs-subdir-external-provisioner" chart repository
+...Successfully got an update from the "open-telemetry" chart repository
+...Successfully got an update from the "jetstack" chart repository
+...Successfully got an update from the "keephq" chart repository
+...Successfully got an update from the "grafana-community" chart repository
+...Successfully got an update from the "istio" chart repository
+...Successfully got an update from the "grafana" chart repository
+...Successfully got an update from the "prometheus-community" chart repository
+...Successfully got an update from the "groundcover" chart repository
+Update Complete. ⎈Happy Helming!⎈
+helm upgrade --install prometheus-stack prometheus-community/kube-prometheus-stack --values ./monitoring/chart-values/prometheus-values.yaml --values ./infra/azure/chart-values/prometheus-stack.yaml -n monitoring --create-namespace --version 52.0.0
+Release "prometheus-stack" has been upgraded. Happy Helming!
+NAME: prometheus-stack
+LAST DEPLOYED: Wed Oct 28 16:18:41 2026
+NAMESPACE: monitoring
+STATUS: deployed
+REVISION: 4
+NOTES:
+kube-prometheus-stack has been installed. Check its status by running:
+  kubectl --namespace monitoring get pods -l "release=prometheus-stack"
+
+Visit https://github.com/prometheus-operator/kube-prometheus for instructions on how to create & configure Alertmanager and Prometheus instances using the Operator.
+kubectl apply -f infra/azure/alert-rules/robot-shop-alerts.yaml
+prometheusrule.monitoring.coreos.com/robot-shop-alerts unchanged
+helm repo add grafana-community https://grafana-community.github.io/helm-charts
+"grafana-community" already exists with the same configuration, skipping
+helm repo update
+Hang tight while we grab the latest from your chart repositories...
+...Successfully got an update from the "nfs-subdir-external-provisioner" chart repository
+...Successfully got an update from the "keda" chart repository
+...Successfully got an update from the "metrics-server" chart repository
+...Successfully got an update from the "kedacore" chart repository
+...Successfully got an update from the "keephq" chart repository
+...Successfully got an update from the "ingress-nginx" chart repository
+...Successfully got an update from the "kiali" chart repository
+...Successfully got an update from the "jetstack" chart repository
+...Successfully got an update from the "istio" chart repository
+...Successfully got an update from the "grafana-community" chart repository
+...Successfully got an update from the "open-telemetry" chart repository
+...Successfully got an update from the "grafana" chart repository
+...Successfully got an update from the "prometheus-community" chart repository
+...Successfully got an update from the "groundcover" chart repository
+Update Complete. ⎈Happy Helming!⎈
+helm upgrade --install loki grafana-community/loki --version 18.13.7 --values ./infra/azure/chart-values/loki.yaml -n monitoring --create-namespace
+Release "loki" has been upgraded. Happy Helming!
+NAME: loki
+LAST DEPLOYED: Wed Oct 28 16:19:14 2026
+NAMESPACE: monitoring
+STATUS: deployed
+REVISION: 2
+TEST SUITE: None
+NOTES:
+***********************************************************************
+ Welcome to Grafana Loki
+ Chart version: 18.13.7
+ Chart Name: loki
+ Loki version: 3.7.8
+***********************************************************************
+
+** Please be patient while the chart is being deployed **
+
+Tip:
+
+  Watch the deployment status using the command: kubectl get pods -w --namespace monitoring
+
+If pods are taking too long to schedule make sure pod affinity can be fulfilled in the current cluster.
+
+***********************************************************************
+Installed components:
+***********************************************************************
+* loki
+
+Loki has been deployed as a single binary.
+This means a single pod is handling reads and writes. You can scale that pod vertically by adding more CPU and memory resources.
+
+
+***********************************************************************
+Sending logs to Loki
+***********************************************************************
+
+You can send logs from inside the cluster using the cluster DNS:
+
+http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push
+
+You can test to send data from outside the cluster by port-forwarding the gateway to your local machine:
+
+  kubectl port-forward --namespace monitoring svc/loki 3100:3100 &
+
+And then using http://127.0.0.1:3100/loki/api/v1/push URL as shown below:
+
+```
+curl -H "Content-Type: application/json" -XPOST -s "http://127.0.0.1:3100/loki/api/v1/push"  \
+--data-raw "{\"streams\": [{\"stream\": {\"job\": \"test\"}, \"values\": [[\"$(date +%s)000000000\", \"fizzbuzz\"]]}]}"
+```
+
+Then verify that Loki did receive the data using the following command:
+
+```
+curl "http://127.0.0.1:3100/loki/api/v1/query_range" --data-urlencode 'query={job="test"}' | jq .data.result
+```
+
+***********************************************************************
+Connecting Grafana to Loki
+***********************************************************************
+
+If Grafana operates within the cluster, you'll set up a new Loki datasource by utilizing the following URL:
+
+http://loki.monitoring.svc.cluster.local:3100/
+bash ./infra/scripts/cluster/setup-aks-log-shipper.sh
+"grafana" already exists with the same configuration, skipping
+Hang tight while we grab the latest from your chart repositories...
+...Successfully got an update from the "kedacore" chart repository
+...Successfully got an update from the "keephq" chart repository
+...Successfully got an update from the "metrics-server" chart repository
+...Successfully got an update from the "keda" chart repository
+...Successfully got an update from the "nfs-subdir-external-provisioner" chart repository
+...Successfully got an update from the "ingress-nginx" chart repository
+...Successfully got an update from the "jetstack" chart repository
+...Successfully got an update from the "kiali" chart repository
+...Successfully got an update from the "open-telemetry" chart repository
+...Successfully got an update from the "istio" chart repository
+...Successfully got an update from the "grafana-community" chart repository
+...Successfully got an update from the "grafana" chart repository
+...Successfully got an update from the "prometheus-community" chart repository
+...Successfully got an update from the "groundcover" chart repository
+Update Complete. ⎈Happy Helming!⎈
+Installing the Grafana Alloy log shipper (chart 1.13.0) into namespace monitoring...
+Release "alloy" has been upgraded. Happy Helming!
+NAME: alloy
+LAST DEPLOYED: Wed Oct 28 16:19:21 2026
+NAMESPACE: monitoring
+STATUS: deployed
+REVISION: 2
+TEST SUITE: None
+NOTES:
+Welcome to Grafana Alloy!
+Log shipper installed.
+bash ./infra/scripts/cluster/setup-aks-o11y-routes.sh
+Applying the AKS observability routes and scrape configs (the files carry their own namespaces: monitoring, istio-system)...
+virtualservice.networking.istio.io/grafana-vs unchanged
+virtualservice.networking.istio.io/prometheus-vs unchanged
+podmonitor.monitoring.coreos.com/envoy-stats-monitor unchanged
+servicemonitor.monitoring.coreos.com/istio-component-monitor unchanged
+Observability routes applied.
+configmap/app-dashboards unchanged
+configmap/service-dashboard unchanged
+configmap/mysql-dashboards unchanged
+configmap/rabbitmq-dashboards unchanged
+skipping rds.yaml (AWS RDS dashboard, not applicable on AKS)
+kubectl apply -f infra/azure/dashboards/
+configmap/slow-requests-dashboard unchanged
+helm repo add grafana-community https://grafana-community.github.io/helm-charts
+"grafana-community" already exists with the same configuration, skipping
+helm repo update
+Hang tight while we grab the latest from your chart repositories...
+...Successfully got an update from the "nfs-subdir-external-provisioner" chart repository
+...Successfully got an update from the "metrics-server" chart repository
+...Successfully got an update from the "keda" chart repository
+...Successfully got an update from the "kedacore" chart repository
+...Successfully got an update from the "keephq" chart repository
+...Successfully got an update from the "kiali" chart repository
+...Successfully got an update from the "ingress-nginx" chart repository
+...Successfully got an update from the "jetstack" chart repository
+...Successfully got an update from the "open-telemetry" chart repository
+...Successfully got an update from the "grafana-community" chart repository
+...Successfully got an update from the "istio" chart repository
+...Successfully got an update from the "grafana" chart repository
+...Successfully got an update from the "prometheus-community" chart repository
+...Successfully got an update from the "groundcover" chart repository
+Update Complete. ⎈Happy Helming!⎈
+helm upgrade --install tempo grafana-community/tempo --version 3.1.0 --values ./infra/azure/chart-values/tempo.yaml -n monitoring --create-namespace --timeout 10m
+Release "tempo" has been upgraded. Happy Helming!
+NAME: tempo
+LAST DEPLOYED: Wed Oct 28 16:19:30 2026
+NAMESPACE: monitoring
+STATUS: deployed
+REVISION: 2
+TEST SUITE: None
+helm repo add grafana https://grafana.github.io/helm-charts
+"grafana" already exists with the same configuration, skipping
+helm repo update
+Hang tight while we grab the latest from your chart repositories...
+...Successfully got an update from the "nfs-subdir-external-provisioner" chart repository
+...Successfully got an update from the "metrics-server" chart repository
+...Successfully got an update from the "kedacore" chart repository
+...Successfully got an update from the "keda" chart repository
+...Successfully got an update from the "keephq" chart repository
+...Successfully got an update from the "ingress-nginx" chart repository
+...Successfully got an update from the "kiali" chart repository
+...Successfully got an update from the "jetstack" chart repository
+...Successfully got an update from the "istio" chart repository
+...Successfully got an update from the "open-telemetry" chart repository
+...Successfully got an update from the "grafana-community" chart repository
+...Successfully got an update from the "grafana" chart repository
+...Successfully got an update from the "prometheus-community" chart repository
+...Successfully got an update from the "groundcover" chart repository
+Update Complete. ⎈Happy Helming!⎈
+helm upgrade --install beyla grafana/beyla --version 1.16.11 --values ./infra/azure/chart-values/beyla.yaml -n monitoring --create-namespace
+Release "beyla" has been upgraded. Happy Helming!
+NAME: beyla
+LAST DEPLOYED: Wed Oct 28 16:19:36 2026
+NAMESPACE: monitoring
+STATUS: deployed
+REVISION: 2
+TEST SUITE: None
+helm repo add groundcover https://helm.groundcover.com/
+"groundcover" already exists with the same configuration, skipping
+helm repo update
+Hang tight while we grab the latest from your chart repositories...
+...Successfully got an update from the "kedacore" chart repository
+...Successfully got an update from the "metrics-server" chart repository
+...Successfully got an update from the "keephq" chart repository
+...Successfully got an update from the "keda" chart repository
+...Successfully got an update from the "nfs-subdir-external-provisioner" chart repository
+...Successfully got an update from the "ingress-nginx" chart repository
+...Successfully got an update from the "kiali" chart repository
+...Successfully got an update from the "jetstack" chart repository
+...Successfully got an update from the "istio" chart repository
+...Successfully got an update from the "open-telemetry" chart repository
+...Successfully got an update from the "grafana-community" chart repository
+...Successfully got an update from the "grafana" chart repository
+...Successfully got an update from the "prometheus-community" chart repository
+...Successfully got an update from the "groundcover" chart repository
+Update Complete. ⎈Happy Helming!⎈
+helm upgrade --install caretta groundcover/caretta --version 0.0.16 --values ./infra/azure/chart-values/caretta.yaml -n monitoring --create-namespace
+Release "caretta" has been upgraded. Happy Helming!
+NAME: caretta
+LAST DEPLOYED: Wed Oct 28 16:19:43 2026
+NAMESPACE: monitoring
+STATUS: deployed
+REVISION: 2
+TEST SUITE: None
+exit=0

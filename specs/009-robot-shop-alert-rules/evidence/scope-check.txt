@@ -1,0 +1,69 @@
+== scope check 2026-10-28T19:09:48+05:30
+== committed branch changes vs main
+.claude/skills/story-cost/SKILL.md
+.opencode/commands/story-cost.md
+.specify/extensions.yml
+AGENTS.md
+README.md
+docs/architectural-decisions.md
+infra/azure/alert-rules/robot-shop-alerts.yaml
+makefile
+specs/009-robot-shop-alert-rules/checklists/requirements.md
+specs/009-robot-shop-alert-rules/contracts/alert-rules.md
+specs/009-robot-shop-alert-rules/cost.md
+specs/009-robot-shop-alert-rules/data-model.md
+specs/009-robot-shop-alert-rules/plan.md
+specs/009-robot-shop-alert-rules/quickstart.md
+specs/009-robot-shop-alert-rules/research.md
+specs/009-robot-shop-alert-rules/spec.md
+specs/009-robot-shop-alert-rules/tasks.md
+specs/009-robot-shop-alert-rules/usage.tsv
+== unstaged
+== staged
+== untracked
+specs/009-robot-shop-alert-rules/evidence/both-faults-poll.txt
+specs/009-robot-shop-alert-rules/evidence/both-faults-result.txt
+specs/009-robot-shop-alert-rules/evidence/both-faults-run.txt
+specs/009-robot-shop-alert-rules/evidence/both-revert-poll.txt
+specs/009-robot-shop-alert-rules/evidence/cart-fault-poll.txt
+specs/009-robot-shop-alert-rules/evidence/cart-fault-run.txt
+specs/009-robot-shop-alert-rules/evidence/cart-revert-poll.txt
+specs/009-robot-shop-alert-rules/evidence/db-fault-poll.txt
+specs/009-robot-shop-alert-rules/evidence/db-fault-run.txt
+specs/009-robot-shop-alert-rules/evidence/db-revert-poll.txt
+specs/009-robot-shop-alert-rules/evidence/final-status.txt
+specs/009-robot-shop-alert-rules/evidence/limit-change-run.txt
+specs/009-robot-shop-alert-rules/evidence/limit-decisions.txt
+specs/009-robot-shop-alert-rules/evidence/lint-after-doc-update.txt
+specs/009-robot-shop-alert-rules/evidence/lint-before.txt
+specs/009-robot-shop-alert-rules/evidence/lint-output.txt
+specs/009-robot-shop-alert-rules/evidence/monitoring-before/shop-traffic-query.txt
+specs/009-robot-shop-alert-rules/evidence/no-traffic-cart-fault-run.txt
+specs/009-robot-shop-alert-rules/evidence/no-traffic-cart-poll.txt
+specs/009-robot-shop-alert-rules/evidence/no-traffic-drain.txt
+specs/009-robot-shop-alert-rules/evidence/no-traffic-precheck.txt
+specs/009-robot-shop-alert-rules/evidence/no-traffic-revert-poll.txt
+specs/009-robot-shop-alert-rules/evidence/no-traffic-run.txt
+specs/009-robot-shop-alert-rules/evidence/quickstart-run.txt
+specs/009-robot-shop-alert-rules/evidence/quiet-30m-poll.txt
+specs/009-robot-shop-alert-rules/evidence/redeploy-poll.txt
+specs/009-robot-shop-alert-rules/evidence/replicas-unavailable-rules.yaml
+specs/009-robot-shop-alert-rules/evidence/replicas-unavailable-test.txt
+specs/009-robot-shop-alert-rules/evidence/replicas-unavailable-test.yaml
+specs/009-robot-shop-alert-rules/evidence/rules-api-both.json
+specs/009-robot-shop-alert-rules/evidence/rules-api-cart.json
+specs/009-robot-shop-alert-rules/evidence/rules-api-database.json
+specs/009-robot-shop-alert-rules/evidence/rules-api.json
+specs/009-robot-shop-alert-rules/evidence/scope-before.txt
+specs/009-robot-shop-alert-rules/evidence/scope-check.txt
+specs/009-robot-shop-alert-rules/evidence/screenshots/alerts-page-both-faults-firing.png
+specs/009-robot-shop-alert-rules/evidence/screenshots/alerts-page-cart-fault-firing.png
+specs/009-robot-shop-alert-rules/evidence/screenshots/alerts-page-database-fault-firing.png
+specs/009-robot-shop-alert-rules/evidence/screenshots/alerts-page-quiet.png
+specs/009-robot-shop-alert-rules/evidence/setup-aks-o11y-rerun.txt
+specs/009-robot-shop-alert-rules/evidence/traffic-guards-rules.yaml
+specs/009-robot-shop-alert-rules/evidence/traffic-guards-test.txt
+specs/009-robot-shop-alert-rules/evidence/traffic-guards-test.yaml
+== shared-file diffs (must be empty)
+== prometheusrule Bookinfo still present
+kube-prometheus-stack-rule-name   14d

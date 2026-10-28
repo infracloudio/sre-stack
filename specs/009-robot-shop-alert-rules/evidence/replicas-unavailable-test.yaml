@@ -1,0 +1,28 @@
+# Local test of the stateful-set branch of RobotShopReplicasUnavailable (T013).
+# Invented inputs: mysql has 1 wanted copy and 0 ready. Not a live test.
+rule_files:
+  - replicas-unavailable-rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'kube_statefulset_replicas{namespace="robot-shop", statefulset="mysql"}'
+        values: '1x10'
+      - series: 'kube_statefulset_status_replicas_ready{namespace="robot-shop", statefulset="mysql"}'
+        values: '0x10'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: RobotShopReplicasUnavailable
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: RobotShopReplicasUnavailable
+        exp_alerts:
+          - exp_labels:
+              alertname: RobotShopReplicasUnavailable
+              namespace: robot-shop
+              service: mysql
+              severity: warning
+            exp_annotations:
+              summary: "mysql has fewer working copies than it should (missing: 1)"

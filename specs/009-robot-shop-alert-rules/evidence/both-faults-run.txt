@@ -1,0 +1,28 @@
+== both faults start 2026-10-28T18:38:06+05:30
+bash infra/azure/scenario-02/cart-oom-kill.sh start
+Lowering the cart memory allowance to 24Mi (cart container only)...
+deployment.apps/cart resource requirements updated
+deployment.apps/cart annotated
+Waiting up to 60s for the cluster to kill the cart container for running out of memory...
+RESULT: fault active (cart container was killed for running out of memory within 60s)
+cart exit=0
+bash infra/azure/scenario-03/db-latency.sh start
+Adding the three rules and loading them...
+Waiting up to 30s for the lookups to turn slow...
+RESULT: fault active (shipping lookup 3.5s, ratings lookup 1.0s)
+db exit=0
+== both faults start done 2026-10-28T18:38:25+05:30
+== both faults revert 2026-10-28T18:44:56+05:30
+bash infra/azure/scenario-02/cart-oom-kill.sh revert
+Restoring the cart memory allowance the shop is installed with (requests 50Mi, limits 100Mi)...
+deployment.apps/cart resource requirements updated
+deployment.apps/cart annotated
+Waiting up to 60s for cart to run cleanly...
+RESULT: fault reverted (cart runs at the allowance the shop is installed with, no further out-of-memory kills)
+cart revert exit=0
+bash infra/azure/scenario-03/db-latency.sh revert
+Disabling the rules...
+Waiting up to 30s for the lookups to turn normal...
+RESULT: fault removed (shipping lookup 1.2s, ratings lookup 0.2s)
+db revert exit=0
+== both revert done 2026-10-28T18:45:16+05:30

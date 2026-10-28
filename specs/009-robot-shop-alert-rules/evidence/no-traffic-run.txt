@@ -1,0 +1,4 @@
+== no-traffic start 2026-10-28T18:04:55+05:30
+deployment.apps/load scaled
+NAME   READY   UP-TO-DATE   AVAILABLE   AGE
+load   0/0     0            0           13d
