@@ -72,7 +72,7 @@ Wait for a quiet shop before check 2 and check 3. The shop is ready when every d
 ## 9. Both faults at once (EC-006)
 
 1. With a quiet shop and the load generator running, run `make aks-cart-oom-start` and then `make aks-db-latency-start`.
-2. Within 5 minutes all six alerts must show firing.
+2. Within 5 minutes five alerts must show firing: the four cart alerts (`RobotShopContainerOOMKilled`, `RobotShopContainerRestarting`, `RobotShopReplicasUnavailable`, and `RobotShopHTTPErrors` for `web`) and `RobotShopRatingsSlowRequests`. `RobotShopShippingSlowRequests` is not expected to fire in this check. With the cart down, no requests reach shipping, and the rule needs at least 30 requests in its window, so it has no data. The developer accepted this on 2026-10-28. Shipping's firing is proven alone in check 3. Record the shipping request count in the evidence to show why.
 3. Run `make aks-cart-oom-revert` and `make aks-db-latency-revert`. Every alert must clear within 10 minutes.
 
 ## 10. A normal redeploy stays quiet (EC-007)

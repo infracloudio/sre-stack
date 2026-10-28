@@ -639,3 +639,22 @@ with the pod still exists:
 - The shipping redeploy (13:58:30 to 13:59:15 unavailable) does not fire a 2-minute wait, as Finding 6 predicted.
 - The stateful-set branch of the no-ready-copy rule (mysql and redis) could not be run live without stopping the database. It was checked only with a local `promtool test rules` unit test on made-up numbers (not in the repo), which passed.
 - This is one cart-fault run on one day. The 24% depends on this shop's traffic mix.
+
+## Finding 9 — Do all six alerts fire when both faults run together?
+
+**Question.** Check 9 (EC-006) expected all six alerts to fire within 5 minutes of starting the cart memory fault and the slow-database fault together.
+
+**What happened** (run started 18:38:06, both faults active by 18:38:25; `evidence/both-faults-result.txt` and `evidence/both-faults-poll.txt`):
+- `RobotShopContainerOOMKilled` and `RobotShopContainerRestarting` (cart): firing at 18:40:26, 2m20s after the start.
+- `RobotShopReplicasUnavailable` (cart): firing at 18:40:56, 2m50s. It dropped back to pending once before 18:43:58.
+- `RobotShopRatingsSlowRequests` (ratings): firing at 18:41:26, 3m20s after the start.
+- `RobotShopHTTPErrors` (web): firing at 18:42:26, 4m20s after the start.
+- `RobotShopShippingSlowRequests`: never went pending or firing.
+
+**Why shipping stayed quiet.** Shipping only receives requests through cart. With cart down (0/1 ready), the request count for shipping over 2 minutes was 0 at 18:44:35 (`sum(increase(istio_request_duration_milliseconds_count{destination_workload="shipping"}[2m]))`). The share of slow requests was NaN, because it divides by zero. The shipping rule needs at least 30 requests in its 2-minute window (the minimum-request guard, EC-005), so with 0 requests it cannot fire. Ratings still received about 162 requests in the same 2 minutes, because the ratings lookup does not go through cart.
+
+**Shipping alone still works.** In the slow-database run alone (start 17:37:56), shipping fired at 17:41:27, 3m31s after the start (Finding 8).
+
+**Decision.** The developer accepted five of six for the both-faults check on 2026-10-28. The check and the plan's departure list are updated to match (`plan.md` "Departures and follow-ups", `quickstart.md` check 9, `tasks.md` T027). The rule itself is unchanged.
+
+**Limit of this finding.** This is one run of the both-faults case. The shipping result depends on the cart being down. If the cart fault ever stops killing the cart container, shipping traffic would return and this could need a fresh look.

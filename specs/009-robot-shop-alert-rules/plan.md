@@ -403,6 +403,7 @@ The repo's rule is that a decision with a cost gets one entry there, newest last
 - **Payment** is dropped from the slow-request alerts. The spec already states this (Story 2, Assumptions). Story #122 on GitHub still says payment, and the issue text needs a manual update.
 - **The old Bookinfo rule** keeps `severity: P1`, which Keep would read as info. It stays as is (FR-016) and is a follow-up for a later story.
 - **The quickstart** (`quickstart.md`) now names the real rule file path (replaced after you approved this section).
+- **Both faults at once (check 9, EC-006): five alerts, not six.** The plan said all six alerts fire. The live run on 2026-10-28 showed `RobotShopShippingSlowRequests` cannot fire while the cart is down, because no requests reach shipping and the rule needs 30 requests in its window (research Finding 9). The developer accepted five of six on 2026-10-28. Check 9, tasks T027, and the screenshot list are updated to match. Shipping's firing is still proven alone in check 3.
 
 ## Verification strategy
 
@@ -470,7 +471,7 @@ Following stories 007 and 008, a folder `specs/009-robot-shop-alert-rules/eviden
 - `replicas-unavailable-rules.yaml`, `replicas-unavailable-test.yaml` and its real test output: the retained rule snapshot and stateful-set test. T013 extracts its own snapshot after T012 and finishes before T014 edits the source file.
 - `traffic-guards-rules.yaml`, `traffic-guards-test.yaml` and its real test output: snapshot and local cases for absent/zero traffic, very few bad requests, and high-traffic positive controls.
 - `monitoring-before/` and `monitoring-after/`: shop-traffic query output, dashboard screenshots, request times, trace IDs and screenshots showing newly recorded request steps before installation and after verification (FR-017, SC-011).
-- Screenshots of the alerts page: before any fault, during the cart fault (four firing), during the database fault (two firing), and with both faults (six firing).
+- Screenshots of the alerts page: before any fault, during the cart fault (four firing), during the database fault (two firing), and with both faults (five firing; the shipping alert cannot fire while the cart is down, see the departure below).
 - `pr-entries.md`: the list above and any departures from this plan.
 
 The pull request carries the `evidence:attached` label once these are in.
