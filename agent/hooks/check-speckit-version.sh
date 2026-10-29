@@ -37,7 +37,8 @@ for m in "$ROOT"/.specify/integrations/*.manifest.json; do
 done
 
 if [ "$status" -ne 0 ]; then
-  echo "  Re-run: for k in \$(jq -r '.installed_integrations[]' .specify/integration.json); do specify integration upgrade \$k --force; done && agent/tools/loom.sh"
+  echo "  Re-run: python3 agent/spec-kit/refresh.py --upgrade"
+  echo "  Then: python3 agent/spec-kit/refresh.py --check"
   echo "  or change SPEC_KIT_VERSION in $INSTALLER to match, then commit both."
   exit 1
 fi

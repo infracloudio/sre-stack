@@ -1,0 +1,101 @@
+{
+  "schema_version": "1.0",
+  "presets": {
+    "sre-compact": {
+      "version": "1.0.0",
+      "source": "local",
+      "manifest_hash": "sha256:6c8af206384d3cf920501647b96a4e4bec2cb9aac65041b41c0d98f2df2b60c4",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "claude": [
+          "speckit.specify",
+          "speckit.plan",
+          "speckit.tasks",
+          "speckit.analyze",
+          "speckit.implement",
+          "speckit.converge",
+          "speckit.clarify",
+          "speckit.checklist",
+          "speckit.constitution",
+          "speckit.taskstoissues"
+        ],
+        "codex": [
+          "speckit.specify",
+          "speckit.plan",
+          "speckit.tasks",
+          "speckit.analyze",
+          "speckit.implement",
+          "speckit.converge",
+          "speckit.clarify",
+          "speckit.checklist",
+          "speckit.constitution",
+          "speckit.taskstoissues"
+        ],
+        "opencode": [
+          "speckit.specify",
+          "speckit.plan",
+          "speckit.tasks",
+          "speckit.analyze",
+          "speckit.implement",
+          "speckit.converge",
+          "speckit.clarify",
+          "speckit.checklist",
+          "speckit.constitution",
+          "speckit.taskstoissues"
+        ],
+        "devin": [
+          "speckit.specify",
+          "speckit.plan",
+          "speckit.tasks",
+          "speckit.analyze",
+          "speckit.implement",
+          "speckit.converge",
+          "speckit.clarify",
+          "speckit.checklist",
+          "speckit.constitution",
+          "speckit.taskstoissues"
+        ]
+      },
+      "registered_skills": {
+        "claude": [
+          "speckit-specify",
+          "speckit-plan",
+          "speckit-tasks",
+          "speckit-analyze",
+          "speckit-implement",
+          "speckit-converge",
+          "speckit-clarify",
+          "speckit-checklist",
+          "speckit-constitution",
+          "speckit-taskstoissues"
+        ],
+        "codex": [
+          "speckit-specify",
+          "speckit-plan",
+          "speckit-tasks",
+          "speckit-analyze",
+          "speckit-implement",
+          "speckit-converge",
+          "speckit-clarify",
+          "speckit-checklist",
+          "speckit-constitution",
+          "speckit-taskstoissues"
+        ],
+        "devin": [
+          "speckit-specify",
+          "speckit-plan",
+          "speckit-tasks",
+          "speckit-analyze",
+          "speckit-implement",
+          "speckit-converge",
+          "speckit-clarify",
+          "speckit-checklist",
+          "speckit-constitution",
+          "speckit-taskstoissues"
+        ]
+      },
+      "installed_at": "2026-10-29T14:13:08.687001+00:00"
+    }
+  }
+}

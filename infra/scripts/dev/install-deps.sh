@@ -17,7 +17,7 @@ esac
 BIN_DIR="${HOME}/.local/bin"
 KUSTOMIZE_VERSION="v5.3.0"
 K3D_VERSION="v5.6.0"
-SPEC_KIT_VERSION="v1.0.4"
+SPEC_KIT_VERSION="v1.2.4"
 
 have() { command -v "$1" >/dev/null 2>&1; }
 as_root() {
