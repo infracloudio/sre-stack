@@ -1,0 +1,159 @@
+# Local test of the traffic guards (quickstart check 11). Invented inputs, not live data.
+# Each rule gets four cases: absent series, zero counters, very few bad requests
+# (must stay quiet), and a high-traffic positive control (must fire).
+rule_files:
+  - traffic-guards-rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # RobotShopHTTPErrors: web, every request is a 500 (absent case: no series at all)
+  - interval: 1m
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: RobotShopHTTPErrors
+        exp_alerts: []
+
+  # RobotShopHTTPErrors: web, counters present but zero
+  - interval: 1m
+    input_series:
+      - series: 'istio_requests_total{reporter="destination", namespace="robot-shop", destination_workload="web", response_code="500"}'
+        values: '0x15'
+      - series: 'istio_requests_total{reporter="destination", namespace="robot-shop", destination_workload="web", response_code="200"}'
+        values: '0x15'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: RobotShopHTTPErrors
+        exp_alerts: []
+
+  # RobotShopHTTPErrors: 1 bad request per minute, all bad, 5 per 5 minutes (below 30)
+  - interval: 1m
+    input_series:
+      - series: 'istio_requests_total{reporter="destination", namespace="robot-shop", destination_workload="web", response_code="500"}'
+        values: '0+1x15'
+      - series: 'istio_requests_total{reporter="destination", namespace="robot-shop", destination_workload="web", response_code="200"}'
+        values: '0x15'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: RobotShopHTTPErrors
+        exp_alerts: []
+
+  # RobotShopHTTPErrors: positive control, 60 bad requests per minute for 15 minutes
+  - interval: 1m
+    input_series:
+      - series: 'istio_requests_total{reporter="destination", namespace="robot-shop", destination_workload="web", response_code="500"}'
+        values: '0+60x15'
+      - series: 'istio_requests_total{reporter="destination", namespace="robot-shop", destination_workload="web", response_code="200"}'
+        values: '0x15'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: RobotShopHTTPErrors
+        exp_alerts:
+          - exp_labels:
+              alertname: RobotShopHTTPErrors
+              namespace: robot-shop
+              destination_workload: web
+              service: web
+              severity: high
+            exp_annotations:
+              summary: "web answered 100% of its requests with a server error"
+
+  # RobotShopShippingSlowRequests: absent case (no series at all)
+  - interval: 1m
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: RobotShopShippingSlowRequests
+        exp_alerts: []
+
+  # RobotShopShippingSlowRequests: counters present but zero
+  - interval: 1m
+    input_series:
+      - series: 'istio_request_duration_milliseconds_bucket{reporter="destination", namespace="robot-shop", destination_workload="shipping", le="2500"}'
+        values: '0x15'
+      - series: 'istio_request_duration_milliseconds_count{reporter="destination", namespace="robot-shop", destination_workload="shipping"}'
+        values: '0x15'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: RobotShopShippingSlowRequests
+        exp_alerts: []
+
+  # RobotShopShippingSlowRequests: 1 request per minute, all slow, 2 per 2 minutes (below 30)
+  - interval: 1m
+    input_series:
+      - series: 'istio_request_duration_milliseconds_bucket{reporter="destination", namespace="robot-shop", destination_workload="shipping", le="2500"}'
+        values: '0x15'
+      - series: 'istio_request_duration_milliseconds_count{reporter="destination", namespace="robot-shop", destination_workload="shipping"}'
+        values: '0+1x15'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: RobotShopShippingSlowRequests
+        exp_alerts: []
+
+  # RobotShopShippingSlowRequests: positive control, 60 slow requests per minute
+  - interval: 1m
+    input_series:
+      - series: 'istio_request_duration_milliseconds_bucket{reporter="destination", namespace="robot-shop", destination_workload="shipping", le="2500"}'
+        values: '0x15'
+      - series: 'istio_request_duration_milliseconds_count{reporter="destination", namespace="robot-shop", destination_workload="shipping"}'
+        values: '0+60x15'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: RobotShopShippingSlowRequests
+        exp_alerts:
+          - exp_labels:
+              alertname: RobotShopShippingSlowRequests
+              namespace: robot-shop
+              service: shipping
+              severity: warning
+            exp_annotations:
+              summary: "100% of shipping cost lookups took longer than 2.5 seconds"
+
+  # RobotShopRatingsSlowRequests: absent case (no series at all)
+  - interval: 1m
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: RobotShopRatingsSlowRequests
+        exp_alerts: []
+
+  # RobotShopRatingsSlowRequests: counters present but zero
+  - interval: 1m
+    input_series:
+      - series: 'istio_request_duration_milliseconds_bucket{reporter="destination", namespace="robot-shop", destination_workload="ratings", le="500"}'
+        values: '0x15'
+      - series: 'istio_request_duration_milliseconds_count{reporter="destination", namespace="robot-shop", destination_workload="ratings"}'
+        values: '0x15'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: RobotShopRatingsSlowRequests
+        exp_alerts: []
+
+  # RobotShopRatingsSlowRequests: 1 request per minute, all slow, 2 per 2 minutes (below 30)
+  - interval: 1m
+    input_series:
+      - series: 'istio_request_duration_milliseconds_bucket{reporter="destination", namespace="robot-shop", destination_workload="ratings", le="500"}'
+        values: '0x15'
+      - series: 'istio_request_duration_milliseconds_count{reporter="destination", namespace="robot-shop", destination_workload="ratings"}'
+        values: '0+1x15'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: RobotShopRatingsSlowRequests
+        exp_alerts: []
+
+  # RobotShopRatingsSlowRequests: positive control, 60 slow requests per minute
+  - interval: 1m
+    input_series:
+      - series: 'istio_request_duration_milliseconds_bucket{reporter="destination", namespace="robot-shop", destination_workload="ratings", le="500"}'
+        values: '0x15'
+      - series: 'istio_request_duration_milliseconds_count{reporter="destination", namespace="robot-shop", destination_workload="ratings"}'
+        values: '0+60x15'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: RobotShopRatingsSlowRequests
+        exp_alerts:
+          - exp_labels:
+              alertname: RobotShopRatingsSlowRequests
+              namespace: robot-shop
+              service: ratings
+              severity: warning
+            exp_annotations:
+              summary: "100% of ratings lookups took longer than 0.5 seconds"

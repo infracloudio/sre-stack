@@ -947,7 +947,7 @@ pass over the Keep alert-management SPEC (epic #91, CAP-1); chart
 2. **One row per harness + session + model + branch** in `specs/<story>/usage.tsv`. A fresh run replaces rows with the same key and keeps the others, so rows survive after the harness deletes its logs. A fresh row with fewer tokens than the stored one is a sign of deleted logs: the stored row stays and is flagged `shrunk`. `cost.md` is rebuilt from `usage.tsv` only and has no timestamp, so a re-run changes nothing.
 3. **Branch decides the story.** A reply belongs to story `<branch>` only if `specs/<branch>/` exists. Claude Code gives the branch on every reply. OpenCode has none, so it is read from the checkout's git reflog at the message time. Everything else (`main`, `planning/*`, deleted `/tmp` worktrees, reflog older than 90 days) is dropped and only counted in a "skipped" line. There is no override map and no all-stories mode.
 4. **Pinned price table in `agent/tools/model-prices.tsv`**, not `agent/policies/` (prices are data, and an agent must be able to update them in a reviewed PR). Each reply is priced on its own, because fast mode and the Haiku over-100k-token tier are per reply. An unknown model is flagged `unpriced` with an empty `usd` (never 0).
-5. **No Spec Kit extension package.** It would generate `speckit-*` skills and commands, which are protected paths. Instead `.specify/extensions.yml` has plain `after_implement` and `after_converge` hooks (`optional: false`) that call a hand-written `story-cost` skill (and `.opencode/commands/story-cost.md`). The hooks are a convenience; `make story-cost` is the trigger. `make lint` only warns when a story with ticked tasks has no `usage.tsv`.
+5. **No Spec Kit extension package.** It would generate `speckit-*` skills and commands, which are protected paths. Instead `.specify/extensions.yml` has plain `after_specify`, `after_tasks`, `after_analyze`, `after_implement` and `after_converge` hooks (`optional: false`; the first three were added on 2026-10-27 so the specify, tasks and analyze steps are costed too) that call a hand-written `story-cost` skill (and `.opencode/commands/story-cost.md`). The hooks are a convenience; `make story-cost` is the trigger. `make lint` only warns when a story with ticked tasks has no `usage.tsv`.
 6. **OpenCode token meaning, checked against stored cost** (OpenCode v2.1.4; `opencode-go` replies with non-zero stored cost): `tokens.input` excludes cache reads and writes, and `tokens.reasoning` is billed in addition to `tokens.output` at the output rate. With `deepseek-flash` rates input 0.15, output 0.60, cache read 0.003 dollars per million, adding reasoning at the output rate matched the stored cost to within 1% on 652 of 652 replies with reasoning; leaving it out matched 16. A second model, `deepseek-v4.1-flash`, fits the same way (1096 of 1096). The script constant is `OPENCODE_REASONING_SEPARATE=1`.
 7. **OpenCode's stored cost wins when it is non-zero.** An OpenCode message that stores a cost above 0 is counted at that cost. Only messages that store cost 0 (free models, subscriptions) are priced from the table, meaning "what this would cost at list price". This was chosen because the stored cost for `opencode-go` did not match the published Zen list rates (see below).
 8. **Retention is a user-level setting.** `cleanupPeriodDays` in `~/.claude/settings.json` (not 0; 3650 suggested), otherwise Claude Code deletes transcripts after 30 days. The repo does not change `.claude/settings.json`.
@@ -967,3 +967,23 @@ pass over the Keep alert-management SPEC (epic #91, CAP-1); chart
 - Rates were taken from the vendors' pricing pages on 2026-10-27 and not re-fetched while building.
 - The session that runs a hook is recorded only up to that moment; the next run tops it up.
 - A future `specify extension add` or `remove` may rewrite `.specify/extensions.yml`.
+
+## AD-015 — Robot-shop alert limits live in the rule file, not in .env; slow requests are measured as a share
+
+**Date**: 2026-10-28 · **Status**: Proposed (with spec 009's plan, PR #138, `gate:plan-approved` pending the Architect) · **Raised by**: story #122, keep alert rules for the demo shop on Azure; plan `specs/009-robot-shop-alert-rules/plan.md`.
+
+### Decision
+
+1. **Alert limits and waits live in `infra/azure/alert-rules/robot-shop-alerts.yaml`**, next to each rule, with the reason in a comment. They are not in `.env`. This is the exception to principle III (one configuration surface) in the plan's Complexity Tracking table. The file is applied by `make setup-aks-alert-rules`, so a limit changes with no chart upgrade (FR-015).
+2. **Slow requests are measured as a share, not a 95th percentile.** The shipping and ratings rules fire when more than 15% (shipping, over 2.5 s) or more than 10% (ratings, over 0.5 s) of requests in the window are slower than the limit. Each rule also needs at least 30 requests in its window, so a service with a handful of requests stays quiet.
+
+### Why
+
+- The alert rule and its limit are read together, so a person changing a limit sees the reason at once. A template filled from `.env` would hide the condition and would not let `promtool` check the real expression (research Findings 5, 7 and 8).
+- A 95th-percentile limit leaves almost no room: a healthy shop reached 3.8 s and the slow-database fault sat at 4.4 to 5.0 s (Findings 5 and 7). The share separates them: 0.5% to 7.4% healthy, 7% to 24% during the fault (Finding 8).
+
+### What we gave up
+
+- One configuration surface. Limits for the shop alerts now sit in a monitoring file, not with the other tunable settings in `.env`.
+- The simpler 95th-percentile rule. The share rule needs a request-count guard and a short explanation for each limit.
+- Each limit rests on one run plus the verification run. Changes must be written down with a new finding (plan, "What counts as pass").

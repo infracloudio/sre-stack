@@ -1,0 +1,171 @@
+# Alert rules for the demo shop on AKS (specs/009-robot-shop-alert-rules).
+# Applied by `make setup-aks-alert-rules`, which setup-aks-o11y runs after the
+# monitoring chart. Prometheus loads this object because of the
+# `release: prometheus-stack` label (research Finding 1). Nothing sends these
+# alerts anywhere yet; they show on the Prometheus alerts page.
+#
+# Change a limit here, run `make setup-aks-alert-rules` again. No chart
+# upgrade is needed.
+#
+# Every alert carries severity, namespace and service (contracts/alert-rules.md).
+# The limits below were chosen from measured behaviour; each comment gives the
+# numbers and the research finding they come from. Waits (`for`) keep a blip
+# from raising an alert (FR-009). Minimum request counts keep a service with a
+# handful of requests quiet (EC-005).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: robot-shop-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus-stack
+spec:
+  groups:
+    - name: robot-shop
+      rules:
+        # A shop container was stopped for using too much memory. The metric
+        # for the last stop reason is used; container_oom_events_total stays 0
+        # during a real kill (Finding 2). The restart part makes it end after
+        # 10 minutes without a new kill; the pod-still-exists part is the
+        # reason it clears at once when the pod is replaced.
+        # Measured: fires 1m53s after the cart fault starts, clears 28s after it
+        # is removed (Finding 8).
+        - alert: RobotShopContainerOOMKilled
+          expr: |
+            sum by (namespace, service) (
+              label_replace(
+                (increase(kube_pod_container_status_restarts_total{namespace="robot-shop"}[10m]) > 0)
+                and on (namespace, pod, container)
+                (kube_pod_container_status_last_terminated_reason{namespace="robot-shop", reason="OOMKilled"} == 1),
+                "service", "$1", "container", "(.*)")
+            )
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.service }} was stopped for using too much memory"
+
+        # A container restarted more than once in 10 minutes. Limit: more than
+        # 1. A healthy shop had 0 restarts in 30 minutes (Finding 5) and a normal
+        # redeploy does not move the counter (Finding 6). The cart fault gave 6
+        # restarts in 8 minutes (Finding 8).
+        # The pod-still-exists part is needed: without it the alert stayed on
+        # 7m19s after the fix, because a 10-minute window keeps a replaced pod's
+        # count (Finding 8, part C).
+        - alert: RobotShopContainerRestarting
+          expr: |
+            sum by (namespace, service) (
+              label_replace(
+                (increase(kube_pod_container_status_restarts_total{namespace="robot-shop"}[10m]) > 1)
+                and on (namespace, pod, container)
+                kube_pod_container_status_restarts_total{namespace="robot-shop"},
+                "service", "$1", "container", "(.*)")
+            )
+          for: 1m
+          labels:
+            severity: high
+          annotations:
+            summary: "{{ $labels.service }} restarted {{ $value | humanize }} times in 10 minutes"
+
+        # A service has fewer working copies than it should. Covers the
+        # deployments and the two stateful sets (mysql, redis).
+        # Wait: 2 minutes. A normal redeploy of shipping showed 1 copy not ready
+        # for 46 to 76 seconds while the shop still had a working copy
+        # (Finding 6), so 2 minutes keeps a redeploy quiet. The cart fault fires
+        # it 2m53s after the start (Finding 8), inside the 5 minutes SC-001 allows.
+        - alert: RobotShopReplicasUnavailable
+          expr: |
+            sum by (namespace, service) (
+              label_replace(kube_deployment_status_replicas_unavailable{namespace="robot-shop"} > 0,
+                "service", "$1", "deployment", "(.*)")
+            )
+            or
+            sum by (namespace, service) (
+              label_replace(
+                (kube_statefulset_replicas{namespace="robot-shop"} - kube_statefulset_status_replicas_ready{namespace="robot-shop"}) > 0,
+                "service", "$1", "statefulset", "(.*)")
+            )
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.service }} has fewer working copies than it should (missing: {{ $value }})"
+
+        # A high share of a service's requests got a server error (5xx), seen
+        # from the receiving side (Istio, Finding 3).
+        # Limit: more than 5% over 5 minutes. A healthy shop showed 0% (Finding
+        # 5), a normal cart redeploy about 0.4% (Finding 6), the slow-database
+        # fault 0% (Finding 7). The cart fault raised web to about 24% (Finding
+        # 8), nearly five times the limit; a higher limit would only fire later.
+        # Minimum: 30 requests in the 5 minutes. A service with a handful of
+        # requests is ignored (EC-005): rabbitmq and mysql see about 10 per 5
+        # minutes, and cart saw 18 or fewer once the fault had settled.
+        # Wait: 2 minutes. Fires for web 3m38s after the cart fault starts (Finding 8).
+        - alert: RobotShopHTTPErrors
+          expr: |
+            label_replace(
+              (
+                sum by (namespace, destination_workload) (rate(istio_requests_total{reporter="destination", namespace="robot-shop", response_code=~"5.."}[5m]))
+                / sum by (namespace, destination_workload) (rate(istio_requests_total{reporter="destination", namespace="robot-shop"}[5m]))
+                > 0.05
+              )
+              and on (namespace, destination_workload)
+              (sum by (namespace, destination_workload) (increase(istio_requests_total{reporter="destination", namespace="robot-shop"}[5m])) >= 30),
+              "service", "$1", "destination_workload", "(.*)")
+          for: 2m
+          labels:
+            severity: high
+          annotations:
+            summary: "{{ $labels.service }} answered {{ $value | humanizePercentage }} of its requests with a server error"
+
+        # The shipping cost lookup is slow. A plain 95th-percentile limit does
+        # not separate fault from normal here: the healthy 2-minute value
+        # reached 3.8 seconds and the fault sat at 4.4 to 5.0 seconds (Findings
+        # 5 and 7). The share of requests slower than 2.5 seconds separates
+        # them: 0.5% to 7.4% when healthy, 7% to 24% (about 23% once settled)
+        # during the slow-database fault (Finding 8, part D).
+        # Limit: more than 15% of requests over 2.5 seconds, over 2 minutes.
+        # That is about twice the highest healthy value and below the fault.
+        # Minimum: 30 requests in the 2 minutes (shipping gets about 200).
+        # Wait: 2 minutes. Replayed against the database fault: fires 3 minutes
+        # after the start, clears within a minute of the fix (Finding 8). The
+        # old 2-second limit from story 008 would fire on a healthy shop
+        # (Finding 5).
+        - alert: RobotShopShippingSlowRequests
+          expr: |
+            (
+              1 - sum by (namespace) (rate(istio_request_duration_milliseconds_bucket{reporter="destination", namespace="robot-shop", destination_workload="shipping", le="2500"}[2m]))
+              / sum by (namespace) (rate(istio_request_duration_milliseconds_count{reporter="destination", namespace="robot-shop", destination_workload="shipping"}[2m]))
+              > 0.15
+            )
+            and on (namespace)
+            (sum by (namespace) (increase(istio_request_duration_milliseconds_count{reporter="destination", namespace="robot-shop", destination_workload="shipping"}[2m])) >= 30)
+          for: 2m
+          labels:
+            severity: warning
+            service: shipping
+          annotations:
+            summary: "{{ $value | humanizePercentage }} of shipping cost lookups took longer than 2.5 seconds"
+
+        # The ratings lookup is slow.
+        # Limit: more than 10% of requests over 0.5 seconds, over 2 minutes.
+        # Healthy: at most 0.8%. Slow-database fault: 21% in the first sample
+        # and 100% once settled (Finding 8, part D). 10% sits between the two.
+        # Minimum: 30 requests in the 2 minutes (ratings gets about 150).
+        # Wait: 2 minutes. Replayed against the database fault: fires 2m31s
+        # after the start, clears 1m33s after the fix (Finding 8).
+        - alert: RobotShopRatingsSlowRequests
+          expr: |
+            (
+              1 - sum by (namespace) (rate(istio_request_duration_milliseconds_bucket{reporter="destination", namespace="robot-shop", destination_workload="ratings", le="500"}[2m]))
+              / sum by (namespace) (rate(istio_request_duration_milliseconds_count{reporter="destination", namespace="robot-shop", destination_workload="ratings"}[2m]))
+              > 0.10
+            )
+            and on (namespace)
+            (sum by (namespace) (increase(istio_request_duration_milliseconds_count{reporter="destination", namespace="robot-shop", destination_workload="ratings"}[2m])) >= 30)
+          for: 2m
+          labels:
+            severity: warning
+            service: ratings
+          annotations:
+            summary: "{{ $value | humanizePercentage }} of ratings lookups took longer than 0.5 seconds"

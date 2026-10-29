@@ -1,0 +1,13 @@
+== final status 2026-10-28T19:09:23+05:30
+bash infra/azure/scenario-02/cart-oom-kill.sh status
+RESULT: fault not active (cart runs at the chart's allowance, no out-of-memory kills recorded)
+exit=0
+bash infra/azure/scenario-03/db-latency.sh status
+RESULT: fault not active
+exit=0
+== load
+load   1/1   1     1     13d
+== shop traffic query
+{"status":"success","data":{"resultType":"vector","result":[{"metric":{},"value":[1793194770.064,"20.954396749996214"]}]}}
+== alerts
+{"status":"success","data":{"alerts":[]}}

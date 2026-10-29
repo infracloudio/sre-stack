@@ -1,0 +1,2 @@
+== 2026-10-28T16:22:52+05:30 shop traffic query (check 7 step 5, taken after the rule apply)
+{"status":"success","data":{"resultType":"vector","result":[{"metric":{},"value":[1793184772.892,"18.333333333333332"]}]}}

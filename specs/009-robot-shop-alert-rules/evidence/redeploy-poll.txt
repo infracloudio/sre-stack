@@ -1,0 +1,29 @@
+== redeploy check start 2026-10-28T16:52:57+05:30
+deployment.apps/cart restarted
+Waiting for deployment "cart" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "cart" rollout to finish: 1 old replicas are pending termination...
+deployment "cart" successfully rolled out
+== cart rollout done 2026-10-28T16:53:20+05:30
+2026-10-28T16:53:20+05:30 alerts=[]
+2026-10-28T16:54:20+05:30 alerts=[]
+2026-10-28T16:55:20+05:30 alerts=[]
+deployment.apps/shipping restarted
+Waiting for deployment "shipping" rollout to finish: 0 out of 1 new replicas have been updated...
+Waiting for deployment "shipping" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "shipping" rollout to finish: 1 old replicas are pending termination...
+deployment "shipping" successfully rolled out
+== shipping rollout done 2026-10-28T16:57:07+05:30
+2026-10-28T16:57:07+05:30 alerts=[('RobotShopReplicasUnavailable', 'pending')]
+2026-10-28T16:58:07+05:30 alerts=[]
+2026-10-28T16:59:08+05:30 alerts=[]
+2026-10-28T17:00:08+05:30 alerts=[]
+2026-10-28T17:01:08+05:30 alerts=[]
+2026-10-28T17:02:08+05:30 alerts=[]
+2026-10-28T17:03:08+05:30 alerts=[]
+2026-10-28T17:04:09+05:30 alerts=[]
+2026-10-28T17:05:09+05:30 alerts=[]
+2026-10-28T17:06:09+05:30 alerts=[]
+2026-10-28T17:07:09+05:30 alerts=[]
+2026-10-28T17:08:09+05:30 alerts=[]
+2026-10-28T17:09:09+05:30 alerts=[]
+== redeploy check end 2026-10-28T17:10:09+05:30

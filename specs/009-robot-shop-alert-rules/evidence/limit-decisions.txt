@@ -1,0 +1,2 @@
+== T028 2026-10-28T19:05:39+05:30
+No limit changes were needed from the live checks. The both-faults shipping gap was a test-design finding (research Finding 9), not a limit problem, and the developer accepted it.

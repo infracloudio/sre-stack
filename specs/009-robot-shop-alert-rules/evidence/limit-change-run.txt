@@ -1,0 +1,38 @@
+== T029 limit change start 2026-10-28T19:05:48+05:30 (ratings 0.10 -> 0.12)
+NAME                   	NAMESPACE 	REVISION	UPDATED                                	STATUS  	CHART                         	APP VERSION
+alloy                  	monitoring	2       	2026-10-28 16:19:21.981036249 +0530 IST	deployed	alloy-1.13.0                  	v1.20.0    
+beyla                  	monitoring	2       	2026-10-28 16:19:36.664643966 +0530 IST	deployed	beyla-1.16.11                 	3.32.0     
+caretta                	monitoring	2       	2026-10-28 16:19:43.447422063 +0530 IST	deployed	caretta-0.0.16                	v0.0.16    
+loki                   	monitoring	2       	2026-10-28 16:19:14.292413569 +0530 IST	deployed	loki-18.13.7                  	3.7.8      
+opentelemetry-collector	monitoring	1       	2026-10-14 16:41:36.600469376 +0530 IST	deployed	opentelemetry-collector-0.81.2	0.94.0     
+prometheus-stack       	monitoring	4       	2026-10-28 16:18:41.467594719 +0530 IST	deployed	kube-prometheus-stack-52.0.0  	v0.68.0    
+tempo                  	monitoring	2       	2026-10-28 16:19:30.595176791 +0530 IST	deployed	tempo-3.1.0                   	3.1.0      
+kubectl apply -f infra/azure/alert-rules/robot-shop-alerts.yaml
+prometheusrule.monitoring.coreos.com/robot-shop-alerts configured
+exit=0
+2026-10-28T19:05:49+05:30 new-limit-seen=0
+2026-10-28T19:05:59+05:30 new-limit-seen=0
+2026-10-28T19:06:09+05:30 new-limit-seen=0
+2026-10-28T19:06:19+05:30 new-limit-seen=0
+2026-10-28T19:06:30+05:30 new-limit-seen=0
+2026-10-28T19:06:40+05:30 new-limit-seen=0
+2026-10-28T19:06:50+05:30 new-limit-seen=0
+2026-10-28T19:07:00+05:30 new-limit-seen=1
+== restore 2026-10-28T19:07:06+05:30
+162:              > 0.10
+kubectl apply -f infra/azure/alert-rules/robot-shop-alerts.yaml
+prometheusrule.monitoring.coreos.com/robot-shop-alerts configured
+exit=0
+2026-10-28T19:07:07+05:30 restored-limit-seen=0
+2026-10-28T19:07:17+05:30 restored-limit-seen=0
+2026-10-28T19:07:27+05:30 restored-limit-seen=0
+2026-10-28T19:07:37+05:30 restored-limit-seen=0
+2026-10-28T19:07:47+05:30 restored-limit-seen=0
+2026-10-28T19:07:57+05:30 restored-limit-seen=0
+2026-10-28T19:08:07+05:30 restored-limit-seen=0
+2026-10-28T19:08:18+05:30 restored-limit-seen=0
+2026-10-28T19:08:28+05:30 restored-limit-seen=0
+2026-10-28T19:08:38+05:30 restored-limit-seen=0
+2026-10-28T19:08:48+05:30 restored-limit-seen=0
+2026-10-28T19:08:58+05:30 restored-limit-seen=0
+Note: Prometheus shows the 0.10 limit as '> 0.1' in the rules API (same value). After the restore the API showed '> 0.1)'. The first grep check used '> 0.10' and so reported 0, which was a bad search string, not a failed restore.

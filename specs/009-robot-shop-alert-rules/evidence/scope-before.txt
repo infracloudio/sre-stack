@@ -1,0 +1,68 @@
+== 2026-10-28T16:18:07+05:30 committed branch changes vs main
+.claude/skills/story-cost/SKILL.md
+.opencode/commands/story-cost.md
+.specify/extensions.yml
+docs/architectural-decisions.md
+specs/009-robot-shop-alert-rules/checklists/requirements.md
+specs/009-robot-shop-alert-rules/contracts/alert-rules.md
+specs/009-robot-shop-alert-rules/cost.md
+specs/009-robot-shop-alert-rules/data-model.md
+specs/009-robot-shop-alert-rules/plan.md
+specs/009-robot-shop-alert-rules/quickstart.md
+specs/009-robot-shop-alert-rules/research.md
+specs/009-robot-shop-alert-rules/spec.md
+specs/009-robot-shop-alert-rules/tasks.md
+specs/009-robot-shop-alert-rules/usage.tsv
+== unstaged
+AGENTS.md
+README.md
+docs/architectural-decisions.md
+makefile
+== staged
+== untracked
+infra/azure/alert-rules/robot-shop-alerts.yaml
+specs/009-robot-shop-alert-rules/evidence/lint-before.txt
+specs/009-robot-shop-alert-rules/evidence/quickstart-run.txt
+specs/009-robot-shop-alert-rules/evidence/scope-before.txt
+specs/009-robot-shop-alert-rules/evidence/traffic-guards-rules.yaml
+specs/009-robot-shop-alert-rules/evidence/traffic-guards-test.txt
+specs/009-robot-shop-alert-rules/evidence/traffic-guards-test.yaml
+== shared-file diffs
+== makefile diff
+diff --git a/makefile b/makefile
+index 4eff881..bc9b74e 100644
+--- a/makefile
++++ b/makefile
+@@ -28,6 +28,7 @@ help:
+ 	@echo "	setup-aks-loki                    - Setup Loki (AKS-specific chart and values)"
+ 	@echo "	setup-aks-log-shipper             - Setup the Grafana Alloy log shipper (AKS)"
+ 	@echo "	setup-aks-o11y-routes             - Apply the observability routes and scrape configs (AKS)"
++	@echo "	setup-aks-alert-rules             - Apply the robot-shop alert rules (AKS)"
+ 	@echo "	setup-aks-kiali                   - Setup Kiali (AKS, refuses when the mesh is not running)"
+ 	@echo "	aks-ratings-abort-start           - Start scenario 01 on AKS: ratings answers every request with error 500"
+ 	@echo "	aks-ratings-abort-status          - Report whether the scenario 01 ratings fault is active (AKS, changes nothing)"
+@@ -202,7 +203,7 @@ endif
+ # addons/ folder (that shared apply stays EKS/local's). This coupling is
+ # recorded in docs/architectural-decisions.md (AD for story 002): a file
+ # added to that folder later does not automatically reach AKS.
+-setup-aks-o11y: setup-db-grafana-psql setup-aks-prometheus-stack setup-aks-loki setup-aks-log-shipper setup-aks-o11y-routes setup-dashboards setup-aks-tempo setup-aks-beyla setup-aks-caretta
++setup-aks-o11y: setup-db-grafana-psql setup-aks-prometheus-stack setup-aks-alert-rules setup-aks-loki setup-aks-log-shipper setup-aks-o11y-routes setup-dashboards setup-aks-tempo setup-aks-beyla setup-aks-caretta
+ 
+ # Same chart pin as setup-kube-prometheus-stack, plus the AKS-only overlay
+ # (specs/005): it fixes the Tempo datasource URL (:3200) and adds the
+@@ -240,6 +241,15 @@ setup-aks-log-shipper:
+ setup-aks-o11y-routes:
+ 	bash $(CLUSTER_SCRIPT_PATH)/setup-aks-o11y-routes.sh
+ 
++# Alert rules for the demo shop (specs/009-robot-shop-alert-rules). The
++# PrometheusRule type comes from the monitoring chart, so run this after it.
++# Edit the rule file and run this again to change a limit; no chart upgrade.
++setup-aks-alert-rules:
++ifneq ($(STACK_MODE),aks)
++	$(error setup-aks-alert-rules needs STACK_MODE=aks (currently '$(STACK_MODE)'))
++endif
++	kubectl apply -f infra/azure/alert-rules/robot-shop-alerts.yaml
++
+ # Separate from setup-aks-o11y on purpose (FR-013): it refuses when the mesh
+ # is not actually running, instead of failing the core stack.
+ setup-aks-kiali:

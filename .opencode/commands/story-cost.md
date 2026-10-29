@@ -1,5 +1,5 @@
 ---
-description: Record the tokens and dollars this Spec Kit story has used. Use after /speckit.implement or /speckit.converge, or when asked what a story cost.
+description: Record the tokens and dollars this Spec Kit story has used. Use after /speckit.specify, /speckit.tasks, /speckit.analyze, /speckit.implement or /speckit.converge, or when asked what a story cost.
 ---
 
 Writes `specs/<story>/usage.tsv` and `specs/<story>/cost.md` from the local
