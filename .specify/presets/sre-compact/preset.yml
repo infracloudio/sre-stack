@@ -1,0 +1,49 @@
+schema_version: "1.0"
+preset:
+  id: sre-compact
+  name: SRE compact workflow
+  version: "1.0.0"
+  description: Compact artifacts with the project research, approval and hook contract.
+requires:
+  speckit_version: "==1.2.4"
+provides:
+  templates:
+    - type: command
+      name: speckit.specify
+      file: commands/specify.md
+    - type: command
+      name: speckit.plan
+      file: commands/plan.md
+    - type: command
+      name: speckit.tasks
+      file: commands/tasks.md
+    - type: command
+      name: speckit.analyze
+      file: commands/analyze.md
+    - type: command
+      name: speckit.implement
+      file: commands/implement.md
+    - type: command
+      name: speckit.converge
+      file: commands/converge.md
+    - type: command
+      name: speckit.clarify
+      file: commands/clarify.md
+    - type: command
+      name: speckit.checklist
+      file: commands/checklist.md
+    - type: command
+      name: speckit.constitution
+      file: commands/constitution.md
+    - type: command
+      name: speckit.taskstoissues
+      file: commands/taskstoissues.md
+    - type: template
+      name: spec-template
+      file: templates/spec-template.md
+    - type: template
+      name: plan-template
+      file: templates/plan-template.md
+    - type: template
+      name: tasks-template
+      file: templates/tasks-template.md

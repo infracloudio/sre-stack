@@ -444,7 +444,9 @@ per person and per clone.
 2. **Open the repo in your agent** (Claude Code, Codex, OpenCode, Devin).
    It reads `AGENTS.md` on its own; the `/speckit-*` commands are already
    committed for all four harnesses. Refresh one with
-   `specify integration upgrade <harness> --force` when Spec Kit is bumped.
+   `python3 agent/spec-kit/refresh.py --upgrade` when Spec Kit is bumped,
+   then `python3 agent/spec-kit/refresh.py --check`. Edit `agent/spec-kit/`
+   sources; generated harness commands must not be edited by hand.
 3. **The constitution** is `.specify/memory/constitution.md`, version
    1.0.0. Amend it by PR with `/speckit-constitution`; someone other than
    the author approves.
@@ -476,3 +478,32 @@ per person and per clone.
 | 0.3 | 2026-09-04 | Labels namespaced (`intent:accepted`, `gate:*`); command names match the installed harness spelling; constitution 1.0.0 ratified |
 | 0.4 | 2026-09-10 | Converge moved before review to match upstream Spec Kit: Step 6 converges on the branch and loops with implement; Step 7 reviews and merges |
 | 0.5 | 2026-09-11 | Added session boundaries, implementation batching and handoffs, with upstream guidance and user reports |
+
+## Compact workflow maintenance
+
+Spec Kit is pinned to 1.2.4. The supported `sre-compact` preset lives in
+`agent/spec-kit/preset/`; shared rules and accounting guidance live beside it.
+For source edits run `python3 agent/spec-kit/refresh.py`, then run it with
+`--check` to regenerate a temporary copy and detect drift across Claude Code,
+Codex, OpenCode and Devin. The script activates each integration and restores
+the prior default (currently Claude). It preserves stories, extensions and the feature pointer.
+
+Future spec/plan/tasks target 400/600/600 words, one approved section at a time.
+For example, plan.md links research output instead of pasting it again, but
+keeps the actual reviewer command. Research before specification (VIII),
+section approval (IX), independent gates and one-round convergence (X) remain
+mandatory. Full command output and concrete acceptance examples survive any
+word target. Existing stories do not need conversion.
+
+Five mandatory posthooks execute `make story-cost` directly before completion;
+manual story-cost aliases for all four harnesses come from the shared source.
+Only Claude Code/OpenCode logs are collected. Codex/Devin accounting is
+unavailable, never zero or complete cross-harness accounting. Preserve log
+retention and warnings described in `agent/spec-kit/story-cost.md`.
+
+`make lint` includes permanent offline parity and hook execution checks.
+`make speckit-check` also requires the installed Specify 1.2.4 CLI and checks
+regeneration drift offline. CI without that CLI explicitly skips regeneration
+while still checking all generated content. All real harnesses execute LLM
+prompts: these checks prove content parity and the shared hook runner, not
+identical model choices or actual compliance by every model.

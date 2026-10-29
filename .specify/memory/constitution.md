@@ -1,4 +1,10 @@
 <!--
+Sync Impact Report: 1.5.0 → 1.6.0 (MINOR: compact artifact guidance).
+Added Compact Artifacts; principles VIII–X remain unchanged.
+Project-owned source: agent/spec-kit; all four harnesses regenerate via CLI preset.
+Word targets never remove acceptance criteria, concrete examples or real evidence.
+-->
+<!--
 Sync Impact Report
 - Version change: 1.4.0 → 1.5.0 (MINOR: principle VIII research moved from
   /speckit-plan to /speckit-specify)
@@ -260,6 +266,17 @@ Upstream Spec Kit hit same loop from lifecycle side (issue #4269: repeated
 converge runs duplicating tasks) and is adding prerequisite gate; rules
 above are scope half of that boundary.
 
+## Compact Artifacts
+
+Future stories target 400 words for spec.md, 600 for plan.md and 600 for
+tasks.md. These are targets, not limits: preserve acceptance criteria, concrete
+examples, required research and full actual evidence. Link research.md and
+evidence instead of repeating them. For example, plan.md names the reviewer
+command while research.md keeps its complete output. Plans retain actual paths
+and reviewer-facing commands. Tasks begin with Now and retain stable IDs.
+Existing stories, evidence, IDs and approvals require no migration.
+Authoring approval, real research and convergence limits in VIII–X still apply.
+
 ## Verification and Evidence
 
 - `make lint` run for every change and its actual output reported. "Should
@@ -300,4 +317,4 @@ principle, MINOR for adding one or materially expanding guidance, PATCH for
 wording. When mistake happen twice it become rule here, checklist line, or
 hook.
 
-**Version**: 1.5.0 | **Ratified**: 2026-09-04 | **Last Amended**: 2026-10-23
+**Version**: 1.6.0 | **Ratified**: 2026-09-04 | **Last Amended**: 2026-10-29

@@ -481,8 +481,15 @@ lint:
 	@bash agent/tests/azure/check-o11y-routes-offline.sh
 	@bash agent/hooks/check-speckit-version.sh
 	@bash agent/tools/loom.sh --check
+	@python3 agent/tests/spec-kit/test_compact.py
 	@bash agent/tests/story-cost/run-tests.sh
 	@bash agent/tools/story-cost.sh --check
+
+speckit-refresh:
+	@python3 agent/spec-kit/refresh.py
+
+speckit-check:
+	@python3 agent/spec-kit/refresh.py --check
 
 story-cost:
 	@bash agent/tools/story-cost.sh $(if $(STORY),--story $(STORY))
