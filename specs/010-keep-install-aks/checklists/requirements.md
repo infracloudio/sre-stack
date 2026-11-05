@@ -6,7 +6,7 @@
 
 ## Content Quality
 
-- [x] No implementation details (languages, frameworks, APIs). Scan for tool, command and file names: `kubectl` and "chart" were removed. Left on purpose: the `keep-` secret-name prefix (Problem and one edge case), because the prefix is the behavior being described, and the AD-008 reference.
+- [x] No implementation details (languages, frameworks, APIs). Scan for tool, command and file names: `kubectl` and "chart" were removed. Left on purpose: the `keep-` secret-name prefix (Problem and one edge case), because the prefix is the behavior being described, and the AD-008 reference. Also left on purpose from 2026-11-05: the Secret names and keys (`sre-keep-db`, `DATABASE_CONNECTION_STRING`, `mysql-root-password`, `sre-keep-ai-env`, `fireworks.key`) and the image digests, because AD-008, AD-013 and AD-016 bind them.
 - [x] Focused on user value and business needs
 - [x] Written for non-technical stakeholders
 - [x] All mandatory sections completed
@@ -27,7 +27,7 @@
 - [x] All functional requirements have clear acceptance criteria. FR-005 and FR-006 had none; SC-008 (standard storage) and SC-009 (no secret value in files, secrets check passes) were added on 2026-10-29 at the developer's go-ahead and are cross-referenced from the requirements.
 - [x] User scenarios cover primary flows
 - [x] Feature meets measurable outcomes defined in Success Criteria
-- [x] No implementation details leak into specification
+- [x] No implementation details leak into specification, except the bound Secret names, keys and image digests listed under Content Quality
 
 ## Notes
 
@@ -36,6 +36,12 @@ Passing is not the same as proven:
 - Proven by hand in research on the real cluster (`research.md`, Findings 6 to 8), not yet by the command: four parts Running, password refused when empty, secrets surviving removal, empty database after reinstall, no usage reports from server or browser.
 - Not proven anywhere, implementation must prove: FR-008 (second run changes nothing), FR-009 (missing key file), edge cases 1, 2, 3 and 6, and the monitoring-machine headroom (seen, not measured).
 - The 5-minute target in SC-001 is a target. Research installs reached Running in about 80 to 115 seconds.
-- Departures from the accepted issue #123: the busybox pin is narrowed to a known limit, and the login stays in story 6a. Both were decided by the developer on 2026-10-29. The issue text has not been edited.
-- Length is about 1,750 words against the 400-word target. The rules say targets never override acceptance criteria, and each section was approved as written.
+- Departures from the accepted issue #123: the login stays in story 6a (decided by the developer on 2026-10-29). The busybox pin is no longer narrowed: the AD-013 override renders (research.md Finding 9, a developer decision after Architect consultation, not an Architect approval, 2026-11-05). The issue text still carries the older wording and needs updating before `gate:spec-approved`.
+- Verified by rendered Helm output (`helm template`, dummy values, research.md Findings 9, 11, 13 and 14): the busybox override and the unpinned default it replaces, the hook image line, the MySQL digest line, the database Secret keys and `items` restriction, and the backend `secretKeyRef` for `OPENAI_API_KEY`.
+- Supported by registry metadata or image contents, not executed (Findings 10, 12): the digests of `alpine/k8s:1.34.11`, `busybox:1.38.0` and `mysql:8.4.13`; the presence of `sh`, `grep`, `xargs`, `kubectl` and `nc` in the layers; the October smoke test of the Fireworks model.
+- Source read at the pinned versions, not executed (Findings 15, 16): the chart gives one ServiceAccount to every Keep pod and the cleanup hook, and the Role is bound to it; the backend's Kubernetes secret store needs Secret rights; the frontend route's OpenAI SDK reads `OPENAI_BASE_URL` from the environment (openai 4.86.2); the backend's Secret code does not appear to call list, but the existing cleanup hook's `kubectl get secrets` does, and the chart exposes no setting to change the Role (Finding 17). Separate Roles through post-render are untested.
+- Source read and RBAC documentation read, not executed (Findings 18, 19): RBAC cannot narrow the cleanup hook's or the backend's Secret grants to `keep-*` names, so the residual namespace-wide Secret access remains under any design considered; the optional MySQL cleanup CronJob is disabled by default and would expect a passwordless root login.
+- Still requires runtime validation on the cluster or in a running container: the second run changing nothing (FR-008), the missing key file (FR-009), the hook actually deleting `keep-*` Secrets with `alpine/k8s` (kubectl not executed), the busybox init container waiting on `keep-database`, `OPENAI_BASE_URL` reaching Fireworks, the thinking-only token limit, the `sre-keep-ai-env` Secret surviving uninstall (issue live check 2), the frontend key staying out of browser code at runtime, and, for the ServiceAccount decision, whether the hook still deletes `keep-*` Secrets and reports failure without `list` (Finding 17) and whether any non-backend pod works with no token. Also still to test: whether an operator-run cleanup outside the cluster can replace the in-cluster hook (Finding 18), and whether the optional MySQL cleanup job fails under the root password (Finding 19).
+- Open before `gate:spec-approved`: the web page's copy of the AI key and its `OPENAI_BASE_URL` and `OPENAI_MODEL_NAME` (spec Open questions), AD-016 acceptance (Proposed; it covers the proposed exception that keeps `fireworks.key`, which needs Architect acceptance), and the shared ServiceAccount decision (AD-016, "Open for Architect"). Nothing in AD-016 is adopted until the Architect accepts it.
+- Length is about 1,750 words against the 400-word target. The rules say targets never override acceptance criteria. The developer reviewed each section during drafting. This is developer review only, not approval. Architect approval and `gate:spec-approved` are still pending.
 - Not verified: whether the web page sends error reports to a third party. It is named in Known limits.

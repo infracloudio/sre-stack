@@ -987,3 +987,79 @@ pass over the Keep alert-management SPEC (epic #91, CAP-1); chart
 - One configuration surface. Limits for the shop alerts now sit in a monitoring file, not with the other tunable settings in `.env`.
 - The simpler 95th-percentile rule. The share rule needs a request-count guard and a short explanation for each limit.
 - Each limit rests on one run plus the verification run. Changes must be written down with a new finding (plan, "What counts as pass").
+
+## AD-016: Keep AI key wiring, explicit secret references, one Secret per consumer
+
+**Date**: 2026-11-05 · **Status**: Proposed. Nothing in this record is adopted until the Architect accepts it · **Raised by**: story #123, `specs/010-keep-install-aks/research.md` Findings 11 and 14.
+
+### Decision
+
+1. **Backend AI key.** `OPENAI_API_KEY` is set in `backend.env` with the chart's `secretKeyRef` form, reading Secret `sre-keep-ai-env`, key `fireworks.key`. This is a **proposed exception to AD-008** (rule 3: Secrets are wired through `envFromSecrets`; rule 2: Secret keys are named after the environment variable they become). The key name `fireworks.key` was chosen by the developer. That choice is not an Architect approval of the exception, and no approval is recorded yet.
+2. **Web page AI key (Proposed: requires the developer's choice and Architect acceptance).** Secret `sre-keep-ai-frontend`, key `OPEN_AI_API_KEY`, built by the install step from the same `fireworks.key` file, loaded through `frontend.envFromSecrets`. The chart's frontend env accepts no `secretKeyRef`. This adds a second Secret copy of one file, the same copy pattern AD-008 already uses for Alertmanager. If the developer chooses no key on the page, this point is withdrawn. If the key is enabled, the web page also needs `OPENAI_BASE_URL=https://api.fireworks.ai/inference/v1` and `OPENAI_MODEL_NAME` set to the verified model identifier. The route creates the SDK client without a base URL, so the SDK reads `OPENAI_BASE_URL` from the environment (research.md Finding 16). Runtime behaviour is not yet tested.
+3. **No other change.** The busybox override and the cleanup image follow AD-013 point 3 and need no entry. The database Secret keys and the root-password mount follow AD-013 point 4.
+
+### Why
+
+- Chart 0.1.97's `envFromSecrets` loads each key as an environment variable named after the key. `fireworks.key` is not a valid variable name. The `secretKeyRef` form in `backend.env` renders correctly (research Finding 11).
+- Chart 0.1.97's frontend env renders values only, so the page cannot read `fireworks.key` at all.
+- The page's AI route runs on the server, and the browser receives only a yes-or-no flag. A server-side Secret keeps the value out of browser code.
+
+### What we gave up
+
+- AD-008 rules 2 and 3 would not be followed for the Fireworks key. Keeping `fireworks.key` is a proposed exception and needs Architect acceptance before the install step is built on it.
+- The Fireworks key exists on the cluster in two Secrets if point 2 is accepted. Both come from one file in one install run, so they cannot drift, but both must be rotated together.
+- A reader of the values file cannot see the key from the values alone. The Secret name and key are the only references.
+
+### Open for Architect: shared ServiceAccount with Secret rights
+
+Not decided here. Research Finding 15 shows the following for chart 0.1.97:
+
+- One ServiceAccount is shared by the backend, database, frontend, websocket and the cleanup hook. The chart has no per-component setting.
+- The Role grants create, delete, get, list and patch on Secrets in the namespace. It is bound to that ServiceAccount, and both files are ungated.
+- The backend needs `create`, `get`, `patch` and `delete` on Secrets, because the chart sets `SECRET_MANAGER_TYPE` to `k8s`. So Secret rights cannot be removed from the backend without changing Keep's behaviour.
+- Pods automount the ServiceAccount token, and the chart offers no value to turn that off.
+- Setting `serviceAccount.create: false` with no name binds the Role to the namespace's `default` ServiceAccount. This must not be used.
+
+The risk: any compromised Keep pod, including the web page or websocket server, can read, change or delete Secrets in the namespace, including `sre-keep-db` and `sre-keep-ai-env`.
+
+**The `list` verb (research Finding 17).** Three facts, each with its evidence level:
+
+- The backend source does not appear to require `list`. Its Kubernetes secret manager uses create, patch, read (the `get` verb) and delete on Secrets (source read).
+- The existing cleanup hook does require `list`, because `kubectl get secrets -o name` is a collection read (rendered template; standard Kubernetes RBAC). Its shell has no `set -e`, so, on a source reading, a refused list would likely leave the hook reporting success with nothing deleted. Not tested on the cluster.
+- The chart exposes no values setting for the Role. Removing `list` from the single shared Role would therefore break the hook as written.
+
+Removing `list` from one shared Role is not the only possible approach. Option 2 gives the hook its own Role with `list`. That has not been tested.
+
+**Post-render recommendation: none yet.** Separating identities is only worth recommending once these are validated on a throwaway cluster namespace:
+
+- Each non-backend pod (database, frontend, websocket) starts and works with no ServiceAccount token. The source read so far finds no Kubernetes API use in the frontend, the websocket server or MySQL, but that is not a runtime test.
+- The backend keeps its token and Secret rights, and its secret manager still works.
+- The cleanup hook has a ServiceAccount with `get`, `list` and `delete` on Secrets, and it deletes only `keep-*` Secrets. Its own pod identity needs the token.
+- Whether any pod receives an API credential some other way has not been checked. The rendered pod specs were read for `automountServiceAccountToken` only.
+
+Options for the Architect:
+
+1. **Accept the chart's shared identity** and record the risk in the spec (already done in Known limits). Keep the chart values as they are.
+2. **Post-render separation (proposed design, not adopted, not tested).** A post-render step replaces the chart's single Role and RoleBinding with separate ones, one per identity:
+   - Backend ServiceAccount: a Role with `create`, `get`, `patch` and `delete` on Secrets.
+   - Cleanup hook ServiceAccount: a Role with `get`, `list` and `delete` on Secrets.
+   - Frontend: no Kubernetes Secret permissions.
+   - Websocket and database: no Kubernetes Secret permissions, subject to runtime validation.
+
+   Token automount is turned off only for pods whose runtime validation passes. Because this is outside chart values, it needs its own decision record and a re-check at each chart upgrade.
+3. **`helm uninstall --no-hooks` with an explicit cleanup step.** This removes the hook pod from the lifecycle. Our uninstall step must then remove any Keep-written Secrets itself, and this is untested.
+
+### Residual risk that separation does not remove
+
+Separation does not eliminate the Secret-access risk. Kubernetes RBAC cannot narrow these grants to `keep-*` names (research Finding 18; RBAC documentation read through context7, not re-fetched from the live site):
+
+- `resourceNames` cannot restrict `deletecollection` or a top-level `create`. A `list` can be restricted only when the client sends a matching `metadata.name` field selector. The names of Secrets written by Keep's backend are supplied at run time, so they cannot be listed in a Role in advance. RBAC has no prefix or wildcard matching on names, as far as the documented examples show.
+- The cleanup hook's Role keeps `get`, `list` and `delete` on every Secret in the namespace. A compromised hook pod could read `sre-keep-db` and `sre-keep-ai-env` and delete them. The hook pod runs a third-party image as root (Finding 10).
+- The backend's Role keeps `create`, `get`, `patch` and `delete` on every Secret in the namespace, so a compromised backend could read (`get`), change or delete `sre-keep-db`.
+- Any identity that can create a pod in the namespace can use these ServiceAccounts.
+
+**Possible redesign, not established as safe or tested.** Remove the in-cluster hook, and run the Secret cleanup from the operator's own kubeconfig as part of our uninstall step (option 3 above). This moves the broad permission to the operator, whose access to the namespace is already broad. Whether this is acceptable is for the Architect.
+
+### Optional MySQL cleanup CronJob
+
+The chart's MySQL cleanup CronJob is disabled by default (`database.cleanup.enabled: false`, `values.yaml:420`), and the install values do not enable it. Its template (`templates/db-cleanup-cronjob.yaml`) uses the shared ServiceAccount but makes no Kubernetes API calls, so it does not need the token. It connects as `root` without a password (`mysql -h keep-database -u root`). Source read, not run: once AD-013's root password is set, this login is expected to fail. Enabling it would need a credential change first. Under separation it can run with token automount off.
