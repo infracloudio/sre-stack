@@ -21,13 +21,13 @@ Installing Keep with its published defaults would not be safe for us:
 - Every image Keep's install uses is pinned to an exact version tag. The start-up wait container, the uninstall cleanup image and MySQL also carry an exact digest. No image uses `latest` or another floating tag.
 - The database has a password, created on the first run and reused after that. A login with no password is refused.
 - The database files sit on the same storage as the rest of the stack.
-- The AI key is kept in a secret in the cluster (`sre-keep-ai-env`, key `fireworks.key`), created at install time from a local file that is not in git. The backend reads it as its AI key. Keeping `fireworks.key` as the Secret key is a proposed exception to AD-008 and is not yet accepted (AD-016). Whether the web page gets its own copy is an open question below. Passwords never appear in git.
+- The AI key is kept in a secret in the cluster (`sre-keep-ai-env`, key `fireworks.key`), created at install time from a local file that is not in git. The backend reads it as its AI key. Keeping `fireworks.key` as the Secret key is a proposed exception to AD-008 and is not yet accepted (AD-016). The web page's copy of the key is a proposed configuration that needs Architect acceptance (see Open questions). Passwords never appear in git.
 - Removing Keep does not delete our own secrets. After a reinstall, the same database password still works.
 - Running the command a second time changes nothing and restarts nothing.
 - If the AI key file is missing, the command run on its own stops before touching the cluster and names the missing file. Inside the full Azure setup, it skips Keep with a message and the rest of the setup finishes.
 - Keep's page opens from a laptop through a temporary connection. There is no login yet; story 6a adds it.
 
-**Known limits.** Removing Keep deletes its saved data, so a reinstall starts empty. The cleanup image that runs on removal is a third-party image pinned by digest, so moving to a newer one is a deliberate change. All Keep pods and the cleanup job share one ServiceAccount. The chart binds that ServiceAccount to `create`, `get`, `list`, `patch` and `delete` on Secrets across the whole namespace, and offers no per-pod identity. The backend needs `create`, `get`, `patch` and `delete` for Keep's Kubernetes secret store, and the cleanup hook needs `get`, `list` and `delete`. A compromised Keep pod, including the web page or websocket server, could therefore read or change the database Secret. Whether to accept this or separate the identities is open for the Architect (AD-016; research.md Finding 15). The existing cleanup hook needs the `list` verb. The chart offers no setting to change the Role, and a shared Role without `list` would likely make the hook fail without a failed job (source read; not run). Separate Roles through a post-render step are one option, not yet tested (research.md Finding 17). Even with separate Roles, the cleanup hook and the backend keep namespace-wide Secret access that RBAC cannot narrow to `keep-*` names (research.md Finding 18). That residual risk is open for the Architect.
+**Known limits.** Removing Keep deletes its saved data, so a reinstall starts empty. The cleanup image `alpine/k8s:1.34.11` is a third-party image that runs as root (its image configuration sets no user). This introduces a security and software supply-chain risk. Pinning the image by digest fixes which image bytes run. It does not eliminate this risk. Explicit Architect acknowledgement is requested and remains outstanding (research.md Finding 10; AD-016). All Keep pods and the cleanup job share one ServiceAccount. The chart binds that ServiceAccount to `create`, `get`, `list`, `patch` and `delete` on Secrets across the whole namespace, and offers no per-pod identity. The backend needs `create`, `get`, `patch` and `delete` for Keep's Kubernetes secret store, and the cleanup hook needs `get`, `list` and `delete`. A compromised Keep pod sharing this ServiceAccount, including the web page or websocket server, could potentially access or modify Secrets belonging to other components, including `sre-keep-db` and `sre-keep-ai-env`. These permissions are namespace-wide, not restricted to Secrets beginning with `keep-`. The developer has selected retaining the shared ServiceAccount for the initial implementation, subject to Architect review (AD-016; research.md Finding 15). Retaining it does not mitigate this risk. The Architect's explicit acknowledgement of the residual risk is requested and is outstanding. The existing cleanup hook needs the `list` verb. The chart offers no setting to change the Role, and a shared Role without `list` would likely make the hook fail without a failed job (source read; not run). Separate Roles through a post-render step are one option, not yet tested (research.md Finding 17). Even with separate Roles, the cleanup hook and the backend keep namespace-wide Secret access that RBAC cannot narrow to `keep-*` names (research.md Finding 18). That residual risk is open for the Architect.
 
 ## Scope and must keep working
 
@@ -86,6 +86,7 @@ Installing Keep with its published defaults would not be safe for us:
 - **FR-009.** With the AI key file missing, the command on its own stops before changing the cluster and names the file; inside the full Azure setup it skips Keep with a message. (US3)
 - **FR-010.** Keep's page opens through a temporary connection, with no login. (US1.1)
 - **FR-011.** The existing setups, the other monitoring pods and the lint check keep working. (US1.5, Must keep working)
+- **FR-012.** The Keep web page is configured with `OPEN_AI_API_KEY` sourced from Secret `sre-keep-ai-frontend` (key `OPEN_AI_API_KEY`), `OPENAI_BASE_URL=https://api.fireworks.ai/inference/v1`, and `OPENAI_MODEL_NAME` set to the verified Fireworks model identifier documented in research.md Finding 12 (`accounts/fireworks/models/glm-5p3-flash`). The backend configuration is unchanged: Secret `sre-keep-ai-env`, key `fireworks.key`, environment variable `OPENAI_API_KEY` (FR-006). Acceptance: SC-010. (AD-016 point 2; proposed, not yet accepted by the Architect)
 
 **Success criteria**
 
@@ -98,6 +99,7 @@ Installing Keep with its published defaults would not be safe for us:
 - **SC-007.** With the key file missing, the command exits before any change to the cluster, and its message names the file.
 - **SC-008.** The database volume is on the stack's standard storage, shown by listing the volume after install.
 - **SC-009.** None of the files this story adds contains a secret value, and the repo's secrets check passes with them.
+- **SC-010.** Pass/fail, checked in the rendered Helm output of the values file (no cluster needed): the frontend container has an `envFrom` `secretRef` to Secret `sre-keep-ai-frontend`; its `env` contains `OPENAI_BASE_URL` with value `https://api.fireworks.ai/inference/v1` and `OPENAI_MODEL_NAME` with value `accounts/fireworks/models/glm-5p3-flash`; and the Secret built by the install step has a data key named `OPEN_AI_API_KEY`. Only key names are checked, and no secret value is printed. The same values must also be present on the running frontend pod after install. That runtime check is not yet run. (FR-012)
 
 ## Edge Cases
 
@@ -125,11 +127,16 @@ These are developer decisions made after consulting the Architect. They are not 
 - The database Secret names and keys follow AD-013, and the password is `openssl rand -hex 24`.
 - The Fireworks base URL is `https://api.fireworks.ai/inference/v1`, and the model is the one named in research.md Finding 12. The backend wiring that carries the key (`OPENAI_API_KEY` from `fireworks.key`) is proposed under AD-016, not accepted.
 
+**Developer decisions (2026-11-06), pending Architect review**
+
+- The chart's existing shared ServiceAccount is retained for the initial implementation, subject to Architect review. Post-render separation is not implemented, and no separate Roles or RoleBindings are introduced at this stage.
+- The residual namespace-wide Secret risk is recorded, not mitigated. Architect acknowledgement of it is outstanding.
+
 **Proposed, not accepted**
 
-- Keeping `fireworks.key` as the Secret key is a proposed exception to AD-008. It needs Architect acceptance (AD-016).
-- The web page's AI key, its Secret, and its base URL and model settings are open (see Open questions).
-- The ServiceAccount separation is open for the Architect (AD-016). No option is adopted.
+- Keeping `fireworks.key` as the Secret key is a proposed exception to AD-008, specific to the Fireworks Secret wiring. It needs Architect acceptance (AD-016).
+- The Fireworks Secrets are a proposed configuration. The backend Secret is `sre-keep-ai-env`, with key `fireworks.key` and environment variable `OPENAI_API_KEY`. The frontend Secret is `sre-keep-ai-frontend`, with key `OPEN_AI_API_KEY`, populated from the same local key file and loaded through `frontend.envFromSecrets`. The frontend also needs `OPENAI_BASE_URL` and `OPENAI_MODEL_NAME`. Both Secrets must be rotated together. This configuration needs Architect acceptance (see Open questions).
+- Post-render ServiceAccount separation and operator-run cleanup are untested alternatives. Neither is adopted.
 
 **Assumptions**
 
@@ -150,8 +157,8 @@ These are developer decisions made after consulting the Architect. They are not 
 - The model is thinking-only, so a small token limit returns empty answers. Keep's own AI calls on the cluster have not been tested, and the token limit they use is not yet checked (research.md Finding 12).
 - The optional MySQL cleanup job is disabled by default and is not enabled by the install values. If it were enabled, its passwordless root login would be expected to fail under the AD-013 root password (research.md Finding 19; source read, not run).
 
-**Open questions.** Three need an answer before the plan:
+**Open questions.** Three Architect decisions or acknowledgements are needed before the plan:
 
-- **The web page's copy of the AI key.** The page's AI route reads the key on the server only, and the browser sees only a yes-or-no flag. Either a second Secret, `sre-keep-ai-frontend` with key `OPEN_AI_API_KEY`, built from the same file (recommended), or no key on the page, which turns the page's AI features off. The chart cannot read `fireworks.key` on the page (research.md Finding 11). If the key is enabled, the page also needs `OPENAI_BASE_URL` and `OPENAI_MODEL_NAME` (research.md Finding 16). The proposal stays Proposed until the developer and the Architect accept it.
+- **The frontend Fireworks Secret.** The page's AI route reads the key on the server only, and the browser sees only a yes-or-no flag. The proposed configuration is a second Secret, `sre-keep-ai-frontend` with key `OPEN_AI_API_KEY`, populated from the same local key file and loaded through `frontend.envFromSecrets`, with `OPENAI_BASE_URL` and `OPENAI_MODEL_NAME` set on the frontend (research.md Findings 11 and 16). The chart cannot read `fireworks.key` on the page. The Architect's acceptance is needed. If it is not accepted, the alternative is no key on the page, which turns the page's AI features off.
 - **AD-016 (Proposed, requires Architect acceptance).** It covers the proposed exception that keeps `fireworks.key` as the Secret key, the backend key wiring, and the second Secret. Its acceptance is needed before the plan.
-- **Shared ServiceAccount.** Accept the chart's single identity with Secret rights, or separate the identities by a post-render step. The chart cannot separate them (research.md Finding 15). This is recorded as open in AD-016, and no option is adopted.
+- **Shared ServiceAccount and residual Secret risk.** The developer has selected retaining the chart's shared ServiceAccount for the initial implementation, subject to Architect review. The Architect must review it and explicitly acknowledge the residual namespace-wide Secret risk, which retaining the shared ServiceAccount does not mitigate (AD-016; research.md Finding 18). Post-render separation and operator-run cleanup remain untested alternatives. The chart cannot separate the identities through values (research.md Finding 15).

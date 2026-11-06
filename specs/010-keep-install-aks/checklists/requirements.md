@@ -14,8 +14,8 @@
 ## Requirement Completeness
 
 - [x] No [NEEDS CLARIFICATION] markers remain (count: 0)
-- [x] Requirements are testable and unambiguous (11 requirements)
-- [x] Success criteria are measurable (9 criteria; SC-005, SC-007, SC-008 and SC-009 are pass/fail, the rest have numbers)
+- [x] Requirements are testable and unambiguous (12 requirements)
+- [x] Success criteria are measurable (10 criteria; SC-005, SC-007, SC-008, SC-009 and SC-010 are pass/fail, the rest have numbers)
 - [x] Success criteria are technology-agnostic
 - [x] All acceptance scenarios are defined (3 stories, 10 scenarios)
 - [x] Edge cases are identified (6, closed at approval)
@@ -42,6 +42,28 @@ Passing is not the same as proven:
 - Source read at the pinned versions, not executed (Findings 15, 16): the chart gives one ServiceAccount to every Keep pod and the cleanup hook, and the Role is bound to it; the backend's Kubernetes secret store needs Secret rights; the frontend route's OpenAI SDK reads `OPENAI_BASE_URL` from the environment (openai 4.86.2); the backend's Secret code does not appear to call list, but the existing cleanup hook's `kubectl get secrets` does, and the chart exposes no setting to change the Role (Finding 17). Separate Roles through post-render are untested.
 - Source read and RBAC documentation read, not executed (Findings 18, 19): RBAC cannot narrow the cleanup hook's or the backend's Secret grants to `keep-*` names, so the residual namespace-wide Secret access remains under any design considered; the optional MySQL cleanup CronJob is disabled by default and would expect a passwordless root login.
 - Still requires runtime validation on the cluster or in a running container: the second run changing nothing (FR-008), the missing key file (FR-009), the hook actually deleting `keep-*` Secrets with `alpine/k8s` (kubectl not executed), the busybox init container waiting on `keep-database`, `OPENAI_BASE_URL` reaching Fireworks, the thinking-only token limit, the `sre-keep-ai-env` Secret surviving uninstall (issue live check 2), the frontend key staying out of browser code at runtime, and, for the ServiceAccount decision, whether the hook still deletes `keep-*` Secrets and reports failure without `list` (Finding 17) and whether any non-backend pod works with no token. Also still to test: whether an operator-run cleanup outside the cluster can replace the in-cluster hook (Finding 18), and whether the optional MySQL cleanup job fails under the root password (Finding 19).
-- Open before `gate:spec-approved`: the web page's copy of the AI key and its `OPENAI_BASE_URL` and `OPENAI_MODEL_NAME` (spec Open questions), AD-016 acceptance (Proposed; it covers the proposed exception that keeps `fireworks.key`, which needs Architect acceptance), and the shared ServiceAccount decision (AD-016, "Open for Architect"). Nothing in AD-016 is adopted until the Architect accepts it.
+- Pending before `gate:spec-approved` (see Decision status below): Architect acceptance of the frontend Fireworks Secret configuration (spec Open questions), AD-016 acceptance (Proposed; it covers the proposed exception that keeps `fireworks.key`, and the backend and frontend Fireworks wiring), and Architect review and explicit acknowledgement of the residual namespace-wide Secret risk under the shared ServiceAccount (AD-016; research.md Finding 18). Nothing in AD-016 is adopted until the Architect accepts it.
 - Length is about 1,750 words against the 400-word target. The rules say targets never override acceptance criteria. The developer reviewed each section during drafting. This is developer review only, not approval. Architect approval and `gate:spec-approved` are still pending.
 - Not verified: whether the web page sends error reports to a third party. It is named in Known limits.
+
+## Decision status
+
+Completed developer decisions (recorded in the documents; none is an Architect approval):
+
+- The start-up wait container is pinned through a values override, `busybox:1.38.0` by digest, as AD-013 point 3 sets (research.md Finding 9).
+- The cleanup image is `alpine/k8s:1.34.11` by digest (research.md Finding 10).
+- The database Secret names and keys follow AD-013, and the password is generated with `openssl rand -hex 24`.
+- The Fireworks base URL is `https://api.fireworks.ai/inference/v1`, and the model is the one named in research.md Finding 12.
+- The key name `fireworks.key` is kept for the backend Fireworks Secret (AD-016 point 1).
+- The chart's existing shared ServiceAccount is retained for the initial implementation, subject to Architect review (AD-016 point 4; research.md Finding 18). Post-render separation is not implemented.
+
+Pending Architect approval or acknowledgement (`gate:spec-approved` remains pending):
+
+- AD-016 acceptance. Its status is Proposed.
+- Acceptance of the proposed exception to AD-008 for the backend Fireworks Secret.
+- Acceptance of the frontend Fireworks Secret configuration (`sre-keep-ai-frontend`, key `OPEN_AI_API_KEY`, with `OPENAI_BASE_URL` and `OPENAI_MODEL_NAME`).
+- Architect review of the shared ServiceAccount and explicit acknowledgement of the residual namespace-wide Secret risk. Retaining the shared ServiceAccount does not mitigate this risk.
+- Explicit Architect acknowledgement of the cleanup image risk. The cleanup image `alpine/k8s:1.34.11` is a third-party image that runs as root (its image configuration sets no user). This introduces a security and software supply-chain risk. Pinning the image by digest does not eliminate it. The acknowledgement is requested and remains outstanding (research.md Finding 10; AD-016).
+- Acceptance of FR-012, the frontend configuration (`OPEN_AI_API_KEY` from Secret `sre-keep-ai-frontend`, `OPENAI_BASE_URL`, `OPENAI_MODEL_NAME`), tested by SC-010 (spec.md).
+
+Untested alternatives, not adopted: post-render ServiceAccount separation (AD-016 option 2) and operator-run cleanup outside the cluster (AD-016 option 3).
