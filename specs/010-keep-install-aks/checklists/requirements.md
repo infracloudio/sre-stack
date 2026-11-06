@@ -14,10 +14,10 @@
 ## Requirement Completeness
 
 - [x] No [NEEDS CLARIFICATION] markers remain (count: 0)
-- [x] Requirements are testable and unambiguous (12 requirements)
-- [x] Success criteria are measurable (10 criteria; SC-005, SC-007, SC-008, SC-009 and SC-010 are pass/fail, the rest have numbers)
+- [x] Requirements are testable and unambiguous (13 requirements, FR-001 to FR-013)
+- [x] Success criteria are measurable (11 criteria, SC-001 to SC-011; SC-005, SC-007, SC-008, SC-009, SC-010 and SC-011 are pass/fail, the rest have numbers)
 - [x] Success criteria are technology-agnostic
-- [x] All acceptance scenarios are defined (3 stories, 10 scenarios)
+- [x] All acceptance scenarios are defined (3 stories, 11 scenarios)
 - [x] Edge cases are identified (6, closed at approval)
 - [x] Scope is clearly bounded (6 out-of-scope items)
 - [x] Dependencies and assumptions identified
@@ -33,16 +33,16 @@
 
 Passing is not the same as proven:
 
-- Proven by hand in research on the real cluster (`research.md`, Findings 6 to 8), not yet by the command: four parts Running, password refused when empty, secrets surviving removal, empty database after reinstall, no usage reports from server or browser.
+- Proven by hand in research on the real cluster (`research.md`, Findings 6 to 8), not yet by the command: four parts Running, password refused when empty, secrets surviving removal, empty database after reinstall, no usage reports from server or browser. Finding 6 used a cleanup hook image that is no longer selected; that is historical evidence.
 - Not proven anywhere, implementation must prove: FR-008 (second run changes nothing), FR-009 (missing key file), edge cases 1, 2, 3 and 6, and the monitoring-machine headroom (seen, not measured).
 - The 5-minute target in SC-001 is a target. Research installs reached Running in about 80 to 115 seconds.
-- Departures from the accepted issue #123: the login stays in story 6a (decided by the developer on 2026-10-29). The busybox pin is no longer narrowed: the AD-013 override renders (research.md Finding 9, a developer decision after Architect consultation, not an Architect approval, 2026-11-05). The issue text still carries the older wording and needs updating before `gate:spec-approved`.
-- Verified by rendered Helm output (`helm template`, dummy values, research.md Findings 9, 11, 13 and 14): the busybox override and the unpinned default it replaces, the hook image line, the MySQL digest line, the database Secret keys and `items` restriction, and the backend `secretKeyRef` for `OPENAI_API_KEY`.
-- Supported by registry metadata or image contents, not executed (Findings 10, 12): the digests of `alpine/k8s:1.34.11`, `busybox:1.38.0` and `mysql:8.4.13`; the presence of `sh`, `grep`, `xargs`, `kubectl` and `nc` in the layers; the October smoke test of the Fireworks model.
-- Source read at the pinned versions, not executed (Findings 15, 16): the chart gives one ServiceAccount to every Keep pod and the cleanup hook, and the Role is bound to it; the backend's Kubernetes secret store needs Secret rights; the frontend route's OpenAI SDK reads `OPENAI_BASE_URL` from the environment (openai 4.86.2); the backend's Secret code does not appear to call list, but the existing cleanup hook's `kubectl get secrets` does, and the chart exposes no setting to change the Role (Finding 17). Separate Roles through post-render are untested.
-- Source read and RBAC documentation read, not executed (Findings 18, 19): RBAC cannot narrow the cleanup hook's or the backend's Secret grants to `keep-*` names, so the residual namespace-wide Secret access remains under any design considered; the optional MySQL cleanup CronJob is disabled by default and would expect a passwordless root login.
-- Still requires runtime validation on the cluster or in a running container: the second run changing nothing (FR-008), the missing key file (FR-009), the hook actually deleting `keep-*` Secrets with `alpine/k8s` (kubectl not executed), the busybox init container waiting on `keep-database`, `OPENAI_BASE_URL` reaching Fireworks, the thinking-only token limit, the `sre-keep-ai-env` Secret surviving uninstall (issue live check 2), the frontend key staying out of browser code at runtime, and, for the ServiceAccount decision, whether the hook still deletes `keep-*` Secrets and reports failure without `list` (Finding 17) and whether any non-backend pod works with no token. Also still to test: whether an operator-run cleanup outside the cluster can replace the in-cluster hook (Finding 18), and whether the optional MySQL cleanup job fails under the root password (Finding 19).
-- Pending before `gate:spec-approved` (see Decision status below): Architect acceptance of the frontend Fireworks Secret configuration (spec Open questions), AD-016 acceptance (Proposed; it covers the proposed exception that keeps `fireworks.key`, and the backend and frontend Fireworks wiring), and Architect review and explicit acknowledgement of the residual namespace-wide Secret risk under the shared ServiceAccount (AD-016; research.md Finding 18). Nothing in AD-016 is adopted until the Architect accepts it.
+- Departures from the accepted issue #123: the login stays in story 6a (decided by the developer on 2026-10-29). The busybox pin is no longer narrowed: the AD-013 override renders (research.md Finding 9, a developer decision after Architect consultation, not an Architect approval, 2026-11-05). The manual Secret cleanup replaces the uninstall cleanup hook (AD-016 decision 5; research.md Finding 20). The issue text still carries the older wording and needs updating before `gate:spec-approved`.
+- Verified by rendered Helm output (`helm template`, dummy values, research.md Findings 9, 11, 13 and 14): the busybox override and the unpinned default it replaces, the MySQL digest line, the database Secret keys and `items` restriction, and the backend `secretKeyRef` for `OPENAI_API_KEY`.
+- Supported by registry metadata or image contents, not executed (Findings 9, 12, 13): the digests of `busybox:1.38.0` and `mysql:8.4.13`; the presence of `sh`, `grep`, `xargs`, `nc` in the busybox layer; the October smoke test of the Fireworks model. The `alpine/k8s:1.34.11` digest and layer listing (Finding 10) are historical: the image is not used.
+- Source read at the pinned versions, not executed (Findings 15, 16, 17): the chart gives one ServiceAccount to every Keep pod, and to the cleanup hook while the chart still renders it; the backend's Kubernetes secret store needs `create`, `get`, `patch` and `delete` on Secrets; the frontend route's OpenAI SDK reads `OPENAI_BASE_URL` from the environment (openai 4.86.2); the backend's Secret code does not appear to call `list`.
+- Source read and RBAC documentation read, not executed (Findings 18, 19, 20): the backend's namespace-wide Secret permissions remain a residual risk under every design considered; the optional MySQL cleanup CronJob is disabled by default and would expect a passwordless root login; the `keep-` prefix basis for manual cleanup is partly verified (see Decision status).
+- Still requires runtime validation on the cluster or in a running container: the second run changing nothing (FR-008), the missing key file (FR-009), the busybox init container waiting on `keep-database`, `OPENAI_BASE_URL` and `OPENAI_MODEL_NAME` reaching Fireworks from the backend and the frontend, the thinking-only token limit, the `sre-keep-ai-env` and `sre-keep-ai-frontend` Secrets surviving `helm uninstall`, the frontend key staying out of browser code at runtime, and the manual cleanup procedure (FR-013), which has not been run on any namespace.
+- Uninstall mechanism: the documented uninstall command is `helm uninstall keep -n <namespace> --no-hooks` (AD-016 decision 6; research.md Finding 20). The chart still renders the pre-delete hook, unchanged, and `--no-hooks` prevents its execution. A plain `helm uninstall` would still run it. This was checked from Helm documentation and the local CLI help, not run against AKS. Enforcement in the scripts and runbook is not yet implemented. SC-011(a) checks that the documented command includes the flag, not that the rendered manifest is absent.
 - Length is about 1,750 words against the 400-word target. The rules say targets never override acceptance criteria. The developer reviewed each section during drafting. This is developer review only, not approval. Architect approval and `gate:spec-approved` are still pending.
 - Not verified: whether the web page sends error reports to a third party. It is named in Known limits.
 
@@ -51,19 +51,29 @@ Passing is not the same as proven:
 Completed developer decisions (recorded in the documents; none is an Architect approval):
 
 - The start-up wait container is pinned through a values override, `busybox:1.38.0` by digest, as AD-013 point 3 sets (research.md Finding 9).
-- The cleanup image is `alpine/k8s:1.34.11` by digest (research.md Finding 10).
 - The database Secret names and keys follow AD-013, and the password is generated with `openssl rand -hex 24`.
 - The Fireworks base URL is `https://api.fireworks.ai/inference/v1`, and the model is the one named in research.md Finding 12.
-- The key name `fireworks.key` is kept for the backend Fireworks Secret (AD-016 point 1).
-- The chart's existing shared ServiceAccount is retained for the initial implementation, subject to Architect review (AD-016 point 4; research.md Finding 18). Post-render separation is not implemented.
+- The key name `fireworks.key` is kept for the backend Fireworks Secret (AD-016 decision 1; the exception itself is pending).
+- The chart's existing shared ServiceAccount is retained for the initial implementation, subject to Architect review (AD-016 decision 4; research.md Finding 18). Post-render separation is not implemented.
+
+Recorded Architect agreement (this is agreement to remove the hook only; it is not acceptance of AD-016 or of any other decision):
+
+- Uninstall mechanism (AD-016 decision 6): `helm uninstall keep -n <namespace> --no-hooks`, with no Helm post-renderer, no fork or modification of the upstream chart, and Helm 3 supported. This is a decision on the mechanism only. It is not acceptance of AD-016.
+- The Architect agreed (recorded 2026-11-06) to remove the Helm uninstall cleanup hook that used `alpine/k8s:1.34.11`. Administrator-operated manual Secret cleanup is the selected operational approach (AD-016 decision 5; research.md Finding 20; spec.md FR-013).
+- The request for Architect acknowledgement of the cleanup-image risk is withdrawn, because the image is not used.
 
 Pending Architect approval or acknowledgement (`gate:spec-approved` remains pending):
 
-- AD-016 acceptance. Its status is Proposed.
-- Acceptance of the proposed exception to AD-008 for the backend Fireworks Secret.
-- Acceptance of the frontend Fireworks Secret configuration (`sre-keep-ai-frontend`, key `OPEN_AI_API_KEY`, with `OPENAI_BASE_URL` and `OPENAI_MODEL_NAME`).
-- Architect review of the shared ServiceAccount and explicit acknowledgement of the residual namespace-wide Secret risk. Retaining the shared ServiceAccount does not mitigate this risk.
-- Explicit Architect acknowledgement of the cleanup image risk. The cleanup image `alpine/k8s:1.34.11` is a third-party image that runs as root (its image configuration sets no user). This introduces a security and software supply-chain risk. Pinning the image by digest does not eliminate it. The acknowledgement is requested and remains outstanding (research.md Finding 10; AD-016).
-- Acceptance of FR-012, the frontend configuration (`OPEN_AI_API_KEY` from Secret `sre-keep-ai-frontend`, `OPENAI_BASE_URL`, `OPENAI_MODEL_NAME`), tested by SC-010 (spec.md).
+- AD-016 acceptance as a whole. Its status is Proposed.
+- Acceptance of the proposed exception to AD-008 for the backend Fireworks Secret (`fireworks.key`).
+- Acceptance of the frontend Fireworks Secret configuration (`sre-keep-ai-frontend`, key `OPEN_AI_API_KEY`, with `OPENAI_BASE_URL` and `OPENAI_MODEL_NAME`; FR-012 and SC-010).
+- Architect review of the shared ServiceAccount and explicit acknowledgement of the residual namespace-wide backend Secret risk (`create`, `get`, `patch` and `delete` on namespace Secrets).
 
-Untested alternatives, not adopted: post-render ServiceAccount separation (AD-016 option 2) and operator-run cleanup outside the cluster (AD-016 option 3).
+Outstanding validation (not run):
+
+- Test `helm uninstall keep -n <namespace> --no-hooks` on a throwaway namespace, and confirm that the pre-delete hook does not execute. No cluster command has been run.
+- Implement enforcement of `--no-hooks` in the installation and uninstallation scripts and in the operational runbook (not started).
+- Verify that every Keep-generated Secret in the `keep` namespace begins with `keep-`, including any write path the source search may have missed (AD-016 manual cleanup section; research.md Finding 20). A transient `none-*` Secret from `prepare_provider` is a known gap.
+- Run the manual cleanup procedure on a throwaway namespace before relying on it (research.md Finding 20).
+
+Untested alternative, not adopted: post-render ServiceAccount separation (AD-016 option 2).

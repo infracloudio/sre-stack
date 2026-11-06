@@ -4,6 +4,8 @@ Run 2026-10-29 against AKS `sre-stack-452138` (resource group
 `rijo-john-improving-com-aks-452138`, Kubernetes 1.34.11), started from the
 stopped state with `az aks start`. Keep was not installed before this research.
 
+**Status note (2026-11-06).** The Architect agreed to remove the Kubernetes cleanup hook container that used `alpine/k8s:1.34.11` (Finding 20). Findings that describe that hook (Findings 2, 6, 10, 15, 17 and 18) are kept as historical evidence or analysis. They no longer describe the implementation.
+
 ## Finding 1: three chart images are not pinned
 
 Command: `helm template keep keephq/keep --version 0.1.97`, then grep for `image:`.
@@ -253,19 +255,19 @@ Namespaces deleted afterwards; port-forward stopped.
 - Digest: `sha256:a46257e0…586e5fa4` is the multi-platform index digest. The amd64 manifest is `sha256:f97baa533a26513c453a362be331a43eb60214302f449c16571b23cea141dce4`. Config: `architecture: amd64`, `os: linux`, user unset (runs as root), cmd `sh`. One layer, 2.1 MB. The layer contains `bin/sh`, `bin/grep`, `bin/xargs` and `bin/nc`.
 - **Runtime pending.** The init container has not waited on the cluster's `keep-database`. The service name is hard-coded in the command and matches release name `keep`. The plan must render with the real release name.
 
-### Finding 10: uninstall hook image (AD-013 point 3). Registry and Rendered.
+### Finding 10: uninstall hook image (AD-013 point 3). Registry and Rendered. Evaluated; not selected (hook removed, Finding 20).
 
 | Candidate | Registry evidence | Decision |
 |---|---|---|
 | `bitnami/kubectl` (official) | 786 tags. Filtering by name for 1.33 through 1.38 returns 0 versioned tags. Only `latest` and digest tags exist. Anonymous pull of `latest` succeeds; its index digest is `sha256:8f59408f9e896fc8992a0660a56687545bd06751f26531b4a26fca6d5dc7562d`. The `latest` digest recorded in Finding 4 is different, so `latest` has moved. | Rejected. A digest pins immutable image content, so `latest` could be pinned that way. The official repository still has no versioned tag for Kubernetes 1.34.11, which is the required version, so no tag-based pin is available. The October client (v1.37.2) was three minors above the 1.34.11 server (unsupported skew). Because `latest` has changed since October, its client version would need checking before any digest is chosen. Access terms are customer-only (Finding 4), not re-checked here. |
 | `bitnamilegacy/kubectl:1.33.4` | Anonymous manifest read succeeds. Index digest `sha256:ed0b31a0508da84ee655c5c6e01bd3897fc56ad6cf69debb27fa1893a06d2246`. The repository is labelled no longer updated. | Rejected. Frozen, no security fixes. |
-| `alpine/k8s:1.34.11` | Versioned tag that matches the cluster's Kubernetes 1.34.11 (Finding 1 header). Index digest `sha256:0382123ab8ae17d8da5d43cc299242933eb012cfbe56787b43731c942c3eed80`. amd64 manifest `sha256:9ec4a7d9720f07c2f4ff20025bc9798918a4b2a050fb62226dd4f3e904e59121`. 17 layers, 302.4 MB compressed. Config: `architecture: amd64`, `os: linux`, user unset (runs as root), entrypoint none, cmd `/bin/sh`. Layer listing (17,340 entries) includes `bin/sh`, `bin/grep`, `usr/bin/xargs` and `usr/bin/kubectl`. | **Selected.** |
+| `alpine/k8s:1.34.11` | Versioned tag that matches the cluster's Kubernetes 1.34.11 (Finding 1 header). Index digest `sha256:0382123ab8ae17d8da5d43cc299242933eb012cfbe56787b43731c942c3eed80`. amd64 manifest `sha256:9ec4a7d9720f07c2f4ff20025bc9798918a4b2a050fb62226dd4f3e904e59121`. 17 layers, 302.4 MB compressed. Config: `architecture: amd64`, `os: linux`, user unset (runs as root), entrypoint none, cmd `/bin/sh`. Layer listing (17,340 entries) includes `bin/sh`, `bin/grep`, `usr/bin/xargs` and `usr/bin/kubectl`. | **Evaluated; rejected for implementation (Finding 20).** |
 
-- Rendered: `image: alpine/k8s:1.34.11@sha256:0382123ab8ae17d8da5d43cc299242933eb012cfbe56787b43731c942c3eed80` with `imagePullPolicy: IfNotPresent`, from `deleteSecretJob.image` (`templates/delete-secret-job.yaml:17`).
-- Hook requirements, from the template: `/bin/sh -c` runs `kubectl get secrets -n <namespace> -o name | grep '^secret/keep-'`, then `xargs kubectl delete`. The shell, grep, xargs and kubectl are present in the layer listing.
-- Hook permissions, from the templates: the hook's pod uses ServiceAccount `keep`. Role `secret-manager-role` (`templates/role-secret-manager.yaml`) grants `create`, `delete`, `get`, `list` and `patch` on Secrets in the namespace. RoleBinding `secret-manager-rolebinding` binds it to `keep`. The rendered output shows that backend, database, frontend, websocket and the hook pods all run as `keep`. So every Keep pod holds the same Secret rights, which is broader than the hook needs. This is recorded as a risk and is not changed here.
-- **Runtime pending.** kubectl was not executed inside `alpine/k8s:1.34.11`, because Docker was unavailable. The kubectl version was not checked with `kubectl version --client`. The hook has not been re-run on the cluster.
-- **Risk requiring Architect acknowledgement.** The cleanup image `alpine/k8s:1.34.11` is a third-party image that runs as root (its image configuration sets no user). This introduces a security and software supply-chain risk. Pinning the image by digest fixes which image bytes run. It does not eliminate this risk. Explicit Architect acknowledgement is requested and remains outstanding (spec.md Known limits; AD-016).
+- Rendered (historical; not part of the implementation): `image: alpine/k8s:1.34.11@sha256:0382123ab8ae17d8da5d43cc299242933eb012cfbe56787b43731c942c3eed80` with `imagePullPolicy: IfNotPresent`, from `deleteSecretJob.image` (`templates/delete-secret-job.yaml:17`).
+- Hook requirements, from the template (historical; the hook is removed, Finding 20): `/bin/sh -c` runs `kubectl get secrets -n <namespace> -o name | grep '^secret/keep-'`, then `xargs kubectl delete`. The shell, grep, xargs and kubectl are present in the layer listing.
+- Hook permissions, from the templates (historical): the hook's pod uses ServiceAccount `keep`. Role `secret-manager-role` (`templates/role-secret-manager.yaml`) grants `create`, `delete`, `get`, `list` and `patch` on Secrets in the namespace. RoleBinding `secret-manager-rolebinding` binds it to `keep`. The rendered output shows that backend, database, frontend, websocket and the hook pods all run as `keep`. So every Keep pod holds the same Secret rights, which is broader than the hook needs. This was recorded as a risk. The hook's permissions no longer apply to the implementation (Finding 20).
+- **Runtime pending.** kubectl was not executed inside `alpine/k8s:1.34.11`, because Docker was unavailable. The kubectl version was not checked with `kubectl version --client`. The hook has not been re-run on the cluster. The hook is removed (Finding 20), so this test is no longer required for the implementation.
+- **Status (2026-11-06).** The cleanup image is not used. The Architect agreed to remove the cleanup hook container (Finding 20). The earlier request for Architect acknowledgement of this image's risk is withdrawn, because the image will not be deployed. The root-user fact recorded above is kept as historical evidence.
 
 ### Finding 11: AI key and frontend wiring. Rendered and source read.
 
@@ -326,7 +328,7 @@ Namespaces deleted afterwards; port-forward stopped.
 
 **Helm `--no-hooks`.** `helm uninstall --help` (Helm v4.2.4) lists `--no-hooks`, which skips the cleanup hook. The chart renders no Secret in the default configuration, so it leaves nothing of its own behind. Secrets the backend writes through the Kubernetes secret manager would survive a `--no-hooks` uninstall unless our own uninstall step removes them. Not tested.
 
-**Conclusion.** No chart-supported setting gives the cleanup hook, or the frontend, database or websocket pods, an identity without Secret rights. The shared identity with Secret rights is how chart 0.1.97 works. Separating it requires a change outside the chart values: a post-render step that gives those pods their own ServiceAccounts with token automount off, and replaces the shared Role with separate Roles: backend (`create`, `get`, `patch`, `delete` on Secrets) and cleanup hook (`get`, `list`, `delete` on Secrets). Frontend, websocket and database would have no Secret permissions, subject to runtime validation. That is a deliberate deviation for the Architect to decide (AD-016, section "Open for Architect"). No post-render recommendation is made until the pod identities, token access and hook permissions are validated. The `list` verb question is in Finding 17. **Decision (developer, 2026-11-06):** the chart's shared ServiceAccount is retained for the initial implementation, subject to Architect review (see Finding 18). **Runtime pending:** none of this was run on the cluster.
+**Conclusion.** No chart-supported setting gives the cleanup hook, or the frontend, database or websocket pods, an identity without Secret rights. The shared identity with Secret rights is how chart 0.1.97 works. Separating it requires a change outside the chart values: a post-render step that gives those pods their own ServiceAccounts with token automount off, and replaces the shared Role with separate Roles: backend (`create`, `get`, `patch`, `delete` on Secrets) and, historically, cleanup hook (`get`, `list`, `delete` on Secrets; the hook is no longer part of the intended implementation). Frontend, websocket and database would have no Secret permissions, subject to runtime validation. That is a deliberate deviation for the Architect to decide (AD-016, section "Open for Architect"). No post-render recommendation is made until the pod identities, token access and hook permissions are validated. The `list` verb question is in Finding 17. **Decision (developer, 2026-11-06):** the chart's shared ServiceAccount is retained for the initial implementation, subject to Architect review (see Finding 18). The cleanup hook is removed by the Architect's decision (Finding 20), so the hook's permissions no longer apply to the implementation. **Runtime pending:** none of this was run on the cluster.
 
 ### Finding 16: frontend AI route, OpenAI SDK base URL and model. Source read and rendered.
 
@@ -340,17 +342,19 @@ Namespaces deleted afterwards; port-forward stopped.
 
 ### Finding 17: can the `list` verb be removed from the Role? Rendered and source read. Not run.
 
+**Superseded in part (2026-11-06, Finding 20).** The cleanup hook is removed, so the hook's `list` requirement no longer applies to the implementation. The chart's Role still grants `list`, and the chart offers no setting to remove it. The backend source does not appear to need `list` (source read, not run). The rest of this finding is kept as historical analysis.
+
 - **The Role.** `templates/role-secret-manager.yaml` grants `create`, `delete`, `get`, `list` and `patch` on Secrets.
 - **Backend (source read, Keep `v0.54.3`).** `keep/secretmanager/kubernetessecretmanager.py` calls `create_namespaced_secret` (line 74), `patch_namespaced_secret` (line 83), `read_namespaced_secret` (line 108) and `delete_namespaced_secret` (line 129). The file has no Secret list call. The Kubernetes and Flux providers make no Secret calls. Their list calls cover pods, nodes, events, deployments and custom objects, which this Role does not grant.
 - **Cleanup hook (rendered).** `templates/delete-secret-job.yaml:23` runs `secrets=$(kubectl get secrets -n <namespace> -o name | grep '^secret/keep-');`. Under standard Kubernetes RBAC, a collection `get` is a `list` request. This is not run here.
 - **Silent failure.** The hook's script has no `set -e` (`grep -c 'set -e'` returns 0). If the list is refused, `secrets` is empty and the `if [ -n "$secrets" ]` branch (line 24) prints "No matching secrets found to delete." Source reading indicates that the job would then exit successfully and delete nothing. Not run.
-- **Conclusion.** The backend source does not appear to require `list`. The existing cleanup hook requires it. The chart exposes no values setting for the Role, so a shared Role without `list` cannot be produced through values. A post-render customization could give the backend and the hook separate Roles (AD-016, option 2). That has not been tested. Removing `list` from one shared Role is therefore not the only possible approach, and no approach is chosen. The decision stays open in AD-016. **Runtime pending:** run the existing hook in a throwaway namespace with a ServiceAccount lacking `list`, then check whether `keep-*` Secrets survive and whether the job reports success.
+- **Conclusion.** The backend source does not appear to require `list`. The cleanup hook required it before its removal (historical; see the superseded note above). The chart exposes no values setting for the Role, so a shared Role without `list` cannot be produced through values. A post-render customization could give the backend and the hook separate Roles (AD-016, option 2). That has not been tested. Removing `list` from one shared Role is therefore not the only possible approach, and no approach is chosen. The decision stays open in AD-016. **Runtime pending:** run the existing hook in a throwaway namespace with a ServiceAccount lacking `list`, then check whether `keep-*` Secrets survive and whether the job reports success.
 
 ### Finding 18: residual cleanup-hook and backend Secret access. Rendered, source read, and RBAC documentation. Not run.
 
-**Scope of the grants.** The Role `secret-manager-role` has no `resourceNames`, so `create`, `delete`, `get`, `list` and `patch` apply to every Secret in the namespace, including `sre-keep-db` and `sre-keep-ai-env`. The hook's ServiceAccount, `keep`, is the one bound to it (Finding 15). Under the proposed separation (AD-016 option 2), the hook's Role would be `get`, `list` and `delete` with the same namespace-wide scope.
+**Scope of the grants.** The Role `secret-manager-role` has no `resourceNames`, so `create`, `delete`, `get`, `list` and `patch` apply to every Secret in the namespace, including `sre-keep-db` and `sre-keep-ai-env`. The hook's ServiceAccount, `keep`, is the one bound to it (Finding 15). Under the proposed separation (AD-016 option 2), the hook's Role would be `get`, `list` and `delete` with the same namespace-wide scope. Update 2026-11-06: the hook is removed (Finding 20), so that requirement no longer applies. The backend's `create`, `get`, `patch` and `delete` remain namespace-wide.
 
-**Decision (developer, 2026-11-06; not an Architect approval).** The chart's existing shared ServiceAccount is retained for the initial implementation, subject to Architect review. Post-render separation is not implemented, and no separate Roles or RoleBindings are introduced at this stage. The Secret permissions the backend and the cleanup hook require are kept as the chart defines them: the backend requires `create`, `get`, `patch` and `delete`, and the cleanup hook requires `get`, `list` and `delete`. Retaining the shared ServiceAccount does not mitigate the residual namespace-wide Secret risk. The Architect's explicit acknowledgement of that risk is outstanding.
+**Decision (developer, 2026-11-06; not an Architect approval).** The chart's existing shared ServiceAccount is retained for the initial implementation, subject to Architect review. Post-render separation is not implemented, and no separate Roles or RoleBindings are introduced at this stage. The backend's Secret permissions are kept as the chart defines them: `create`, `get`, `patch` and `delete`. The cleanup hook's `get`, `list` and `delete` permissions are no longer required by the intended implementation, because the Architect agreed to remove the hook (Finding 20). Retaining the shared ServiceAccount does not mitigate the residual namespace-wide Secret risk. The Architect's explicit acknowledgement of that risk is outstanding.
 
 **Can RBAC restrict the hook to `keep-*` names? No.** Kubernetes RBAC documentation (read through context7, library `/websites/kubernetes_io`, page `reference/access-authn-authz/rbac`; not re-fetched from the live site):
 - `resourceNames` cannot restrict `deletecollection` or a top-level `create`.
@@ -361,10 +365,10 @@ The hook's targets are Secrets that Keep's backend writes with names it supplies
 
 **Redesign options considered.**
 - *Name-based deletion from a list gathered before uninstall.* The names still need a namespace-wide `list` or some other source. It does not remove the broad grant.
-- *Operator-run cleanup outside the cluster.* Run `helm uninstall --no-hooks`, then delete the `keep-*` Secrets with the operator's own kubeconfig. This removes the hook's in-cluster Secret grant. It moves the permission to the operator, whose access to the namespace is already broad. Not tested.
-- *Keep the chart's hook and accept the risk.* This is the current chart behaviour.
+- *Operator-run cleanup outside the cluster.* Run `helm uninstall --no-hooks`, then delete the `keep-*` Secrets with the operator's own kubeconfig. This removes the hook's in-cluster Secret grant. It moves the permission to the operator, whose access to the namespace is already broad. Chosen as the operational approach on 2026-11-06 (Finding 20); the procedure has not been run.
+- *Keep the chart's hook and accept the risk.* This was the chart's behaviour before the 2026-11-06 decision to remove the hook (Finding 20).
 
-**Residual risk for Architect review.** The backend requires `create`, `get`, `patch` and `delete` on namespace Secrets, and the cleanup hook requires `get`, `list` and `delete`. These permissions are namespace-wide, not restricted to Secrets beginning with `keep-`. A compromised Keep pod sharing this ServiceAccount could potentially access or modify Secrets belonging to other components, including `sre-keep-db` and `sre-keep-ai-env`. A compromised hook pod, which runs `alpine/k8s:1.34.11` as root (Finding 10), could potentially read or delete those Secrets. A compromised backend could potentially read (`get`), create, patch or delete them. Any identity that can create pods in the namespace can use these ServiceAccounts. Separation reduces which pods hold the grants, but it does not remove the namespace-wide grants for the backend and the hook. Retaining the shared ServiceAccount does not mitigate this risk. The Architect's explicit acknowledgement is requested and is outstanding. **Runtime pending:** none of this has been tested.
+**Residual risk for Architect review.** The backend requires `create`, `get`, `patch` and `delete` permissions on namespace Secrets for its Kubernetes Secret manager. The cleanup hook's `get`, `list` and `delete` permissions are no longer required by the intended implementation because the Architect agreed to remove the hook (Finding 20). These backend permissions are namespace-wide, not restricted to Secrets beginning with `keep-`. A compromised Keep pod sharing this ServiceAccount could potentially access or modify Secrets belonging to other components, including `sre-keep-db` and `sre-keep-ai-env`. A compromised backend could potentially read (`get`), create, patch or delete them. Any identity that can create pods in the namespace can use these ServiceAccounts. Separation reduces which pods hold the grants, but it does not remove the namespace-wide backend permissions. Retaining the shared ServiceAccount does not mitigate this risk. The Architect's explicit acknowledgement is requested and is outstanding. **Runtime pending:** none of this has been tested.
 
 ### Finding 19: optional MySQL cleanup CronJob. Rendered default and template read. Not run.
 
@@ -373,13 +377,94 @@ The hook's targets are Secrets that Keep's backend writes with names it supplies
 - **Authentication.** The job runs `mysql -h keep-database -u root --skip-column-names` with no `-p` option (`db-cleanup-cronjob.yaml:34`). It has no password source. With AD-013's `MYSQL_ROOT_PASSWORD_FILE`, this login is expected to fail. This is a source-read expectation, not a runtime result.
 - **Decision.** The job is not enabled. Enabling it needs a credential change first, which is not in the current decisions.
 
+### Finding 20: Architect decision to remove the cleanup hook; manual Secret cleanup. Decision record. Not run.
+
+**Decision.** The Architect has explicitly agreed (recorded 2026-11-06) to remove the Kubernetes cleanup hook container that used `alpine/k8s:1.34.11`. Consequences:
+- The cleanup hook must not execute. The chart still renders it, and the documented uninstall command `helm uninstall keep -n <namespace> --no-hooks` prevents its execution. No third-party cleanup image runs during the documented uninstall.
+- `helm uninstall` with `--no-hooks` does not automatically delete the dynamically created Keep Secrets. A plain `helm uninstall` runs the hook, which deletes them.
+- Secret cleanup becomes an explicit administrator-operated manual task after uninstall.
+- The image evaluation in Finding 10 is kept as history. The image is not selected.
+- The earlier request for Architect acknowledgement of the cleanup image risk is withdrawn, because the image will not be used.
+
+**Uninstall mechanism (Architect decision, recorded 2026-11-06; decision on the mechanism only).** The documented uninstall command is `helm uninstall keep -n <namespace> --no-hooks`. The facts behind it:
+- **The hook remains in chart version 0.1.97.** The chart is unchanged. `templates/delete-secret-job.yaml` still renders the pre-delete Job, and `values.yaml` still has no switch for it (`deleteSecretJob` sets only the image). The upstream chart is not forked or modified, and no Helm post-renderer is introduced.
+- **`--no-hooks` suppresses hook execution.** The Helm documentation describes the flag as "prevent hooks from running during uninstallation" (Helm `helm uninstall` CLI reference). The local CLI help (Helm v4.2.4) lists it.
+- **Helm 3 and Helm 4 both support the flag**, per the documentation. The project installs Helm 3 (`infra/scripts/dev/install-deps.sh`, `get-helm-3`). The local binary is Helm 4.2.4. The Helm 3 behaviour rests on the documentation and was not run locally.
+- **Not tested against AKS.** No uninstall has been run against any cluster. Expected behaviour (from the Helm hook documentation, not run): a pre-delete hook creates its Job at delete time, so with `--no-hooks` the Job is not created and the `alpine/k8s` image is not pulled.
+- **Procedural risk.** A plain `helm uninstall keep -n <namespace>` runs the hook. The chart's script deletes every Secret in the namespace whose name begins with `keep-`, including Keep-generated Secrets that the manual procedure exists to review. Nothing in the chart or the tooling prevents this. The control is procedural: the documented command, the scripts and the runbook must always pass the flag. The hazard is not technical.
+- **Why not a post-renderer.** The Helm 3 documentation states that hooks were never sent to post-renderers under Helm 3. A post-renderer therefore could not remove this hook under the project's Helm 3 install, and it is not introduced.
+- **Where the command must be enforced or documented (not yet implemented).** (1) The planned Keep install and teardown script under `infra/azure/keep/` (AD-011 layout). (2) A future make target for the Keep uninstall; no such target exists yet. The existing `cleanup` and `cleanup-cluster` targets delete the AKS cluster itself and do not run `helm uninstall`. (3) The operational runbook, which does not exist yet. (4) AD-011's "Why" bullet, which says that after `helm uninstall keep` and `make setup-keep`, "everything is back with no manual step", now conflicts with manual cleanup and needs revising in a later pass.
+
+**RBAC reassessment.**
+- Backend, still required: `create`, `get`, `patch` and `delete` on namespace Secrets (source read; Finding 15). These remain, and this decision does not change them.
+- Cleanup hook, no longer required: `get`, `list` and `delete` (Finding 17).
+- Still granted by the chart Role: `list`. The backend source does not appear to need it (source read, not run). The chart offers no values setting to remove it (Finding 15), so removing it is not part of this decision.
+- Removing the hook does not remove the backend's namespace-wide Secret permissions, and it does not eliminate the residual risk (Finding 18).
+
+**Documented uninstall command.** Run `helm uninstall keep -n <namespace> --no-hooks`, not a plain `helm uninstall`. Step 1 below confirms the result.
+
+**Manual cleanup procedure.** This is administrator-operated and is never run automatically. Replace `<namespace>` with the target namespace. Do not run any deletion command until steps 1 to 3 are complete for that namespace.
+
+1. **Confirm the uninstall.** Confirm the cluster context with `kubectl config current-context`. Then confirm Keep is gone with `helm status keep -n <namespace>`, which should report that the release is not found.
+2. **Inspect the names.** List Secrets whose names begin with `keep-`. `-o name` prints names only, not values:
+   ```bash
+   kubectl get secrets -n <namespace> -o name | grep '^secret/keep-'
+   ```
+   Our own Secrets (`sre-keep-db`, `sre-keep-ai-env`, `sre-keep-ai-frontend`) begin with `sre-keep-`, so they are not matched.
+3. **Review before deleting.** The administrator confirms each matching name is a Keep-generated Secret, and not one of our own or another component's. If the list is empty, stop: nothing needs deleting. **Warning:** verify the namespace and every Secret name before deleting. Deletion cannot be undone.
+4. **Delete only the reviewed names.** The pipeline below deletes every name it matches, so run it only after step 3 is complete for the same namespace:
+   ```bash
+   kubectl get secrets -n <namespace> -o name \
+     | grep '^secret/keep-' \
+     | xargs -r kubectl delete -n <namespace>
+   ```
+   `xargs -r` is a GNU option and may not exist on macOS. On macOS, delete each reviewed name explicitly: `kubectl delete secret <reviewed-name> -n <namespace>`. To preview without deleting, add `--dry-run=server` to the `kubectl delete` command.
+5. **Verify.** Rerun step 2. It should print nothing. Then confirm our Secrets remain: `kubectl get secret sre-keep-db sre-keep-ai-env -n <namespace> -o name`.
+
+**Do not expose values.** Do not use `-o yaml`, `-o json`, `describe` or `-o jsonpath` on these Secrets. Those output forms show data fields.
+
+**Naming basis for the `keep-*` prefix (source review, Keep v0.54.3; read-only; 2026-11-06).** The prefix is justified here by the Secret names that the code creates. It is not justified by the old hook's matching rule (Finding 6 is historical evidence only).
+
+*Chart-created Secrets.* The chart creates these only when the named value is enabled. In the intended install values none is enabled, and the final render contains no Secret.
+- `keep-backend-env-secret`, created by `templates/backend-configs.yaml` when `backend.envRenderSecret` is set.
+- `keep-providers`, created by `templates/backend-provision.yaml` when `backend.provision.providers` is set.
+- `keep-frontend-env-secret`, created by `templates/frontend-configs.yaml` when `frontend.envRenderSecret` is set.
+
+These names are built from `keep.fullname`. They assume the Helm release is named `keep` (and no `fullnameOverride`). A different release name changes the prefix, and the cleanup filter would then need to change with it.
+
+*Backend-created Secrets.* The backend writes these through the Kubernetes secret manager, which replaces `_` with `-` and lowercases names (`keep/secretmanager/kubernetessecretmanager.py`, line 66). The single-tenant ID is the literal `keep` (`keep/api/core/dependencies.py`, line 14), so names built from `tenant_id` begin with `keep-`. The call sites are:
+- `keep-<unique_api_key_id>`: API key Secrets, written as `{tenant_id}-{unique_api_key_id}` (`keep/api/utils/tenant_utils.py`, lines 86 and 135).
+- `keep-<api_key_name>`: default API key Secrets, written as `{tenant_id}-{api_key_name}` (`keep/api/core/db_on_start.py`, line 146).
+- `keep-smtp`: SMTP settings, written as `{tenant_id}_smtp`, which the manager stores as `keep-smtp` (`keep/api/routes/settings.py`, line 97).
+- `keep-<provider_type>-<id>`: provider configurations, written as `{tenant_id}_{provider_type}_{id}` (`keep/providers/providers_service.py`, lines 191 and 292 to 293, and 466; `keep/api/routes/providers.py`, line 581; `keep/providers/providers_factory.py`, line 139). The `configuration_key` stored with a provider is the same name.
+- `keep-<workflow_id>-secrets`: workflow secrets, built as `{tenant_id}_{workflow_id}_secrets` (`keep/api/routes/workflows.py`, lines 1231, 1243 and 1311).
+
+Each name above matches the cleanup filter `^secret/keep-` in single-tenant mode.
+
+*Exceptions.* Two cases fall outside the intended targets:
+- **Temporary `none-*` Secret.** `keep/providers/providers_service.py` `prepare_provider` (lines 94 to 144) sets `tenant_id = None` and writes a Secret named `None_<type>_<uuid>`, which the manager stores as `none-<type>-<uuid>`. The same function deletes it immediately. If that delete fails, the error is logged and the Secret remains. Such a Secret does not match `keep-*` and would not be listed by the procedure. The only caller found is in the same file.
+- **Alertmanager Secret in the `monitoring` namespace.** AD-008 names the Secret `alertmanager-keep-auth`. It lives in the `monitoring` namespace, outside the Keep namespace, so the procedure (which is namespace-scoped) does not cover it. This name comes from AD-008, not from the Keep source.
+
+*Intended cleanup targets versus exceptions.* The intended targets are the Secrets in the Keep namespace whose names begin with `keep-` and that an administrator has reviewed. The exceptions above are not targets. The `none-*` leftover must be handled separately if it is ever found. The Alertmanager Secret must be managed in its own namespace.
+
+*Limitations.* The review covered the `write_secret` and `create_namespaced_secret` call sites found by code search at v0.54.3, and the files listed above. Indirect callers, or other secret-writing paths the search did not reach, may exist and were not enumerated. This review does not prove that every dynamically generated Secret is covered. A throwaway-namespace test that creates each kind of Secret and runs the procedure remains outstanding.
+
+*Operational rules for the procedure.* Keep administrator review before deletion (steps 2 and 3). Never print Secret values (`-o name` only). Before deleting, check the reviewed list for any `keep-*` Secret that is not one of the names above, because that would show a write path this review did not cover.
+
+**Runtime pending.** The procedure has not been run, and a throwaway-namespace test is outstanding. No deletion command was executed in preparing this documentation.
+
 ### Evidence summary
 
 | Claim | Status |
 |---|---|
 | The busybox override replaces the unpinned init container (Finding 9) | Rendered. Runtime pending. |
-| `alpine/k8s:1.34.11` digest exists and has the required utilities (Finding 10) | Registry and layer listing. Not executed. |
-| The hook's ServiceAccount has Secret create, patch, delete, get and list (Finding 10) | Rendered (templates). Not run. |
+| `alpine/k8s:1.34.11` digest exists and has the required utilities (Finding 10) | Registry and layer listing. Not executed. Historical: the image is not used (Finding 20). |
+| The removed hook's ServiceAccount had Secret create, patch, delete, get and list (Finding 10) | Rendered (templates). Not run. Historical (Finding 20). |
+| The Architect agreed to remove the cleanup hook container (Finding 20) | Recorded decision, 2026-11-06. Not implemented. |
+| `helm uninstall --no-hooks` suppresses pre-delete hook execution (Finding 20) | Helm documentation and local CLI help. Helm 3 rests on documentation. Not run against AKS. |
+| The chart renders the pre-delete hook unconditionally; the documented uninstall command `--no-hooks` prevents its execution (Finding 20) | Rendered template and values read; hook present in the final override render. The flag is documented and in the local CLI help. Not run against AKS. |
+| The manual cleanup procedure lists names before deletion and prints no values (Finding 20) | Documentation check only. Procedure not run. |
+| Every Keep-generated Secret begins with `keep-` (Finding 20) | Assumption. Not verified for every name the backend writes. |
 | The backend's `OPENAI_API_KEY` secret reference renders (Finding 11) | Rendered. Runtime pending. |
 | The frontend key is server-side only (Finding 11) | Source read at v0.54.3. Browser behaviour not tested. |
 | The frontend `secretKeyRef` form is unsupported (Finding 11) | Rendered (template). |
@@ -391,10 +476,10 @@ The hook's targets are Secrets that Keep's backend writes with names it supplies
 | A separate ServiceAccount for the cleanup hook or the non-backend pods (Finding 15) | Not supported by chart 0.1.97 values. Rendered. Post-render would be needed, not tested. |
 | Secret rights cannot be removed from the backend (Finding 15) | Source read (`SECRET_MANAGER_TYPE: k8s`). Not run. |
 | The backend's Secret code does not appear to call list (Finding 17) | Source read at v0.54.3. Not run. |
-| The existing cleanup hook needs `list`, and a shared Role without it would likely make the hook fail without a failed job (Finding 17) | Rendered template, standard Kubernetes RBAC behaviour, and source reading. Not run. |
+| The existing (now removed) cleanup hook needed `list`, and a shared Role without it would likely have made the hook fail without a failed job (Finding 17; historical, Finding 20) | Rendered template, standard Kubernetes RBAC behaviour, and source reading. Not run. |
 | Separate Roles through post-render avoid the shared-Role conflict (Finding 15, 17; AD-016 option 2) | Design only. Not tested. |
-| RBAC cannot restrict the cleanup hook or backend Secret grants to `keep-*` names (Finding 18) | RBAC documentation (context7) and source read. Not run. |
-| The cleanup hook and backend keep namespace-wide Secret access under any design considered (Finding 18) | Rendered Role and source read. Not run. |
+| RBAC cannot restrict the backend's Secret grants to `keep-*` names (Finding 18) | RBAC documentation (context7) and source read. Not run. |
+| The backend keeps namespace-wide Secret access under any design considered (Finding 18) | Rendered Role and source read. Not run. |
 | The optional MySQL cleanup CronJob is off by default and absent from the install render (Finding 19) | Rendered default and final-wiring render. |
 | The MySQL cleanup CronJob's root login would fail under the AD-013 root password (Finding 19) | Source read. Not run. |
 | The developer selected retaining the chart's shared ServiceAccount for the initial implementation (Finding 18) | Developer decision, 2026-11-06. Not Architect-approved. Not implemented. |
