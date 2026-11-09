@@ -1,0 +1,6 @@
+EVENT      NAME        STATUS    COMPLETIONS   DURATION   AGE
+ADDED      probe-job   Running   0/1                      0s
+MODIFIED   probe-job   Running   0/1           0s         0s
+MODIFIED   probe-job   SuccessCriteriaMet   0/1           4s         4s
+MODIFIED   probe-job   Complete             1/1           4s         4s
+DELETED    probe-job   Complete             1/1           4s         25s

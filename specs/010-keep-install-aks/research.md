@@ -506,13 +506,13 @@ Moved from plan.md when it was cut to the target length. Where this text says th
 | AD-016 decision | Status | Evidence kind |
 |---|---|---|
 | 1. Backend AI key: `fireworks.key` as the Secret key (exception to AD-008) | Developer-reported Architect acceptance, 2026-11-09 | Developer report. Rendered wiring (Finding 11) |
-| 2. Web page AI key: second Secret `sre-keep-ai-frontend` | Developer-reported Architect acceptance, 2026-11-09. FR-006 and FR-012 are **not** marked accepted; their approved status is unchanged until you confirm each one individually | Developer report. Source read and rendered (Findings 11, 16) |
+| 2. Web page AI key: second Secret `sre-keep-ai-frontend` | Developer-reported Architect acceptance, 2026-11-09. FR-006 and FR-012 are accepted (developer-reported Architect acceptance, 2026-11-09) | Developer report. Source read and rendered (Findings 11, 16) |
 | 3. No other change (busybox override follows AD-013 point 3; database keys follow AD-013 point 4) | No acceptance status applies. It changes nothing, so it is not treated as accepted or pending | Rendered (Findings 9, 14) |
 | 4. Shared ServiceAccount, accepted as residual risk | Developer-reported Architect acceptance, 2026-11-09 | Developer report. Rendered Role and source read (Findings 15, 18) |
 | 5. Cleanup hook removed; manual Secret cleanup | Architect agreement recorded 2026-11-06 (developer-reported), accepted with AD-016 on 2026-11-09 (developer-reported) | Developer report. Procedure not run |
 | 6. Uninstall mechanism `helm uninstall keep -n <namespace> --no-hooks` | Developer-reported Architect acceptance, 2026-11-09 | Developer report. Source at v3.14.4 read; binary not run (see Helm section) |
 
-FR-003 keeps its approved wording. Helm revision stays diagnostic only. AD-008 (with the exception for `fireworks.key`), AD-011 (CAP-7) and AD-013 apply.
+FR-003 uses the adopted wording (developer-reported Architect acceptance, 2026-11-09). Helm revision stays diagnostic only. AD-008 (with the exception for `fireworks.key`), AD-011 (CAP-7) and AD-013 apply.
 
 **Implementation decisions**, each traced to research.md:
 
@@ -545,7 +545,7 @@ Facts about the hook, from the chart template: the Job is named `delete-keep-sec
 
 **What this means for FR-003.** The requirement holds for `setup-keep` (no Job is created) and for the documented uninstall (no Job is created and no image runs). It does not say that the cleanup image is absent from the chart. The rendered manifest still contains the image reference. **The gap:** a plain `helm uninstall` (not the documented command) creates the Job and runs the image. Only the documented command prevents this, and that rule is procedural.
 
-**Proposed wording (not applied; requires spec approval).** "During install and during the documented uninstall command, no third-party cleanup image is pulled or run." It is presented here as a separate decision for you to approve or reject. The approved wording stays until then.
+**Adopted wording (developer-reported Architect acceptance, 2026-11-09; applied in spec.md).** "During install and during the documented uninstall command, no third-party cleanup image is pulled or run."
 
 ## Uninstall validation and test environment (section 7; not run)
 
@@ -604,7 +604,7 @@ jq '[.items[] | {kind, name: .metadata.name, resourceVersion: .metadata.resource
     | sort_by(.kind, .name)' "$EV/objects-$RUN.json" > "$EV/diagnostic-resourceversion-$RUN.json"
 ```
 
-**Secrets (metadata only, never data).** `kubectl get secret -n keep -o custom-columns=NAME:.metadata.name,UID:.metadata.uid,CREATED:.metadata.creationTimestamp` is saved to `$EV/secrets-$RUN.txt`. The default table (NAME, TYPE, DATA, AGE) is also saved, as diagnostic output only. The test requires the same three names, the same UIDs and the same creation timestamps before and after. A changed UID or timestamp means the Secret was recreated. DATA counts are no longer compared, because the only way to read them is through `.data`, which would print values. The custom-columns format is template-like, so it departs from the earlier rule that forbids templates for Secrets. It reads metadata fields only. Approved by the developer on 2026-11-09, narrowly: `.metadata.uid` and `.metadata.creationTimestamp` may be read this way for Secrets. `.data`, `.stringData`, whole-object output (`-o json`, `-o yaml`) and `describe` stay forbidden. Dropping the DATA-count comparison means this check no longer detects a changed key set. The Architect must confirm this wording. The credential files in `$KEEP_SECRETS_DIR` are checked by metadata only, with `stat -f '%m %i'` on macOS (modification time and inode), and are never read.
+**Secrets (metadata only, never data).** `kubectl get secret -n keep -o custom-columns=NAME:.metadata.name,UID:.metadata.uid,CREATED:.metadata.creationTimestamp` is saved to `$EV/secrets-$RUN.txt`. The default table (NAME, TYPE, DATA, AGE) is also saved, as diagnostic output only. The test requires the same three names, the same UIDs and the same creation timestamps before and after. A changed UID or timestamp means the Secret was recreated. DATA counts are no longer compared, because the only way to read them is through `.data`, which would print values. The custom-columns format is template-like, so it departs from the earlier rule that forbids templates for Secrets. It reads metadata fields only. Approved by the developer on 2026-11-09, narrowly: `.metadata.uid` and `.metadata.creationTimestamp` may be read this way for Secrets. `.data`, `.stringData`, whole-object output (`-o json`, `-o yaml`) and `describe` stay forbidden. Dropping the DATA-count comparison means this check no longer detects a changed key set. Developer-reported Architect acceptance, 2026-11-09. The credential files in `$KEEP_SECRETS_DIR` are checked by metadata only, with `stat -f '%m %i'` on macOS (modification time and inode), and are never read.
 
 **Pods (restarts).** `kubectl get pods -n keep` (default table: NAME, READY, STATUS, RESTARTS, AGE) is saved to `$EV/pods-$RUN.txt`, and the RESTARTS column must not increase.
 
@@ -734,10 +734,22 @@ Spec IDs are used as written. No test identifiers are invented. "Planned" means 
 - `specs/010-keep-install-aks/spec.md`, `research.md`, `checklists/requirements.md`: stale status wording; diffs must be regenerated with the corrected attribution and are not applied.
 
 
-**Decisions still open (not implementation tasks).**
+**Decisions D1 to D9 (developer-reported Architect acceptance, 2026-11-09).**
 
-1. **FR-003 wording.** Kept unchanged. The alternative is recorded only as a possible future change requiring explicit Architect approval.
-2. **FR-006 and FR-012.** Status unchanged, not marked accepted, until you confirm each individually.
+- **D1.** FR-003 uses "During install and during the documented uninstall command, no third-party cleanup image is pulled or run" (applied in spec.md).
+- **D2.** FR-006 and FR-012 are accepted.
+- **D3.** FR-008 may read Secret `.metadata.uid` and `.metadata.creationTimestamp` only. Key-set changes go undetected.
+- **D4.** `NEXTAUTH_SECRET` is generated like `db-password` and delivered as a Secret. `keep.yaml` stops using the chart default. Exact Secret and key placement is decided in tasks.md.
+- **D5.** AKS verification is in scope. Its procedure goes in tasks.md and is approved at the gate. No AKS run before then.
+- **D6.** Stay on AKS 1.34 (end of life 30 Nov 2026; Microsoft Learn ms.date 09/15/2026). Moving the cluster is separate, and verification uses the version then running.
+- **D7.** One real k3d run of `keep-manual-cleanup.sh` in a throwaway namespace.
+- **D8.** The Architect updates the AD-016 status in the ADR after the gate. The ADR edit is not in this PR.
+- **D9.** The runbook is `infra/azure/keep/README.md`.
+
+**Earlier open items (superseded where listed above).**
+
+1. **FR-003 wording.** Adopted (developer-reported Architect acceptance, 2026-11-09) and applied in spec.md.
+2. **FR-006 and FR-012.** Accepted (developer-reported Architect acceptance, 2026-11-09).
 3. **Attribution in the three approved documents.** The regenerated diffs will use "developer-reported Architect acceptance" and will not imply PR #143 contains a written approval.
 4. **Helm 3.14.4.** Run the local commands and send the output before any cluster step.
 5. **k3d.** Approve installing k3d (Homebrew) for the disposable cluster, or name another disposable cluster you prefer.

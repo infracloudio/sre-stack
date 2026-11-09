@@ -1001,14 +1001,14 @@ pass over the Keep alert-management SPEC (epic #91, CAP-1); chart
 
 ## AD-016: Keep AI key wiring, explicit secret references, one Secret per consumer
 
-**Date**: 2026-11-05 (decision 4 added 2026-11-06; decision 5 recorded 2026-11-06) · **Status**: Proposed. Nothing in this record is adopted until the Architect accepts it · **Raised by**: story #123, `specs/010-keep-install-aks/research.md` Findings 11, 14 and 20.
+**Date**: 2026-11-05 (decision 4 added 2026-11-06; decision 5 recorded 2026-11-06) · **Status**: Accepted, on developer-reported Architect acceptance (2026-11-09). This is not a GitHub review approval: PR #143 has a GitHub review of 2026-11-07 (head `dd3b3c1`) with no review text. Technical verification is recorded separately in research.md · **Raised by**: story #123, `specs/010-keep-install-aks/research.md` Findings 11, 14 and 20.
 
 ### Decision
 
-1. **Backend AI key.** `OPENAI_API_KEY` is set in `backend.env` with the chart's `secretKeyRef` form, reading Secret `sre-keep-ai-env`, key `fireworks.key`. This is a **proposed exception to AD-008** (rule 3: Secrets are wired through `envFromSecrets`; rule 2: Secret keys are named after the environment variable they become). The developer chose the key name `fireworks.key`, and the reasons are in the Why section below. That choice is not an Architect approval of the exception, and no approval is recorded yet. The exception is specific to the Fireworks Secret wiring.
-2. **Web page AI key (Proposed: developer-proposed configuration, requires Architect acceptance).** Secret `sre-keep-ai-frontend`, key `OPEN_AI_API_KEY`, populated from the same local Fireworks key file (`fireworks.key`) used to create `sre-keep-ai-env`, loaded through the chart's `frontend.envFromSecrets` mechanism. The chart's frontend env accepts no `secretKeyRef`. This adds a second Secret copy of one file, the same copy pattern AD-008 already uses for Alertmanager. Both Secrets must be rotated together. The frontend also requires `OPENAI_BASE_URL=https://api.fireworks.ai/inference/v1` and `OPENAI_MODEL_NAME` set to the verified model identifier. The route creates the SDK client without a base URL, so the SDK reads `OPENAI_BASE_URL` from the environment (research.md Finding 16). The frontend configuration is stated as requirement FR-012 in spec.md, with its acceptance criterion in SC-010. If the Architect does not accept this point, the alternative is no key on the web page, which turns the page's AI features off. Runtime behaviour is not yet tested. No credential value is written to a tracked file, displayed or logged.
+1. **Backend AI key.** `OPENAI_API_KEY` is set in `backend.env` with the chart's `secretKeyRef` form, reading Secret `sre-keep-ai-env`, key `fireworks.key`. This is an **accepted exception to AD-008** (rule 3: Secrets are wired through `envFromSecrets`; rule 2: Secret keys are named after the environment variable they become), accepted by the Architect on 2026-11-09. The developer chose the key name `fireworks.key`, and the reasons are in the Why section below. The exception is specific to the Fireworks Secret wiring.
+2. **Web page AI key (accepted 2026-11-09).** Secret `sre-keep-ai-frontend`, key `OPEN_AI_API_KEY`, populated from the same local Fireworks key file (`fireworks.key`) used to create `sre-keep-ai-env`, loaded through the chart's `frontend.envFromSecrets` mechanism. The chart's frontend env accepts no `secretKeyRef`. This adds a second Secret copy of one file, the same copy pattern AD-008 already uses for Alertmanager. Both Secrets must be rotated together. The frontend also requires `OPENAI_BASE_URL=https://api.fireworks.ai/inference/v1` and `OPENAI_MODEL_NAME` set to the verified model identifier. The route creates the SDK client without a base URL, so the SDK reads `OPENAI_BASE_URL` from the environment (research.md Finding 16). The frontend configuration is stated as requirement FR-012 in spec.md, with its acceptance criterion in SC-010. The alternative, not chosen, is no key on the web page, which turns the page's AI features off. Runtime behaviour is not yet tested. No credential value is written to a tracked file, displayed or logged.
 3. **No other change.** The busybox override follows AD-013 point 3 and needs no entry. The database Secret keys and the root-password mount follow AD-013 point 4.
-4. **Shared ServiceAccount (developer-selected for the initial implementation; subject to Architect review).** The chart's existing shared ServiceAccount is retained. Post-render ServiceAccount separation is not implemented, and no separate Roles or RoleBindings are introduced at this stage. The Secret permissions the backend requires are kept as the chart defines them. This choice does not mitigate the residual namespace-wide Secret risk described below, and the Architect's acknowledgement of that risk is outstanding.
+4. **Shared ServiceAccount (accepted 2026-11-09 as a residual risk).** The chart's existing shared ServiceAccount is retained. Post-render ServiceAccount separation is not implemented, and no separate Roles or RoleBindings are introduced. The Secret permissions the backend requires are kept as the chart defines them. This choice does not mitigate the residual namespace-wide Secret risk described below. The Architect accepted that risk on 2026-11-09.
 5. **Cleanup hook removed; manual Secret cleanup selected (Architect agreement recorded 2026-11-06).** The Architect has explicitly agreed to remove the Helm uninstall cleanup hook that used the third-party image `alpine/k8s:1.34.11`. The intended implementation is as follows:
    - The cleanup hook must not execute. The chart still renders it, and the documented uninstall command (decision 6) prevents its execution. No third-party cleanup image runs during the documented uninstall.
    - `helm uninstall` with `--no-hooks` (decision 6) does not automatically delete the dynamically created Keep Secrets. A plain `helm uninstall` would run the hook, which deletes them.
@@ -1016,8 +1016,8 @@ pass over the Keep alert-management SPEC (epic #91, CAP-1); chart
    - The cleanup hook's ServiceAccount, Role, RoleBinding and RBAC requirements are not part of the intended implementation.
    - The request for Architect acknowledgement of the cleanup-image security and supply-chain risk is withdrawn, because the image is not used.
 
-   This agreement covers the hook removal only. It is not acceptance of AD-016 as a whole, and it does not accept decisions 1, 2 or 4.
-6. **Uninstall mechanism (Architect decision, recorded 2026-11-06; decision on the mechanism only).** The documented uninstall command is `helm uninstall keep -n <namespace> --no-hooks`. No Helm post-renderer is introduced, and the upstream Keep chart is neither forked nor modified. Helm 3 is supported. Rationale: the flag suppresses pre-delete hook execution, as the Helm documentation describes; it works without any chart change, and so it avoids a maintained chart copy; and Helm 3 does not send hooks to post-renderers, so a post-renderer could not remove this hook under the project's Helm 3 install. The chart still renders the hook, which is recorded as a known condition. The control is procedural: a plain `helm uninstall` runs the hook, which deletes every `keep-*` Secret in the namespace, so the command must be enforced in the scripts and the runbook (not yet implemented). The behaviour is not yet tested against AKS (research.md Finding 20). This decision is not acceptance of AD-016 as a whole, and AD-016 remains Proposed.
+   This agreement covered the hook removal. AD-016 as a whole was accepted on 2026-11-09 (status line).
+6. **Uninstall mechanism (Architect decision, recorded 2026-11-06; decision on the mechanism only).** The documented uninstall command is `helm uninstall keep -n <namespace> --no-hooks`. No Helm post-renderer is introduced, and the upstream Keep chart is neither forked nor modified. Helm 3 is supported. Rationale: the flag suppresses pre-delete hook execution, as the Helm documentation describes; it works without any chart change, and so it avoids a maintained chart copy; and Helm 3 does not send hooks to post-renderers, so a post-renderer could not remove this hook under the project's Helm 3 install. The chart still renders the hook, which is recorded as a known condition. The control is procedural: a plain `helm uninstall` runs the hook, which deletes every `keep-*` Secret in the namespace, so the command must be enforced in the scripts and the runbook (not yet implemented). The behaviour is not yet tested against AKS (research.md Finding 20). AD-016 as a whole was accepted on 2026-11-09 (status line).
 
 ### Why
 
@@ -1028,7 +1028,7 @@ pass over the Keep alert-management SPEC (epic #91, CAP-1); chart
 
 ### What we gave up
 
-- AD-008 rules 2 and 3 would not be followed for the Fireworks key. Keeping `fireworks.key` is a proposed exception and needs Architect acceptance before the install step is built on it.
+- AD-008 rules 2 and 3 would not be followed for the Fireworks key. Keeping `fireworks.key` is an accepted exception (accepted 2026-11-09, decision 1).
 - The Fireworks key exists on the cluster in two Secrets if decision 2 is accepted. Both come from one file in one install run, so they cannot drift, but both must be rotated together.
 - A reader of the values file cannot see the key from the values alone. The Secret name and key are the only references.
 - Secret cleanup after uninstall is manual. Keep-generated Secrets remain after Helm uninstall until an administrator reviews and deletes them.
@@ -1045,22 +1045,22 @@ The procedure is in research.md Finding 20. It lists names with `kubectl get sec
 
 ### Residual namespace-wide Secret risk (backend)
 
-The backend requires `create`, `get`, `patch` and `delete` on namespace Secrets, because the chart sets `SECRET_MANAGER_TYPE` to `k8s`. These permissions are namespace-wide, not restricted to Secrets beginning with `keep-`. A compromised Keep pod sharing the ServiceAccount could potentially access or modify Secrets belonging to other components, including `sre-keep-db` and `sre-keep-ai-env`. Removing the cleanup hook does not remove or mitigate the backend's permissions. Retaining the shared ServiceAccount does not mitigate this risk. The Architect's explicit acknowledgement is requested and is outstanding. It is not described here as eliminated or technically mitigated.
+The backend requires `create`, `get`, `patch` and `delete` on namespace Secrets, because the chart sets `SECRET_MANAGER_TYPE` to `k8s`. These permissions are namespace-wide, not restricted to Secrets beginning with `keep-`. A compromised Keep pod sharing the ServiceAccount could potentially access or modify Secrets belonging to other components, including `sre-keep-db` and `sre-keep-ai-env`. Removing the cleanup hook does not remove or mitigate the backend's permissions. Retaining the shared ServiceAccount does not mitigate this risk. The Architect accepted this residual risk on 2026-11-09. It is not eliminated or technically mitigated.
 
 The chart's Role also still grants `list` and `delete`. The source read does not show the backend needing `list` (research Finding 17). The chart offers no values setting to remove it, and it is not part of the intended implementation to change it.
 
-### Open for Architect: shared ServiceAccount with Secret rights
+### Shared ServiceAccount with Secret rights (accepted residual risk)
 
-The developer has selected the chart's shared ServiceAccount for the initial implementation (decision 4), subject to Architect review. The Architect has not approved it. Research Finding 15 shows the following for chart 0.1.97:
+The chart's shared ServiceAccount is retained for the initial implementation (decision 4). The Architect accepted it on 2026-11-09 as a residual risk. Research Finding 15 shows the following for chart 0.1.97:
 
 - One ServiceAccount is shared by the backend, database, frontend and websocket. The chart has no per-component setting. The chart also renders the cleanup hook on the same ServiceAccount until its removal mechanism is implemented (blocker below).
 - The Role grants create, delete, get, list and patch on Secrets in the namespace. It is bound to that ServiceAccount, and both files are ungated.
 - Pods automount the ServiceAccount token, and the chart offers no value to turn that off.
 - Setting `serviceAccount.create: false` with no name binds the Role to the namespace's `default` ServiceAccount. This must not be used.
 
-Options for the Architect:
+Options considered:
 
-1. **Accept the chart's shared identity.** This is the developer's selected approach for the initial implementation (decision 4). It needs Architect review and acknowledgement of the residual risk, which is outstanding. The chart values stay as they are.
+1. **Accept the chart's shared identity.** This is the approach accepted for the initial implementation (decision 4). The chart values stay as they are.
 2. **Post-render separation (proposed design, not adopted, not tested).** A post-render step replaces the chart's single Role and RoleBinding with separate ones for the backend and the other pods. The cleanup hook's Role is no longer applicable, because the hook is removed. Frontend, websocket and database would have no Kubernetes Secret permissions, subject to runtime validation. Token automount is turned off only for pods whose runtime validation passes. Because this is outside chart values, it needs its own decision record and a re-check at each chart upgrade.
 3. **Operator-run manual cleanup.** Selected, as decision 5 records. It is not a Kubernetes permission change. The administrator performs the procedure in research.md Finding 20 outside the cluster, using the administrator's own access.
 
@@ -1070,13 +1070,13 @@ Options for the Architect:
 
 The existing Helm chart 0.1.97 still renders its uninstall cleanup hook unconditionally, and `values.yaml` has no switch for it. No chart setting is invented here, and the chart is not modified. Under decision 6, the documented uninstall command `helm uninstall keep -n <namespace> --no-hooks` prevents the hook from executing, so the chart change is not needed for the intended implementation. A plain `helm uninstall` would still execute it. Enforcement of the flag in the installation and uninstallation scripts and the operational runbook is not yet implemented.
 
-### Architect decisions and acknowledgements outstanding under this AD
+### Status of the items under this AD (2026-11-09)
 
-- (a) Acceptance of AD-016 as a whole. Its status is Proposed.
-- (b) Acceptance of the proposed exception to AD-008 for the backend Fireworks Secret (decision 1).
-- (c) Acceptance of the frontend Fireworks Secret configuration, FR-012 and SC-010 (decision 2).
-- (d) Architect review of the shared ServiceAccount and explicit acknowledgement of the residual namespace-wide backend Secret risk (decision 4 and the residual-risk section).
-- (e) Implementation: enforce `--no-hooks` in the installation and uninstallation scripts and the operational runbook (decision 6). The mechanism is chosen; the enforcement is not yet implemented.
+- (a) AD-016 as a whole: accepted by the Architect, 2026-11-09.
+- (b) The exception to AD-008 for the backend Fireworks Secret (decision 1): accepted, 2026-11-09.
+- (c) The frontend Fireworks Secret configuration, FR-012 and SC-010 (decision 2): accepted, 2026-11-09.
+- (d) The shared ServiceAccount and the residual namespace-wide backend Secret risk (decision 4): accepted, 2026-11-09.
+- (e) Implementation, not an approval: enforce `--no-hooks` in the installation and uninstallation scripts and the operational runbook (decision 6). The mechanism is accepted; the enforcement is not yet implemented.
 
 The earlier request for acknowledgement of the cleanup-image risk is withdrawn, because the image is not used (decision 5).
 

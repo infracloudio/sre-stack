@@ -1,0 +1,14 @@
+EVENT      NAME        READY   STATUS            RESTARTS   AGE
+ADDED      probe-pod   0/1     SchedulingGated   0          0s
+ADDED      probe-job-j2mxt   0/1     Pending           0          0s
+MODIFIED   probe-job-j2mxt   0/1     Pending           0          0s
+MODIFIED   probe-job-j2mxt   0/1     ContainerCreating   0          0s
+MODIFIED   probe-job-j2mxt   0/1     ContainerCreating   0          2s
+MODIFIED   probe-job-j2mxt   1/1     Running             0          2s
+MODIFIED   probe-job-j2mxt   0/1     Completed           0          2s
+MODIFIED   probe-job-j2mxt   0/1     Completed           0          3s
+MODIFIED   probe-job-j2mxt   0/1     Completed           0          4s
+MODIFIED   probe-job-j2mxt   0/1     Completed           0          25s
+DELETED    probe-job-j2mxt   0/1     Completed           0          25s
+MODIFIED   probe-pod         0/1     Terminating         0          25s
+DELETED    probe-pod         0/1     Terminating         0          25s

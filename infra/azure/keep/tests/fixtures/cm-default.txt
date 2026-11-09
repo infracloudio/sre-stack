@@ -1,0 +1,5 @@
+EVENT      NAME               DATA   AGE
+ADDED      kube-root-ca.crt   1      0s
+ADDED      probe-cm           1      0s
+DELETED    probe-cm           1      26s
+DELETED    kube-root-ca.crt   1      40s

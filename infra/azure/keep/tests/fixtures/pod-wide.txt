@@ -1,0 +1,14 @@
+EVENT      NAME        READY   STATUS            RESTARTS   AGE   IP       NODE     NOMINATED NODE   READINESS GATES
+ADDED      probe-pod   0/1     SchedulingGated   0          0s    <none>   <none>   <none>           <none>
+ADDED      probe-job-j2mxt   0/1     Pending           0          0s    <none>   <none>   <none>           <none>
+MODIFIED   probe-job-j2mxt   0/1     Pending           0          0s    <none>   k3d-keep-uninstall-test-server-0   <none>           <none>
+MODIFIED   probe-job-j2mxt   0/1     ContainerCreating   0          0s    <none>   k3d-keep-uninstall-test-server-0   <none>           <none>
+MODIFIED   probe-job-j2mxt   0/1     ContainerCreating   0          2s    <none>   k3d-keep-uninstall-test-server-0   <none>           <none>
+MODIFIED   probe-job-j2mxt   1/1     Running             0          2s    10.42.0.10   k3d-keep-uninstall-test-server-0   <none>           <none>
+MODIFIED   probe-job-j2mxt   0/1     Completed           0          2s    10.42.0.10   k3d-keep-uninstall-test-server-0   <none>           <none>
+MODIFIED   probe-job-j2mxt   0/1     Completed           0          3s    10.42.0.10   k3d-keep-uninstall-test-server-0   <none>           <none>
+MODIFIED   probe-job-j2mxt   0/1     Completed           0          4s    10.42.0.10   k3d-keep-uninstall-test-server-0   <none>           <none>
+MODIFIED   probe-job-j2mxt   0/1     Completed           0          25s   10.42.0.10   k3d-keep-uninstall-test-server-0   <none>           <none>
+DELETED    probe-job-j2mxt   0/1     Completed           0          25s   10.42.0.10   k3d-keep-uninstall-test-server-0   <none>           <none>
+MODIFIED   probe-pod         0/1     Terminating         0          25s   <none>       <none>                             <none>           <none>
+DELETED    probe-pod         0/1     Terminating         0          25s   <none>       <none>                             <none>           <none>

@@ -1,0 +1,177 @@
+# keep.yaml: values for Keep (chart keephq/keep 0.1.97, app 0.54.3), story #123.
+#
+# Helm replaces each list in full. The backend.env, frontend.env and database.mysql.env lists below restate
+# every chart default and add or change only what is listed in the comments.
+#
+# This file names Secrets and keys only. It contains no credential value. The Secrets are created by
+# setup-keep.sh (planned). The keep-uninstall-control test namespace uses dummy values, labelled test-only.
+
+backend:
+  # Observability pool placement (principle V). The spot toleration is needed on AKS spot nodes.
+  nodeSelector:
+    workload: o11y
+  tolerations:
+    - key: o11y
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+    # Azure spot auto-taint (docs/architectural-decisions.md AD-003).
+    - key: kubernetes.azure.com/scalesetpriority
+      operator: Equal
+      value: spot
+      effect: NoSchedule
+  waitForDatabase:
+    # The chart's busybox wait container has no tag. It is replaced by the pinned one below.
+    enabled: false
+  extraInitContainers:
+    - name: wait-for-database
+      image: busybox:1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4
+      imagePullPolicy: IfNotPresent
+      command: ['sh', '-c', 'until nc -z keep-database 3306; do sleep 1; done;']
+  # Chart change from default: DATABASE_CONNECTION_STRING is read from the Secret, not from a literal value.
+  # A literal entry in backend.env would duplicate it, so the literal entry is removed.
+  databaseConnectionStringFromSecret:
+    enabled: true
+    secretName: sre-keep-db
+    secretKey: DATABASE_CONNECTION_STRING
+  env:
+    - name: DATABASE_NAME
+      value: keep-database
+    - name: SECRET_MANAGER_TYPE
+      value: k8s
+    - name: PORT
+      value: "8080"
+    - name: PUSHER_APP_ID
+      value: 1
+    - name: PUSHER_APP_KEY
+      value: keepappkey
+    - name: PUSHER_APP_SECRET
+      value: keepappsecret
+    - name: PUSHER_HOST
+      value: keep-websocket
+    - name: PUSHER_PORT
+      value: 6001
+    - name: PROMETHEUS_MULTIPROC_DIR
+      value: "/tmp/prometheus"
+    # Usage reporting off (research Finding 8).
+    - name: POSTHOG_DISABLED
+      value: "true"
+    # AI key from the Fireworks Secret, using the chart's secretKeyRef form (research Finding 11).
+    - name: OPENAI_API_KEY
+      secretKeyRef:
+        secretName: sre-keep-ai-env
+        secretKey: fireworks.key
+    - name: OPENAI_BASE_URL
+      value: https://api.fireworks.ai/inference/v1
+    - name: OPENAI_MODEL_NAME
+      value: accounts/fireworks/models/glm-5p3-flash
+
+frontend:
+  # Observability pool placement (principle V). The spot toleration is needed on AKS spot nodes.
+  nodeSelector:
+    workload: o11y
+  tolerations:
+    - key: o11y
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+    # Azure spot auto-taint (docs/architectural-decisions.md AD-003).
+    - key: kubernetes.azure.com/scalesetpriority
+      operator: Equal
+      value: spot
+      effect: NoSchedule
+  env:
+    - name: NEXTAUTH_SECRET
+      value: secret
+    - name: VERCEL
+      value: 1
+    - name: ENV
+      value: development
+    - name: NODE_ENV
+      value: development
+    - name: HOSTNAME
+      value: 0.0.0.0
+    - name: PUSHER_APP_KEY
+      value: "keepappkey"
+    - name: FRIGADE_DISABLED
+      value: "true"
+    # Usage reporting off (research Finding 8).
+    - name: POSTHOG_DISABLED
+      value: "true"
+    - name: SENTRY_DISABLED
+      value: "true"
+    - name: OPENAI_BASE_URL
+      value: https://api.fireworks.ai/inference/v1
+    - name: OPENAI_MODEL_NAME
+      value: accounts/fireworks/models/glm-5p3-flash
+  # The frontend key is loaded as OPEN_AI_API_KEY from the frontend Secret (research Finding 11).
+  envFromSecrets:
+    - name: sre-keep-ai-frontend
+      optional: false
+
+websocket:
+  # Observability pool placement (principle V). The spot toleration is needed on AKS spot nodes.
+  nodeSelector:
+    workload: o11y
+  tolerations:
+    - key: o11y
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+    # Azure spot auto-taint (docs/architectural-decisions.md AD-003).
+    - key: kubernetes.azure.com/scalesetpriority
+      operator: Equal
+      value: spot
+      effect: NoSchedule
+
+database:
+  # Observability pool placement (principle V). The spot toleration is needed on AKS spot nodes.
+  nodeSelector:
+    workload: o11y
+  tolerations:
+    - key: o11y
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+    # Azure spot auto-taint (docs/architectural-decisions.md AD-003).
+    - key: kubernetes.azure.com/scalesetpriority
+      operator: Equal
+      value: spot
+      effect: NoSchedule
+  pv:
+    # No PersistentVolume is created by the chart. The claim below is used instead.
+    enabled: false
+  pvc:
+    # gp2 on AKS (Azure disk). On k3d, infra/local/gp2-storageclass.yaml defines gp2 on rancher.io/local-path.
+    storageClass: gp2
+  mysql:
+    image:
+      # Pinned by digest (research Finding 13).
+      tag: "8.4.13@sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902"
+    env:
+      - name: MYSQL_DATABASE
+        value: keep
+      # The root password comes from a file mounted from the Secret. MYSQL_ALLOW_EMPTY_PASSWORD is removed
+      # from the chart default, so the root login cannot be empty (research Finding 14).
+      - name: MYSQL_ROOT_PASSWORD_FILE
+        value: /run/db-secret/mysql-root-password
+  # Mount only the root-password key. Without items, the whole Secret, including the connection string, would
+  # be mounted (research Finding 14).
+  extraVolumes:
+    - name: db-secret
+      secret:
+        secretName: sre-keep-db
+        items:
+          - key: mysql-root-password
+            path: mysql-root-password
+  extraVolumeMounts:
+    - name: db-secret
+      mountPath: /run/db-secret
+      readOnly: true
+
+# The chart's pre-delete cleanup Job. Pinned by digest (research Finding 10).
+deleteSecretJob:
+  image:
+    repository: alpine/k8s
+    tag: "1.34.11@sha256:0382123ab8ae17d8da5d43cc299242933eb012cfbe56787b43731c942c3eed80"
+    pullPolicy: IfNotPresent

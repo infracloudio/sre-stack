@@ -2,7 +2,7 @@
 
 **Spec**: [spec.md](spec.md) | **Research**: [research.md](research.md) | **Status** (2026-11-09): sections 1 to 8 have content; 7 and 8 draft, pending review.
 
-Word count overrun: 758 against 600; section 1 keeps the AD-016 statuses, and evidence lives in research.md and the tests README.
+Word count overrun: about 810 against 600; section 1 keeps the AD-016 statuses, and evidence lives in research.md and the tests README.
 
 ## 1. Approach and reasons
 
@@ -16,7 +16,7 @@ Word count overrun: 758 against 600; section 1 keeps the AD-016 statuses, and ev
 6. **Uninstall.** `--no-hooks`, then manual Secret cleanup. Difference: chart's pre-delete hook deletes `keep-*` Secrets.
 7. **Shared ServiceAccount.** Accepted residual risk (AD-016 decision 4). Difference: none.
 
-AD-016 status (developer-reported Architect acceptance, 2026-11-09): decision 1 accepted; 2 accepted, FR-012 open (section 8); 3 no status item; 4 accepted as residual risk; 5 agreement recorded 2026-11-06; 6 mechanism accepted, enforcement not implemented.
+AD-016 status (developer-reported Architect acceptance, 2026-11-09): decision 1 accepted; 2 accepted, with FR-006 and FR-012 (D2); 3 no status item; 4 accepted as residual risk; 5 agreement recorded 2026-11-06; 6 mechanism accepted, enforcement not implemented.
 
 PR #143's GitHub approval (2026-11-07) has no body text and is not evidence of Architect acceptance.
 
@@ -60,7 +60,7 @@ Residual risk: backend Secret permissions are namespace-wide (research Finding 1
 4. Cleanup: `keep-manual-cleanup.sh` (stub-tested only).
 
 Evidence: run folder with `run.log`, watch files, hook logs, `script-hashes.txt`, pod listing.
-- AKS verification (SC-001 to SC-011): not yet planned; needs approval before any AKS run.
+- AKS verification (SC-001 to SC-011): in scope (D5); procedure written in tasks.md and approved at the gate before any AKS run.
 
 ## 7. Verification and live results (draft, pending review)
 
@@ -69,8 +69,7 @@ Evidence: run folder with `run.log`, watch files, hook logs, `script-hashes.txt`
 
 ## 8. Risks, departures and open decisions (draft, pending review)
 
-- **AKS 1.34 end of life.** Nov 2026 (ms.date 09/15/2026). Architect decides 1.34, 1.35 or LTS.
-- **Blocker for AKS.** `NEXTAUTH_SECRET=secret` must be replaced.
+- **Decisions D1 to D9** (developer-reported Architect acceptance, 2026-11-09; full text in research.md): D1 FR-003 wording adopted; D2 FR-006 and FR-012 accepted; D3 FR-008 reads Secret uid and creation time only; D4 `NEXTAUTH_SECRET` generated like `db-password`; D5 AKS verification in scope, procedure in tasks.md; D6 stay on AKS 1.34 (end of life 30 Nov 2026); D7 one real k3d cleanup run; D8 Architect updates the ADR after the gate; D9 runbook path confirmed.
+- **Blocker for AKS.** `NEXTAUTH_SECRET=secret` stays in `keep.yaml` until D4 is implemented.
 - **Hook placement.** Cleanup Job has no placement keys; it lands on any untainted node (AD-003).
-- **Open.** FR-008 wording; FR-006 and FR-012 acceptance (ADR item (c) accepts FR-012, plan does not); runbook path.
 - **Path.** Path matches AD-011, AD-013, architecture.md and `_bmad-output` story; no departure.
