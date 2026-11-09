@@ -354,7 +354,7 @@ Namespaces deleted afterwards; port-forward stopped.
 
 **Scope of the grants.** The Role `secret-manager-role` has no `resourceNames`, so `create`, `delete`, `get`, `list` and `patch` apply to every Secret in the namespace, including `sre-keep-db` and `sre-keep-ai-env`. The hook's ServiceAccount, `keep`, is the one bound to it (Finding 15). Under the proposed separation (AD-016 option 2), the hook's Role would be `get`, `list` and `delete` with the same namespace-wide scope. Update 2026-11-06: the hook is removed (Finding 20), so that requirement no longer applies. The backend's `create`, `get`, `patch` and `delete` remain namespace-wide.
 
-**Decision (developer, 2026-11-06; not an Architect approval).** The chart's existing shared ServiceAccount is retained for the initial implementation, subject to Architect review. Post-render separation is not implemented, and no separate Roles or RoleBindings are introduced at this stage. The backend's Secret permissions are kept as the chart defines them: `create`, `get`, `patch` and `delete`. The cleanup hook's `get`, `list` and `delete` permissions are no longer required by the intended implementation, because the Architect agreed to remove the hook (Finding 20). Retaining the shared ServiceAccount does not mitigate the residual namespace-wide Secret risk. The Architect's explicit acknowledgement of that risk is outstanding.
+**Decision (developer, 2026-11-06; not an Architect approval).** The chart's existing shared ServiceAccount is retained for the initial implementation, subject to Architect review. Post-render separation is not implemented, and no separate Roles or RoleBindings are introduced at this stage. The backend's Secret permissions are kept as the chart defines them: `create`, `get`, `patch` and `delete`. The cleanup hook's `get`, `list` and `delete` permissions are no longer required by the intended implementation, because the Architect agreed to remove the hook (Finding 20). Retaining the shared ServiceAccount does not mitigate the residual namespace-wide Secret risk. The Architect's explicit acknowledgement of that risk is outstanding. (superseded 2026-11-09: developer-reported Architect acceptance, see Finding 18)
 
 **Can RBAC restrict the hook to `keep-*` names? No.** Kubernetes RBAC documentation (read through context7, library `/websites/kubernetes_io`, page `reference/access-authn-authz/rbac`; not re-fetched from the live site):
 - `resourceNames` cannot restrict `deletecollection` or a top-level `create`.
@@ -368,7 +368,7 @@ The hook's targets are Secrets that Keep's backend writes with names it supplies
 - *Operator-run cleanup outside the cluster.* Run `helm uninstall --no-hooks`, then delete the `keep-*` Secrets with the operator's own kubeconfig. This removes the hook's in-cluster Secret grant. It moves the permission to the operator, whose access to the namespace is already broad. Chosen as the operational approach on 2026-11-06 (Finding 20); the procedure has not been run.
 - *Keep the chart's hook and accept the risk.* This was the chart's behaviour before the 2026-11-06 decision to remove the hook (Finding 20).
 
-**Residual risk for Architect review.** The backend requires `create`, `get`, `patch` and `delete` permissions on namespace Secrets for its Kubernetes Secret manager. The cleanup hook's `get`, `list` and `delete` permissions are no longer required by the intended implementation because the Architect agreed to remove the hook (Finding 20). These backend permissions are namespace-wide, not restricted to Secrets beginning with `keep-`. A compromised Keep pod sharing this ServiceAccount could potentially access or modify Secrets belonging to other components, including `sre-keep-db` and `sre-keep-ai-env`. A compromised backend could potentially read (`get`), create, patch or delete them. Any identity that can create pods in the namespace can use these ServiceAccounts. Separation reduces which pods hold the grants, but it does not remove the namespace-wide backend permissions. Retaining the shared ServiceAccount does not mitigate this risk. The Architect's explicit acknowledgement is requested and is outstanding. **Runtime pending:** none of this has been tested.
+**Residual risk for Architect review.** The backend requires `create`, `get`, `patch` and `delete` permissions on namespace Secrets for its Kubernetes Secret manager. The cleanup hook's `get`, `list` and `delete` permissions are no longer required by the intended implementation because the Architect agreed to remove the hook (Finding 20). These backend permissions are namespace-wide, not restricted to Secrets beginning with `keep-`. A compromised Keep pod sharing this ServiceAccount could potentially access or modify Secrets belonging to other components, including `sre-keep-db` and `sre-keep-ai-env`. A compromised backend could potentially read (`get`), create, patch or delete them. Any identity that can create pods in the namespace can use these ServiceAccounts. Separation reduces which pods hold the grants, but it does not remove the namespace-wide backend permissions. Retaining the shared ServiceAccount does not mitigate this risk. Developer-reported Architect acceptance, 2026-11-09 (AD-016 decision 4); not a GitHub review. **Runtime pending:** none of this has been tested.
 
 ### Finding 19: optional MySQL cleanup CronJob. Rendered default and template read. Not run.
 
@@ -483,8 +483,267 @@ Each name above matches the cleanup filter `^secret/keep-` in single-tenant mode
 | The optional MySQL cleanup CronJob is off by default and absent from the install render (Finding 19) | Rendered default and final-wiring render. |
 | The MySQL cleanup CronJob's root login would fail under the AD-013 root password (Finding 19) | Source read. Not run. |
 | The developer selected retaining the chart's shared ServiceAccount for the initial implementation (Finding 18) | Developer decision, 2026-11-06. Not Architect-approved. Not implemented. |
-| Retaining the shared ServiceAccount does not mitigate the namespace-wide Secret risk (Finding 18) | Analysis from the rendered Role and source read. Architect acknowledgement outstanding. Not run. |
+| Retaining the shared ServiceAccount does not mitigate the namespace-wide Secret risk (Finding 18) | Analysis from the rendered Role and source read. Developer-reported Architect acceptance, 2026-11-09. Not run. |
 | The backend Fireworks Secret reference (`sre-keep-ai-env`, key `fireworks.key`, env `OPENAI_API_KEY`) renders (Finding 11) | Rendered (test render). Runtime pending. |
 | The frontend Fireworks Secret (`sre-keep-ai-frontend`, key `OPEN_AI_API_KEY`) renders through `frontend.envFromSecrets` (Finding 11) | Rendered (test render). Runtime pending. |
 | The thinking-only token limit is adequate for Keep's AI calls (Finding 12) | Not verified. Runtime pending. |
 | The `sre-keep-ai-env` Secret survives `helm uninstall` (issue live check) | Not tested. Runtime pending. |
+
+## Plan detail moved from plan.md (2026-11-09)
+
+Moved from plan.md when it was cut to the target length. Where this text says the cleanup script is in the scratchpad or still to move, that is stale: it now lives at infra/azure/keep/tests/keep-manual-cleanup.sh.
+
+## Approach and reasons
+
+**Summary.** One command, `make setup-keep`, installs Keep on the Azure demo's monitoring machines. It uses the upstream Keep chart 0.1.97 (Keep app 0.54.3) without modification, with one values file of our own. Our install script creates the Secrets from local files and then runs the install. Example: a teammate runs the command on Monday. After a cluster rebuild on Friday, the same command gives the same image versions and reuses the same database password.
+
+**Decision record. Three kinds of evidence are kept separate, and every AD-016 decision has a stated status.**
+
+- *Developer-reported Architect acceptance.* This is the developer's report that the Architect confirmed the decision. No written Architect review exists in the repository.
+- *GitHub PR review.* PR #143 has a GitHub review approval dated 2026-11-07 on head `dd3b3c1`. The review has no body text. It does not record which decisions or requirements were accepted, and it is not evidence of Architect acceptance.
+- *Technical verification.* What sources, renders and runs show. Each item states which one it is. Nothing has been run against a cluster.
+
+| AD-016 decision | Status | Evidence kind |
+|---|---|---|
+| 1. Backend AI key: `fireworks.key` as the Secret key (exception to AD-008) | Developer-reported Architect acceptance, 2026-11-09 | Developer report. Rendered wiring (Finding 11) |
+| 2. Web page AI key: second Secret `sre-keep-ai-frontend` | Developer-reported Architect acceptance, 2026-11-09. FR-006 and FR-012 are **not** marked accepted; their approved status is unchanged until you confirm each one individually | Developer report. Source read and rendered (Findings 11, 16) |
+| 3. No other change (busybox override follows AD-013 point 3; database keys follow AD-013 point 4) | No acceptance status applies. It changes nothing, so it is not treated as accepted or pending | Rendered (Findings 9, 14) |
+| 4. Shared ServiceAccount, accepted as residual risk | Developer-reported Architect acceptance, 2026-11-09 | Developer report. Rendered Role and source read (Findings 15, 18) |
+| 5. Cleanup hook removed; manual Secret cleanup | Architect agreement recorded 2026-11-06 (developer-reported), accepted with AD-016 on 2026-11-09 (developer-reported) | Developer report. Procedure not run |
+| 6. Uninstall mechanism `helm uninstall keep -n <namespace> --no-hooks` | Developer-reported Architect acceptance, 2026-11-09 | Developer report. Source at v3.14.4 read; binary not run (see Helm section) |
+
+FR-003 keeps its approved wording. Helm revision stays diagnostic only. AD-008 (with the exception for `fireworks.key`), AD-011 (CAP-7) and AD-013 apply.
+
+**Implementation decisions**, each traced to research.md:
+
+1. **Values file.** One file, `infra/azure/chart-values/keep.yaml`, not `--set` chains (Constitution II; AD-013 point 1).
+2. **Start-up wait container pinned.** `backend.waitForDatabase.enabled: false` plus one `backend.extraInitContainers` entry, `busybox:1.38.0` by digest (Finding 9; AD-013 point 3).
+3. **Database pinned and protected.** `mysql:8.4.13` by digest (Finding 13). The root password comes from the generated `db-password` file (AD-008) and reaches the database pod through `MYSQL_ROOT_PASSWORD_FILE`, from a Secret mounted with an `items` list that exposes only `mysql-root-password` (Findings 7 and 14; AD-013 point 4).
+4. **Usage reporting off.** `POSTHOG_DISABLED=true` on the backend and frontend, and `SENTRY_DISABLED=true` on the frontend (Finding 8). The backend switch was confirmed in research. The frontend effect is checked at runtime only.
+5. **Storage.** `database.pv.enabled: false` with the claim on `gp2` (Findings 6 and 7).
+6. **AI keys (AD-016 decisions 1 and 2).** The backend reads `OPENAI_API_KEY` through `secretKeyRef` to Secret `sre-keep-ai-env`, key `fireworks.key`. The frontend loads Secret `sre-keep-ai-frontend`, key `OPEN_AI_API_KEY`, through `frontend.envFromSecrets`. Both Secrets come from one local file in one install run. The frontend values also set `OPENAI_BASE_URL=https://api.fireworks.ai/inference/v1` and `OPENAI_MODEL_NAME=accounts/fireworks/models/glm-5p3-flash` (Finding 16). `OPENAI_BASE_URL` is not yet in the values file, so the install adds it.
+7. **Uninstall (AD-016 decision 6).** The documented command is `helm uninstall keep -n <namespace> --no-hooks`. No post-renderer and no chart change. Secret cleanup is a manual, reviewed procedure (below).
+8. **Shared ServiceAccount (AD-016 decision 4).** Retained, as an accepted residual risk (below).
+
+**ServiceAccount, stated precisely.**
+
+- *Granted by the chart.* Role `secret-manager-role` grants create, delete, get, list and patch on Secrets in the namespace. Role binding `secret-manager-rolebinding` binds it to the one shared ServiceAccount, `keep`. Every chart workload uses that ServiceAccount, including the cleanup hook while the chart still renders it (Finding 15).
+- *Used by the backend.* A source read of Keep v0.54.3 found create, read, patch and delete calls on Secrets, and no backend list call. That is source evidence, not runtime proof.
+- *Accepted residual risk.* The grant is namespace-wide. A compromised Keep pod could read or change `sre-keep-db` and `sre-keep-ai-env`. The plan does not describe this as mitigated.
+
+## FR-003: how "No third-party cleanup image is deployed" is satisfied
+
+The approved wording is kept unchanged. Three states must be kept apart, and the table shows how each applies to the chart's pre-delete hook:
+
+| State | What it is | For the cleanup hook |
+|---|---|---|
+| Rendered manifest | Text produced by `helm template`. The chart renders the Job with the `alpine/k8s:1.34.11` digest (Finding 10, render). | Always present in the render. It describes what Helm would do on uninstall. It runs nothing and creates no resource. |
+| Created resource | The Job object in the cluster. | Created only when Helm runs the pre-delete hook. Helm's v3.14.4 source runs pre-delete hooks only in `pkg/action/uninstall.go` (line 108) and never during `helm install`. With `--no-hooks`, it is never created. |
+| Executed container | The image pulled and run inside a Pod. | Only after a Job is created. |
+
+Facts about the hook, from the chart template: the Job is named `delete-keep-secrets`, carries the labels `app.kubernetes.io/instance: keep` and `app.kubernetes.io/component: secrets`, and has `helm.sh/hook: pre-delete` with `helm.sh/hook-delete-policy: "hook-succeeded,hook-failed"`. Its pod template has no labels of its own. The Job controller adds `batch.kubernetes.io/job-name` to the Pod, and the uninstall test selects Pods with that label. Helm deletes the Job when it finishes, so the Job is not available to inspect after uninstall.
+
+**What this means for FR-003.** The requirement holds for `setup-keep` (no Job is created) and for the documented uninstall (no Job is created and no image runs). It does not say that the cleanup image is absent from the chart. The rendered manifest still contains the image reference. **The gap:** a plain `helm uninstall` (not the documented command) creates the Job and runs the image. Only the documented command prevents this, and that rule is procedural.
+
+**Proposed wording (not applied; requires spec approval).** "During install and during the documented uninstall command, no third-party cleanup image is pulled or run." It is presented here as a separate decision for you to approve or reject. The approved wording stays until then.
+
+## Uninstall validation and test environment (section 7; not run)
+
+**Files (repository, untracked; not committed).** `infra/azure/keep/tests/lib-uninstall-test.sh` (shared functions), `infra/azure/keep/tests/keep-uninstall-control.sh` (positive control) and `infra/azure/keep/tests/keep-uninstall-nohooks.sh` (documented command). Each passes `bash -n` under Bash 3.2 and Bash 5.3. `shellcheck -x -P infra/azure/keep/tests` (Homebrew) passes on all three. These are static checks only; nothing has run against a cluster. The cleanup script was moved to `keep-manual-cleanup.sh` in the tests folder on 2026-11-09.
+
+**Dependencies, by script.**
+
+| Script | Needs | Does not need |
+|---|---|---|
+| lib and both test scripts | bash (run as `bash`, checked at start); `kubectl`; `helm` exactly v3.14.4 on PATH (checked, refused otherwise); `awk`, `grep`, `sleep`, `mktemp`, `date`, `head`, `cat`, `dirname`, `ps`, `shasum`, `tr` (all checked by `preflight`). The no-hooks script also needs a server at Kubernetes 1.30 or later (checked by `require_server_version` before any change) | GNU `timeout`, `xargs -r`, `seq`, `jq`, `sed -i`, `pkill`, Docker, network access beyond the cluster |
+| `keep-manual-cleanup.sh` (tests folder) | bash; `kubectl`; `helm` (any v3 for the `not found` check); `awk`, `cmp`, `wc`, `tr`, `mktemp` | as above |
+| FR-008 snapshot commands (not yet written as a script) | `jq` | as above |
+
+**Environment safety.**
+
+- *Cluster.* A disposable local k3d cluster `keep-uninstall-test` is preferred. k3d is **not installed** on this machine, so installing it (Homebrew) needs your approval. The AKS demo cluster is not used. The scripts refuse any context other than exactly `k3d-keep-uninstall-test`, and any cluster address other than `https://127.0.0.1:<port>` or `https://localhost:<port>`. No environment variable bypasses either check.
+- *Images the test may pull.* k3d's own images (names printed at cluster creation). Keep 0.54.3 images as in the chart defaults: backend and frontend from `us-central1-docker.pkg.dev/keephq/keep/`; websocket `quay.io/soketi/soketi:1.4-16-debian`. Pinned in the test: MySQL `mysql:8.4.13` by digest; the wait container `busybox:1.38.0` by digest, through `backend.extraInitContainers` with `waitForDatabase` disabled; the hook image `alpine/k8s:1.34.11` by digest, through `deleteSecretJob.image`. The digests come from research (Findings 9, 10, 13) and were not re-verified for this run. Keep's own images are pinned by tag only, as in the chart.
+- *Usage reporting (before first start).* The chart's `backend.env` and `frontend.env` lists (values.yaml) are restated in the test values with `POSTHOG_DISABLED=true` (backend, frontend) and `SENTRY_DISABLED=true` (frontend). Helm replaces whole lists, so each restated list repeats the chart defaults. The render diff (see tests/README.md) shows more than the added switches: the deliberate differences from the chart defaults are listed there and in plan.md. Review them, not "switches only". Environment values take effect when pods start, so no report is sent before the switch. Chart-rendered and source-read only; runtime is unverified. Frontend external traffic in a fresh install is unverified and is an unresolved risk. The environment is not fully isolated.
+- *Outbound network.* Needed for image pulls and the chart repository. Keep's usage reports are the other outbound traffic and are disabled as above. Sentry's behaviour is unverified.
+- *Hook image pin.* Yes: digest in the tag field (`1.34.11@sha256:...`), which the template accepts because it renders `repository:tag`.
+- *Resources the test creates.* In each test namespace: the Keep release (Deployments, Services, ConfigMaps, a PersistentVolumeClaim, Helm release Secrets `sh.helm.release.v*`), the hook Job and Pod, the watch-probe ConfigMap, the two decoy Secrets, and any `keep-*` Secrets Keep creates at start-up. In the cluster: the k3d containers, network and volume.
+- *Cleanup.* Each script deletes its namespace at exit unless `KEEP_NS=1`. Afterwards `k3d cluster delete keep-uninstall-test` removes the cluster, its containers and its kubeconfig context. Evidence folders stay on the workstation.
+- *Process termination (unresolved).* `run_limited` signals only the PID of the command it started. Descendants of that process are not signalled. Once their parent exits they are reparented and no longer visible to the test, so a timed-out Helm call could leave a child running. The scripts do not kill process groups. The risk is limited to a kubeconfig with an `exec` credential plugin, which spawns a child process. The context guard is meant to exclude that case, but no runtime check of the kubeconfig's `exec` block has run. Options, none implemented: a read-only preflight check of the `exec` block, a diagnostic snapshot of child processes on timeout (no kill), or a process-group design. A process-group design needs runtime proof that the group is isolated from the parent shell.
+
+**Test order.** (A) positive control, then (B) the documented `--no-hooks` command. (B) refuses to produce PASS unless (A) passed on the same context (`CONTROL_EVIDENCE`). Full commands and expected evidence are in the reply that accompanies this revision.
+
+**Evidence the positive control must show.** The Job watch shows ADDED, then SUCCEEDED=1, then DELETED. The Pod watch shows the hook Pod ADDED. `hook-logs.txt` shows `secret "keep-decoy-control" deleted` and does not name `sre-keep-decoy-control`. `after-secrets.txt` lacks `keep-decoy-control` and keeps `sre-keep-decoy-control`. Every watcher is healthy at every health sample.
+
+**Evidence the no-hooks run must show.** Helm exits 0. `helm status keep` afterwards reports `not found`. The Job watch and Pod watch show no ADDED hook Job or Pod, and `events.txt` is empty for the hook Job. Both decoys remain, and so does every `keep-*` Secret from before. The watchers pass every health sample. Without a passing positive control, the result is INCONCLUSIVE, never PASS. Before Helm runs, the readiness check must pass: both sentinels are seen as ADDED and as DELETED, the sentinel Pod carries the test scheduling gate and stays unbound and unstarted through its DELETED row, and the server is at Kubernetes 1.30 or later. If the readiness check fails, the run is INCONCLUSIVE and Helm does not run.
+
+**Verdict rules.** PASS only when every required check holds. FAIL when a required check is contradicted. INCONCLUSIVE when a query fails, a watcher dies or is not sampled, the Job sequence is missing, or the logs are missing. A failed query is never a PASS.
+
+**Unverified until tested:** the watch output format and the Job success transition; Helm v3.14.4 behaviour when a hook fails; runtime Secret permissions; frontend API key isolation; complete manual Secret cleanup coverage; thinking-only token-limit behaviour; `kubectl logs --follow` attaching before the hook exits.
+
+
+## FR-008: second-run idempotency (test method; not run)
+
+FR-008 says a second run changes nothing and restarts nothing. The test does not depend on `resourceVersion`, because Kubernetes bumps it for status writes, readiness changes and similar events that are not workload changes. The test looks at what the workload is and does.
+
+**Scope.** Namespace `keep`, chart objects selected by `app.kubernetes.io/instance=keep`: Deployments, StatefulSets, ReplicaSets, Pods, Services, Ingresses, ConfigMaps, Jobs, CronJobs, PersistentVolumeClaims, ServiceAccounts, Roles and RoleBindings. The three Keep Secrets are checked separately, without serialising them.
+
+**Settling.** Before the first snapshot, `kubectl rollout status deployment -n keep` must succeed for each Deployment, and every Pod must be Ready. After the second run, wait 60 seconds, then take the second snapshot. If a rollout is still running at either snapshot, the result is INCONCLUSIVE.
+
+**What counts as a workload change, and how the test tells it apart from a harmless resourceVersion change.** A workload change is one of: a changed `.spec` on any object in scope (for Deployments and StatefulSets, a changed `.metadata.generation` shows the same thing); a new or removed Pod UID; or a higher container `restartCount`. Everything else is not a workload change. In particular, a `resourceVersion` bump is not one when the object's normalised form is unchanged, where the normalised form removes `.metadata.resourceVersion`, `.metadata.managedFields` and `.status`. The test records `resourceVersion` values as diagnostic output only.
+
+**Snapshot commands (non-Secret objects only, JSON allowed because no Secret is in this list):**
+
+```bash
+RUN=1   # 1 before the second run, 2 after it
+kubectl get deploy,sts,rs,pod,svc,ingress,cm,job,cronjob,pvc,sa,role,rolebinding -n keep \
+  -l app.kubernetes.io/instance=keep -o json > "$EV/objects-$RUN.json"
+jq '[.items[] | {kind, name: .metadata.name, uid: .metadata.uid, created: .metadata.creationTimestamp,
+     generation: .metadata.generation, spec: .spec, restarts: [.status.containerStatuses[]?.restartCount]}]
+    | sort_by(.kind, .name)' "$EV/objects-$RUN.json" > "$EV/normalised-$RUN.json"
+jq '[.items[] | {kind, name: .metadata.name, resourceVersion: .metadata.resourceVersion}]
+    | sort_by(.kind, .name)' "$EV/objects-$RUN.json" > "$EV/diagnostic-resourceversion-$RUN.json"
+```
+
+**Secrets (metadata only, never data).** `kubectl get secret -n keep -o custom-columns=NAME:.metadata.name,UID:.metadata.uid,CREATED:.metadata.creationTimestamp` is saved to `$EV/secrets-$RUN.txt`. The default table (NAME, TYPE, DATA, AGE) is also saved, as diagnostic output only. The test requires the same three names, the same UIDs and the same creation timestamps before and after. A changed UID or timestamp means the Secret was recreated. DATA counts are no longer compared, because the only way to read them is through `.data`, which would print values. The custom-columns format is template-like, so it departs from the earlier rule that forbids templates for Secrets. It reads metadata fields only. Approved by the developer on 2026-11-09, narrowly: `.metadata.uid` and `.metadata.creationTimestamp` may be read this way for Secrets. `.data`, `.stringData`, whole-object output (`-o json`, `-o yaml`) and `describe` stay forbidden. Dropping the DATA-count comparison means this check no longer detects a changed key set. The Architect must confirm this wording. The credential files in `$KEEP_SECRETS_DIR` are checked by metadata only, with `stat -f '%m %i'` on macOS (modification time and inode), and are never read.
+
+**Pods (restarts).** `kubectl get pods -n keep` (default table: NAME, READY, STATUS, RESTARTS, AGE) is saved to `$EV/pods-$RUN.txt`, and the RESTARTS column must not increase.
+
+**Helm revision.** `helm history keep -n keep` is recorded as diagnostic output. It is not a pass or fail condition, because a plain `helm upgrade --install` creates a new revision even when nothing changed. Manifest-hash-based upgrade skipping is not implemented or proposed here.
+
+**Evaluation.**
+
+- PASS: the normalised files are identical; the Secret name, UID and creation timestamp rows are identical; the Pod RESTARTS column did not increase; the credential files' mtime and inode are unchanged.
+- FAIL: any normalised difference (which is reported as a diff of the normalised files, containing no Secret data), a new or removed Pod UID, a higher RESTARTS value, or a changed Secret or credential file.
+- INCONCLUSIVE: a query fails, the selector returns zero objects, a rollout is not settled, or `jq` is missing.
+
+The test never reads a Secret value and never serialises a Secret object.
+
+## FR-009: missing and empty `fireworks.key` preflight (test method; not run)
+
+Two separate tests. Neither reads or displays the real credential file. Both use a temporary folder created by the test.
+
+**Shim.** A directory `$SHIM` is placed first on `PATH`. It contains `kubectl`, `helm`, `az` and `openssl` scripts. Each shim appends its arguments to `$SHIM/calls.log` and exits 99.
+
+**Guard against reading the real folder.** `KEEP_SECRETS_DIR` points to the temporary folder. The script prints the resolved folder path in its message. The test is INCONCLUSIVE if the printed path differs, so the real `$HOME/.secrets/keep` cannot be used by accident. The script must also let an environment `KEEP_SECRETS_DIR` win over the value sourced from `.env` (planned requirement).
+
+**Test A (missing).** The folder contains no `fireworks.key`.
+
+```bash
+T="$(mktemp -d)"; SHIM="$(mktemp -d)"
+for c in kubectl helm az openssl; do
+  printf '#!/bin/sh\necho "%s $*" >> "%s/calls.log"\nexit 99\n' "$c" "$SHIM" > "$SHIM/$c"
+  chmod +x "$SHIM/$c"
+done
+KEEP_SECRETS_DIR="$T" PATH="$SHIM:$PATH" infra/azure/keep/setup-keep.sh > "$T/out.txt" 2> "$T/err.txt"
+echo "EXIT=$?" > "$T/exit.txt"
+```
+
+Pass if: `exit.txt` is non-zero; `err.txt` contains `missing`, `fireworks.key` and the resolved folder path; `calls.log` does not exist or is empty; the folder contains no new file.
+
+**Test B (empty).** The same, after creating a zero-byte file with `: > "$T/fireworks.key"`. Pass if: exit is non-zero; `err.txt` contains `empty`, `fireworks.key` and the resolved folder path; `calls.log` does not exist or is empty.
+
+**Planned script requirement.** The key check runs before any other command, including `kubectl version` and `helm version`. It uses `[ -e ]` and `[ -s ]` only, so the file is never read. The Azure chain case (missing file through `make setup-aks`, Keep skipped, the rest completes) is a separate check, not part of A or B.
+
+## Security coverage (section 5)
+
+- *Generated database password.* `openssl rand -hex 24`, created only when `db-password` is missing, and reused on later runs (AD-008). A reused file that is not lowercase hex stops the script and names the file.
+- *Local secrets directory.* `$HOME/.secrets/keep` (`KEEP_SECRETS_DIR` in `.env`, which holds only the path). Mode 700, created with `mkdir -p -m 700`, with `chmod 700` if it already exists with another mode. It refuses a folder inside the repository.
+- *Credential files.* Mode 600. `umask 077` is set before writing, and `chmod 600` runs explicitly.
+- *Verification of permissions.* After writing, the script reads each mode with `stat -f '%Lp'` (macOS) or `stat -c '%a'` (Linux), and stops if the folder is not 700 or a credential file is not 600.
+- *No credential output.* Credentials never appear on a command line (Secrets are created with `kubectl create secret generic --from-file`), in a log or on the terminal. The scripts do not enable tracing and print only file and Secret names.
+- *SC-009: Secret existence and key names without values. Not approved.* The prohibition on JSON, YAML and JSONPath output for Secrets stays in force, and no exception is introduced. `kubectl describe secret` is a candidate only. The kubectl documentation retrieved for this review does not say what it prints for Secret data, so nothing about its output is claimed. The method is not approved until a dummy-value test confirms all four of these: key names are visible; values are not visible; base64-encoded values are not visible; and no credential-bearing annotations are exposed (for example `kubectl.kubernetes.io/last-applied-configuration`, which holds the full object when a Secret is created with `kubectl apply`, so the procedure forbids `apply` for these Secrets). The dummy-value test uses a probe Secret, `keep-describe-probe`, in `keep-uninstall-test` with `dummy-value-not-a-credential`. It is a pending validation item.
+- *Fireworks Secret configuration (FR-012).* The rendered output must show the backend `secretKeyRef` to `sre-keep-ai-env` with key `fireworks.key`, and the frontend `envFrom` reference to `sre-keep-ai-frontend` with key `OPEN_AI_API_KEY`, plus `OPENAI_BASE_URL` and `OPENAI_MODEL_NAME` in the frontend env.
+
+## Manual Secret cleanup (AD-016 decision 5; fail-closed)
+
+The administrator runs `keep-manual-cleanup.sh <namespace>` after the documented uninstall. It is drafted in the scratchpad and was not executed. Its rules:
+
+- *Refuses before any change* unless: `EXPECTED_CONTEXT` matches; the namespace is not a system namespace (`default`, `kube-system`, `kube-public`, `kube-node-lease`, `monitoring`, `istio-system`); the namespace exists; and `helm status keep -n <namespace>` reports "not found". Any other result from `helm status` stops the script.
+- *Discovery fails closed.* The Secret list is `kubectl get secrets -n <ns> -o name` with no `|| true`. A non-zero exit stops the script with "nothing deleted". Its output is never read as "no Secrets".
+- *Names are reviewed.* The `keep-*` names are printed (names only). The administrator must type the namespace name to confirm.
+- *The list is re-checked.* A second discovery must produce an identical list (`cmp`). Any change cancels the run.
+- *Deletion is per name, with exit status checked.* It stops at the first failure. `DRY_RUN=1` adds `--dry-run=server` and deletes nothing.
+- *Verification.* A final discovery must succeed and show zero `keep-*` names. `sre-keep-*` Secrets are not matched and are not touched.
+- *No values are read.* Only `-o name` is used.
+
+Note: an empty list is a legitimate result and exits 0 with "Nothing to delete". That is allowed only because the discovery itself succeeded.
+
+## Helm 3.14.4 verification (local installation; commands for the developer; not run)
+
+Status: no Helm v3.14.4 binary has been downloaded, installed or run here. The only Helm on this machine is v4.2.4. The earlier download attempt was refused, and no workaround was used. Source reading at tag v3.14.4 is source evidence only: `cmd/helm/uninstall.go` line 76 defines `--no-hooks`, and `pkg/action/uninstall.go` lines 108 and 141 run the hooks only when hooks are enabled. The CI log shows what CI installs, not what it runs against a cluster.
+
+The complete commands, with expected output and stop conditions, are in the reply that accompanies this revision. They cover architecture detection, download, checksum, extraction, version, the `--no-hooks` help line, and the render of chart 0.1.97 with the pre-delete annotations.
+
+
+## macOS compatibility
+
+Tools on this workstation, checked with `command -v`: `openssl` (Homebrew, OpenSSL 4.1.0), `base64`, `sed`, `mktemp`, `chmod`, `xargs`, `grep`, `awk`, `seq`, `kubectl` (v1.34.1) and `helm` (v4.2.4). `jq` and `timeout` were not checked here. `sed` and `base64` are BSD builds. Rules for the scripts: no `xargs -r`; no GNU `timeout` (the test uses `run_limited`); `sed -i ''` only for in-place edits; no `base64 -w0`; no `mapfile`, because `/bin/bash` (3.2) lacks it. The setup script needs Homebrew bash 4 or later, which its preflight must check. The three uninstall test scripts do not use `jq`, and their preflight does not check for it. The FR-008 snapshot, which would need `jq`, is not yet written as a script.
+
+## Runbook location (repository convention)
+
+The repository has no runbook file. Operator guides are `README.md` files in the folder they cover (`infra/azure/scenario-0N/README.md`). The planned location is `infra/azure/keep/README.md`, which holds the mandatory `--no-hooks` command and the manual cleanup procedure.
+
+## Known limits, from research.md and the spec
+
+- The model is thinking-only. A small token limit returns empty answers. The token limit used by the backend's OpenAI path is not checked (Finding 12).
+- Azure can reclaim spot monitoring machines. Recovery from that is untested.
+- Sentry: no Sentry request was seen on the wire (Finding 8). Backend Sentry is not tested. Whether the page sends error reports to a third party is not verified.
+- The optional MySQL cleanup CronJob is disabled and not enabled by these values. Its root login has no password and would be expected to fail under AD-013 (Finding 19).
+- A lost `db-password` file while the database still exists is not handled (spec).
+- The manual cleanup has two known gaps (AD-016): a transient `none-*` Secret the `keep-*` filter would miss, and indirect Secret writers the source search may not have reached. The Alertmanager Secret `alertmanager-keep-auth` is in `monitoring`, outside the procedure's namespace.
+- A plain `helm uninstall` creates and runs the cleanup Job. Only the documented command prevents this, and that is procedural.
+- The backend's namespace-wide Secret access is accepted, not removed (AD-016 decision 4).
+- The chart's Role still grants `list`. The source read does not show the backend using it (Finding 17).
+- The Fireworks model identifier comes from an October 2026 smoke test, not a re-run (Finding 12).
+- `--no-hooks` on Helm 3 is verified from v3.14.4 source only.
+
+## Runtime checks not yet run
+
+None of these has run on AKS or in a container. They are planned in section 7: the busybox init container waiting on `keep-database`; the MySQL digest form; the Secret wiring in running pods; the frontend key kept out of browser code; `OPENAI_BASE_URL` and `OPENAI_MODEL_NAME` reaching Fireworks; the thinking-only token limit; the two uninstall runs; the Secrets surviving the documented uninstall; the FR-008 and FR-009 tests; the database volume on `gp2`; the SC-009 dummy-value test; and the manual cleanup in a throwaway namespace, covering each kind of Secret.
+
+## Requirement map (FR-001 to FR-013)
+
+Spec IDs are used as written. No test identifiers are invented. "Planned" means described here and not yet written or run. "Planned, incomplete" means the section that would hold the step (sections 3 to 8) is not written.
+
+| Requirement (spec) | Planned implementation | Planned verification (spec SC, or the test in this plan) | Status |
+|---|---|---|---|
+| FR-001 one command installs four parts | `make setup-keep` (name used in AD-011, AD-008 and this plan; `up-keep` appears nowhere in the repo), calling `infra/azure/keep/setup-keep.sh`. Makefile target not written | SC-001 (four parts Running within 5 minutes) | Planned, incomplete (§4, §7) |
+| FR-002 no usage reports | Values: `POSTHOG_DISABLED=true` on backend and frontend; `SENTRY_DISABLED=true` on frontend | SC-003 (no report in server log; zero calls to makers' servers in 25 s) | Planned, incomplete (§4, §7) |
+| FR-003 every image pinned; no third-party cleanup image deployed | Pins in values (decisions 2 and 3). Hook Job not created by `setup-keep` or by the documented uninstall (FR-003 section) | SC-004 (rendered tags and digests). Uninstall test R2 in `nohooks` mode: no Job or Pod created. Install check: a watch during `setup-keep` must show no Job (planned) | Planned, incomplete (§4, §7); uninstall run not done |
+| FR-004 database requires a password | Secret `sre-keep-db` from `db-password`; `MYSQL_ROOT_PASSWORD_FILE`; `items` restriction (decision 3) | SC-005 (login without password refused; with generated password works; before and after remove and reinstall) | Planned, incomplete (§4, §7) |
+| FR-005 standard storage | `database.pv.enabled: false`, claim on `gp2` (decision 5) | SC-008 (`kubectl get pvc -n keep` shows `gp2`) | Planned, incomplete (§4, §7) |
+| FR-006 secrets from local files, none in git | `setup-keep.sh` creates `sre-keep-db`, `sre-keep-ai-env`, `sre-keep-ai-frontend` from the local folder with `kubectl create secret generic --from-file` | SC-006 (both our Secrets exist after removal); SC-009 (method not approved); `make lint` secrets check (§8) | Planned, incomplete (§4, §5, §8); SC-009 method not approved |
+| FR-007 removing Keep leaves our own secrets | Documented `helm uninstall ... --no-hooks` (decision 7); manual cleanup removes only reviewed `keep-*` names | SC-006; `control` and `nohooks` checks R3 (decoys `sre-keep-decoy-*` survive both runs) | Planned, incomplete (§6); scripts drafted, not run |
+| FR-008 second run changes nothing, restarts nothing | Idempotent install (§4, not written). Test: identity, spec, Pod UIDs and restarts, Secret UIDs and creation times, credential file metadata (FR-008 section). Helm revision diagnostic only | SC-002 (second run changes 0 resources and restarts 0 parts) | Planned, incomplete (§4, §7); method written, not run |
+| FR-009 missing key file stops before any cluster change | Key check first in `setup-keep.sh`, using `[ -e ]` and `[ -s ]` only (FR-009 section) | SC-007 (exits before any change; message names the file). Tests A (missing) and B (empty) in the FR-009 section | Planned, incomplete (§4, §7); tests written, not run |
+| FR-010 page opens through a temporary connection, no login | Step in §4 (not written): `kubectl port-forward` to Service `keep-frontend`, port 3000 (chart render) | Planned: HTTP 200 from localhost, no login screen (§7, not written). SC-003 covers the outbound-call check only | Planned, incomplete (§4, §7) |
+| FR-011 existing setups, other monitoring pods and lint keep working | §8 must-keep-working checks | `make lint` (required by AGENTS.md); `make setup-local` and EKS targets unchanged (not run); other monitoring pods Running (US1.5) | Planned, incomplete (§8) |
+| FR-012 frontend Fireworks configuration | Frontend values for `envFromSecrets` and env (decision 6) | SC-010 (rendered `envFrom`, `OPENAI_BASE_URL`, `OPENAI_MODEL_NAME`); runtime check that the frontend key stays out of browser code (§7) | Planned, incomplete (§4, §7) |
+| FR-013 `--no-hooks` for uninstall; manual cleanup of Keep Secrets | Scripts and `infra/azure/keep/README.md` state `--no-hooks` (§4, §6, not written). Manual cleanup script (above) | SC-011 (documented command includes the flag; cleanup lists names before deleting); `nohooks` and `control` runs | Planned, incomplete (§4, §6, §7); scripts drafted, not run |
+
+## Changed paths and open decisions (section 1)
+
+**Changed paths (planned or created as untracked files; none committed):**
+
+- `infra/azure/keep/tests/lib-uninstall-test.sh`, `keep-uninstall-control.sh`, `keep-uninstall-nohooks.sh`: created, untracked, `bash -n` passes.
+- `infra/azure/keep/tests/keep-manual-cleanup.sh`: moved here on 2026-11-09. Draft, not run. Open defect: see decision 10.
+- `infra/azure/chart-values/keep.yaml`: moved here from `infra/azure/keep/chart-values/` on 2026-11-09 (the accepted path, AD-011 and AD-013). `infra/azure/keep/setup-keep.sh`, `infra/azure/keep/README.md`: planned, not created.
+- `makefile`: a `setup-keep` target, and its place in the AKS setup chain (planned).
+- `.env`: `KEEP_SECRETS_DIR`, which holds only the folder path (planned).
+- `docs/architectural-decisions.md`: AD-016 status line now shows developer-reported Architect acceptance (2026-11-09) and the PR #143 no-review-text note.
+- `specs/010-keep-install-aks/spec.md`, `research.md`, `checklists/requirements.md`: stale status wording; diffs must be regenerated with the corrected attribution and are not applied.
+
+
+**Decisions still open (not implementation tasks).**
+
+1. **FR-003 wording.** Kept unchanged. The alternative is recorded only as a possible future change requiring explicit Architect approval.
+2. **FR-006 and FR-012.** Status unchanged, not marked accepted, until you confirm each individually.
+3. **Attribution in the three approved documents.** The regenerated diffs will use "developer-reported Architect acceptance" and will not imply PR #143 contains a written approval.
+4. **Helm 3.14.4.** Run the local commands and send the output before any cluster step.
+5. **k3d.** Approve installing k3d (Homebrew) for the disposable cluster, or name another disposable cluster you prefer.
+6. **Test runs.** Approve creating the k3d cluster and the two namespaces, and running (A) then (B).
+7. **Usage reporting in the test.** Accept the startup-report residual, or choose another method.
+8. **Runbook path.** `infra/azure/keep/README.md`. Confirm.
+9. **Helm revision.** Diagnostic only. Confirm.
+10. **Cleanup script.** Moved to `infra/azure/keep/tests/` on 2026-11-09. The delete-loop defect is fixed: each delete now writes stderr to its own numbered file. Before the fix, a stub-kubectl run deleted one of three names and stopped. After it, a three-name run deleted all three and left `sre-keep-db`, and `DRY_RUN=1` ran every delete with `--dry-run=server` and deleted nothing. Known wording issue: `DRY_RUN=1` still prints "deleted" for each name. No real cluster run has been made.
+
