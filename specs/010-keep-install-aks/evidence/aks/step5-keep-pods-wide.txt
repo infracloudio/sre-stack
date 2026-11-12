@@ -1,0 +1,5 @@
+NAME                              READY   STATUS    RESTARTS   AGE     IP             NODE                           NOMINATED NODE   READINESS GATES
+keep-backend-54cf767857-qqz2t     1/1     Running   0          2m35s   10.244.5.199   aks-o11y-41769888-vmss00000x   <none>           <none>
+keep-database-767d97f89-mnfff     1/1     Running   0          2m35s   10.244.5.221   aks-o11y-41769888-vmss00000x   <none>           <none>
+keep-frontend-f9f989687-jsphk     1/1     Running   0          2m35s   10.244.5.115   aks-o11y-41769888-vmss00000x   <none>           <none>
+keep-websocket-8554bd9f4d-6g42v   1/1     Running   0          2m35s   10.244.5.180   aks-o11y-41769888-vmss00000x   <none>           <none>

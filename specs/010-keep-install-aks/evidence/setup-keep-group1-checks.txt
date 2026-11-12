@@ -1,0 +1,45 @@
+# Group 1 ad-hoc checks for setup-keep.sh (T003 to T006). Temp folders outside the repo; dummy values; no ~/.secrets/keep access.
+# The formal FR-009 test (T017) is not written yet; these are ad-hoc checks, recorded as such.
+== C1 (T004) Bash 3.2 refuses before any work
+setup-keep: needs Bash 4 or newer (found 3.2.57(1)-release)
+exit 2
+== C2 (T004) Bash 5 with KEEP_SECRETS_DIR unset
+setup-keep: KEEP_SECRETS_DIR is not set (set it in .env or the environment)
+exit 2
+== C3 (T003) key file missing: exit 1, names the file, no kubectl/helm call
+setup-keep: AI key file missing or empty: case.s16p/fireworks.key
+exit 1
+shim calls: none
+== C4 (T003) key file empty counts as missing
+setup-keep: AI key file missing or empty: case.jgIM/fireworks.key
+exit 1
+shim calls: none
+== C5 (T003, chain mode) key missing with KEEP_SKIP_IF_NO_KEY=1: exit 0 with skip message
+setup-keep: skipped, AI key file missing or empty: case.ODKL/fireworks.key
+exit 0
+shim calls: none
+== C6 (T004) dummy key, default PATH (Homebrew Helm v4.2.4): refused before the cluster check
+setup-keep: needs Helm v3.14.4 on PATH (found: v4.2.4+g3900f43). Prefix PATH with $HOME/.local/opt/helm-3.14.4.
+exit 2
+files in folder: fireworks.key 
+== C7 (T005) dummy key, Helm prefixed, cluster unreachable: exit 1, nothing generated
+setup-keep: the cluster cannot be reached from the current kubectl context; nothing was changed
+exit 1
+files in folder: fireworks.key 
+== C8 (T006) dummy key, Helm prefixed, disposable cluster (read-only check): files created, modes, reuse
+setup-keep: created case.z4ca/db-password
+setup-keep: created case.z4ca/nextauth-secret
+setup-keep: local secret files ready in case.z4ca (values not printed)
+exit 0
+modes: folder=700 db-password=600 nextauth-secret=600
+db-password hex length: 48 (value not shown)
+setup-keep: reused case.z4ca/db-password
+setup-keep: reused case.z4ca/nextauth-secret
+setup-keep: local secret files ready in case.z4ca (values not printed)
+second run exit 0
+db-password unchanged on second run
+nextauth-secret unchanged on second run
+value leak check on script output: 0 matching lines
+== cleanup temp folders
+removed
+== inside-repo refusal (T004): not run here; it needs a key file inside the repo, which these checks may not create

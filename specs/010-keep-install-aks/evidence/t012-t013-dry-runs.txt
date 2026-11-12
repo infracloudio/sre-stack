@@ -1,0 +1,24 @@
+# T012 and T013: makefile dry runs
+== make -n setup-keep
+KEEP_SECRETS_DIR="~/.secrets/keep" bash infra/azure/keep/setup-keep.sh
+== make -n setup-aks | grep -n keep
+54:KEEP_SKIP_IF_NO_KEY=1 /Library/Developer/CommandLineTools/usr/bin/make setup-keep
+55:KEEP_SECRETS_DIR="~/.secrets/keep" bash infra/azure/keep/setup-keep.sh
+Error from server (NotFound): namespaces "istio-system" not found
+Error from server (NotFound): namespaces "istio-system" not found
+Error from server (NotFound): namespaces "istio-system" not found
+== make -n setup-aks | grep -n -E 'setup-gateway|setup-keep|get-service-endpoints'
+49:/Library/Developer/CommandLineTools/usr/bin/make setup-gateway
+54:KEEP_SKIP_IF_NO_KEY=1 /Library/Developer/CommandLineTools/usr/bin/make setup-keep
+55:KEEP_SECRETS_DIR="~/.secrets/keep" bash infra/azure/keep/setup-keep.sh
+56:/Library/Developer/CommandLineTools/usr/bin/make get-service-endpoints
+Error from server (NotFound): namespaces "istio-system" not found
+Error from server (NotFound): namespaces "istio-system" not found
+Error from server (NotFound): namespaces "istio-system" not found
+66:		echo "Run 'make setup-gateway' first, then 'make get-service-endpoints' again."; \
+== other modes: make -n setup and make -n setup-local (keep mentions)
+setup: 0
+Error from server (NotFound): namespaces "istio-system" not found
+Error from server (NotFound): namespaces "istio-system" not found
+Error from server (NotFound): namespaces "istio-system" not found
+setup-local: 0

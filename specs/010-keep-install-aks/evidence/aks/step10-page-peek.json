@@ -1,0 +1,16 @@
+{
+  "navigationHops": [
+    "307 http://localhost:3000/incidents",
+    "200 http://localhost:3000/signin",
+    "200 http://localhost:3000/incidents"
+  ],
+  "finalUrl": "http://localhost:3000/incidents",
+  "title": "",
+  "h1": [],
+  "cookieCount": 3,
+  "cookieNames": [
+    "authjs.csrf-token",
+    "authjs.callback-url",
+    "authjs.session-token"
+  ]
+}

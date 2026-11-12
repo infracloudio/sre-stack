@@ -1,0 +1,11 @@
+{
+  "finalUrl": "http://localhost:3000/incidents",
+  "firstStatus": 200,
+  "passwordInputs": 0,
+  "emailOrUserInputs": 0,
+  "forms": 0,
+  "requestsTotal": 118,
+  "callsOutsideLocalhost": 0,
+  "hostsOutsideLocalhost": {},
+  "windowMs": 25024
+}

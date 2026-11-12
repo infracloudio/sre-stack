@@ -1,0 +1,10 @@
+# Render diff, keep.yaml vs keep.yaml + throwaway overlay (API_URL_CLIENT=/backend). Helm v3.14.4, chart keep 0.1.97. Offline render, no cluster. Only the two differing lines are shown; no secret values.
+# Overlay is in the scratchpad (not the repo): fr010-overlay.yaml
+243c243
+<               value: "http://localhost:3000/v2"
+---
+>               value: "http://localhost:3000/backend"
+464c464
+<               value: "/v2"
+---
+>               value: "/backend"

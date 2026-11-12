@@ -2,7 +2,7 @@
 
 **Spec**: [spec.md](spec.md) | **Research**: [research.md](research.md) | **Status** (2026-11-09): sections 1 to 8 have content; 7 and 8 draft, pending review.
 
-Word count overrun: about 810 against 600; section 1 keeps the AD-016 statuses, and evidence lives in research.md and the tests README.
+Word count overrun: 919 against 600; section 1 keeps the AD-016 statuses, and evidence lives in research.md and the tests README.
 
 ## 1. Approach and reasons
 
@@ -72,4 +72,7 @@ Evidence: run folder with `run.log`, watch files, hook logs, `script-hashes.txt`
 - **Decisions D1 to D9** (developer-reported Architect acceptance, 2026-11-09; full text in research.md): D1 FR-003 wording adopted; D2 FR-006 and FR-012 accepted; D3 FR-008 reads Secret uid and creation time only; D4 `NEXTAUTH_SECRET` generated like `db-password`; D5 AKS verification in scope, procedure in tasks.md; D6 stay on AKS 1.34 (end of life 30 Nov 2026); D7 one real k3d cleanup run; D8 Architect updates the ADR after the gate; D9 runbook path confirmed.
 - **Blocker for AKS.** `NEXTAUTH_SECRET=secret` stays in `keep.yaml` until D4 is implemented.
 - **Hook placement.** Cleanup Job has no placement keys; it lands on any untainted node (AD-003).
+- **D10 (open, Architect decision, recorded 2026-11-12).** `PUSHER_APP_SECRET=keepappsecret` is a literal in our own `infra/azure/chart-values/keep.yaml` (lines 48 and 49, restating the chart default). It is also rendered into the backend and websocket manifests. Impact is low: the websocket is cluster-internal and Keep has no Ingress address. But AD-008 says nothing secret goes in a values file. Options: (a) accept as a documented limit, or (b) generate it like `db-password` and move it into a Secret (a follow-up change, not made here). keep.yaml is not changed.
+- **Departure (2026-11-09).** T009 creates the four Secrets only when missing; it does not "create or refresh". Reason: a refresh deletes and recreates the Secret, which changes its UID and creation time (the FR-008 test, D3), and `kubectl apply` is forbidden for Secrets (SC-009). Rotation is the README procedure in T014.
+- **Departure (2026-11-09): `~` form of KEEP_SECRETS_DIR.** AD-008 says `.env` holds `$HOME/.secrets/keep`, not `~`. The makefile includes `.env` (make expands `$HOME`), and `agent/tools/story-cost.sh` sources `.env` as shell (`$$HOME` would expand to the process ID). So `.env` holds `~/.secrets/keep`, and setup-keep.sh expands a leading `~/` only. A bare `~` or a literal `$HOME` is refused. The ADR is not edited.
 - **Path.** Path matches AD-011, AD-013, architecture.md and `_bmad-output` story; no departure.

@@ -1,0 +1,27 @@
+# D7: one real k3d run of keep-manual-cleanup.sh in throwaway namespace keep-cleanup-test (decoy keep-decoy-d7, our sre-keep-decoy-d7). Dummy values.
+== Secrets before (names)
+NAME
+keep-decoy-d7
+sre-keep-decoy-d7
+== dry run
+DRY_RUN=1: no Secret will be deleted
+Review these 1 Secret names in keep-cleanup-test (names only; values are never read):
+secret/keep-decoy-d7
+
+Type the namespace name (keep-cleanup-test) to confirm deletion of exactly these names: CANCELLED: nothing deleted
+exit 2
+== real run, exit 1
+== Secrets after (names)
+NAME
+keep-decoy-d7
+sre-keep-decoy-d7
+== real run, exit 0 (typed confirmation supplied on stdin)
+Review these 1 Secret names in keep-cleanup-test (names only; values are never read):
+secret/keep-decoy-d7
+
+Type the namespace name (keep-cleanup-test) to confirm deletion of exactly these names: deleted secret/keep-decoy-d7
+Done. Our own Secrets (sre-keep-*) were not matched by the filter and were not touched.
+== Secrets after (names)
+NAME
+sre-keep-decoy-d7
+throwaway namespace keep-cleanup-test deletion requested (decoy and our test Secret only)

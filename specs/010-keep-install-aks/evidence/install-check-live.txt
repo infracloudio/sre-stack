@@ -1,0 +1,5 @@
+NAME                             READY   STATUS    RESTARTS   AGE   IP           NODE                              NOMINATED NODE   READINESS GATES
+keep-backend-864ccffc6c-4vw4f    1/1     Running   0          40s   10.42.0.17   k3d-keep-uninstall-test-agent-0   <none>           <none>
+keep-database-fff6c946c-h2hzq    1/1     Running   0          40s   10.42.0.19   k3d-keep-uninstall-test-agent-0   <none>           <none>
+keep-frontend-7f6bcb5bd5-csdtx   1/1     Running   0          40s   10.42.0.15   k3d-keep-uninstall-test-agent-0   <none>           <none>
+keep-websocket-6c6dc5dc4-w9bpm   1/1     Running   0          40s   10.42.0.16   k3d-keep-uninstall-test-agent-0   <none>           <none>

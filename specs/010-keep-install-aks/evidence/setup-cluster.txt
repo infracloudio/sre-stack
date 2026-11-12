@@ -1,0 +1,22 @@
+# T002 cluster state (command output only)
+## current-context
+k3d-keep-uninstall-test
+## nodes with labels
+NAME STATUS ROLES
+k3d-keep-uninstall-test-agent-0 Ready <none>
+k3d-keep-uninstall-test-agent-1 Ready <none>
+k3d-keep-uninstall-test-server-0 Ready control-plane
+NAME                               STATUS   ROLES           AGE   VERSION        WORKLOAD
+k3d-keep-uninstall-test-agent-0    Ready    <none>          79m   v1.36.4+k3s1   o11y
+k3d-keep-uninstall-test-agent-1    Ready    <none>          79m   v1.36.4+k3s1   
+k3d-keep-uninstall-test-server-0   Ready    control-plane   80m   v1.36.4+k3s1   
+## name and taints
+Name:               k3d-keep-uninstall-test-agent-0
+Taints:             o11y=true:NoSchedule
+Name:               k3d-keep-uninstall-test-agent-1
+Taints:             <none>
+Name:               k3d-keep-uninstall-test-server-0
+Taints:             <none>
+## storageclass gp2
+NAME   PROVISIONER             RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
+gp2    rancher.io/local-path   Delete          WaitForFirstConsumer   false                  79m

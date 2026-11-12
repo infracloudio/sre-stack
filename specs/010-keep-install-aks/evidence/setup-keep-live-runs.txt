@@ -1,0 +1,33 @@
+# Live run of setup-keep.sh on k3d-keep-uninstall-test (namespace keep-uninstall-test, dummy key, pinned Helm 3.14.4).
+# Run 1 (creates the four Secrets and installs Keep)
+setup-keep: created <scratch>/live.aGvH/db-password
+setup-keep: created <scratch>/live.aGvH/nextauth-secret
+setup-keep: local secret files ready in <scratch>/live.aGvH (values not printed)
+setup-keep: created Secret sre-keep-db
+setup-keep: created Secret sre-keep-ai-env
+setup-keep: created Secret sre-keep-ai-frontend
+setup-keep: created Secret sre-keep-auth
+Release "keep" does not exist. Installing it now.
+NAME: keep
+LAST DEPLOYED: Mon Nov  9 19:26:54 2026
+NAMESPACE: keep-uninstall-test
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+setup-keep: Keep installed in namespace keep-uninstall-test
+# Run 2 (second run, nothing changed)
+setup-keep: reused <scratch>/live.aGvH/db-password
+setup-keep: reused <scratch>/live.aGvH/nextauth-secret
+setup-keep: local secret files ready in <scratch>/live.aGvH (values not printed)
+setup-keep: Secret sre-keep-db already exists, not changed
+setup-keep: Secret sre-keep-ai-env already exists, not changed
+setup-keep: Secret sre-keep-ai-frontend already exists, not changed
+setup-keep: Secret sre-keep-auth already exists, not changed
+Release "keep" has been upgraded. Happy Helming!
+NAME: keep
+LAST DEPLOYED: Mon Nov  9 19:27:48 2026
+NAMESPACE: keep-uninstall-test
+STATUS: deployed
+REVISION: 2
+TEST SUITE: None
+setup-keep: Keep installed in namespace keep-uninstall-test

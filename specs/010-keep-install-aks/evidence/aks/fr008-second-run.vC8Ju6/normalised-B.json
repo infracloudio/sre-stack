@@ -1,0 +1,2254 @@
+[
+  {
+    "kind": "Deployment",
+    "name": "keep-backend",
+    "uid": "3aa057a0-b349-4678-acdd-86c878bbdd79",
+    "created": "2026-11-12T09:40:58Z",
+    "generation": 1,
+    "spec": {
+      "progressDeadlineSeconds": 600,
+      "replicas": 1,
+      "revisionHistoryLimit": 10,
+      "selector": {
+        "matchLabels": {
+          "app.kubernetes.io/instance": "keep",
+          "app.kubernetes.io/name": "keep",
+          "keep-component": "backend"
+        }
+      },
+      "strategy": {
+        "rollingUpdate": {
+          "maxSurge": "25%",
+          "maxUnavailable": "25%"
+        },
+        "type": "RollingUpdate"
+      },
+      "template": {
+        "metadata": {
+          "annotations": {
+            "checksum/provision-providers": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "checksum/provision-workflows": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "prometheus.io/path": "/metrics/processing",
+            "prometheus.io/port": "8080",
+            "prometheus.io/scrape": "true"
+          },
+          "labels": {
+            "app.kubernetes.io/component": "backend",
+            "app.kubernetes.io/instance": "keep",
+            "app.kubernetes.io/managed-by": "Helm",
+            "app.kubernetes.io/name": "keep",
+            "app.kubernetes.io/part-of": "keep",
+            "app.kubernetes.io/version": "0.54.3",
+            "helm.sh/chart": "keep-0.1.97",
+            "keep-component": "backend"
+          }
+        },
+        "spec": {
+          "containers": [
+            {
+              "env": [
+                {
+                  "name": "KEEP_API_URL",
+                  "value": "http://localhost:3000/v2"
+                },
+                {
+                  "name": "DATABASE_NAME",
+                  "value": "keep-database"
+                },
+                {
+                  "name": "SECRET_MANAGER_TYPE",
+                  "value": "k8s"
+                },
+                {
+                  "name": "PORT",
+                  "value": "8080"
+                },
+                {
+                  "name": "PUSHER_APP_ID",
+                  "value": "1"
+                },
+                {
+                  "name": "PUSHER_APP_KEY",
+                  "value": "keepappkey"
+                },
+                {
+                  "name": "PUSHER_APP_SECRET",
+                  "value": "keepappsecret"
+                },
+                {
+                  "name": "PUSHER_HOST",
+                  "value": "keep-websocket"
+                },
+                {
+                  "name": "PUSHER_PORT",
+                  "value": "6001"
+                },
+                {
+                  "name": "PROMETHEUS_MULTIPROC_DIR",
+                  "value": "/tmp/prometheus"
+                },
+                {
+                  "name": "POSTHOG_DISABLED",
+                  "value": "true"
+                },
+                {
+                  "name": "OPENAI_API_KEY",
+                  "valueFrom": {
+                    "secretKeyRef": {
+                      "key": "fireworks.key",
+                      "name": "sre-keep-ai-env"
+                    }
+                  }
+                },
+                {
+                  "name": "OPENAI_BASE_URL",
+                  "value": "https://api.fireworks.ai/inference/v1"
+                },
+                {
+                  "name": "OPENAI_MODEL_NAME",
+                  "value": "accounts/fireworks/models/glm-5p3-flash"
+                },
+                {
+                  "name": "K8S_NAMESPACE",
+                  "valueFrom": {
+                    "fieldRef": {
+                      "apiVersion": "v1",
+                      "fieldPath": "metadata.namespace"
+                    }
+                  }
+                },
+                {
+                  "name": "DATABASE_CONNECTION_STRING",
+                  "valueFrom": {
+                    "secretKeyRef": {
+                      "key": "DATABASE_CONNECTION_STRING",
+                      "name": "sre-keep-db"
+                    }
+                  }
+                }
+              ],
+              "image": "us-central1-docker.pkg.dev/keephq/keep/keep-api:0.54.3",
+              "imagePullPolicy": "Always",
+              "livenessProbe": {
+                "failureThreshold": 5,
+                "httpGet": {
+                  "path": "/healthcheck",
+                  "port": 8080,
+                  "scheme": "HTTP"
+                },
+                "initialDelaySeconds": 60,
+                "periodSeconds": 10,
+                "successThreshold": 1,
+                "timeoutSeconds": 1
+              },
+              "name": "keep",
+              "ports": [
+                {
+                  "containerPort": 8080,
+                  "name": "http",
+                  "protocol": "TCP"
+                }
+              ],
+              "readinessProbe": {
+                "failureThreshold": 3,
+                "httpGet": {
+                  "path": "/healthcheck",
+                  "port": 8080,
+                  "scheme": "HTTP"
+                },
+                "initialDelaySeconds": 10,
+                "periodSeconds": 5,
+                "successThreshold": 1,
+                "timeoutSeconds": 1
+              },
+              "resources": {},
+              "securityContext": {},
+              "terminationMessagePath": "/dev/termination-log",
+              "terminationMessagePolicy": "File",
+              "volumeMounts": [
+                {
+                  "mountPath": "/state",
+                  "name": "state-volume"
+                }
+              ]
+            }
+          ],
+          "dnsPolicy": "ClusterFirst",
+          "initContainers": [
+            {
+              "command": [
+                "sh",
+                "-c",
+                "until nc -z keep-database 3306; do sleep 1; done;"
+              ],
+              "image": "busybox:1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4",
+              "imagePullPolicy": "IfNotPresent",
+              "name": "wait-for-database",
+              "resources": {},
+              "terminationMessagePath": "/dev/termination-log",
+              "terminationMessagePolicy": "File"
+            }
+          ],
+          "nodeSelector": {
+            "workload": "o11y"
+          },
+          "restartPolicy": "Always",
+          "schedulerName": "default-scheduler",
+          "securityContext": {},
+          "serviceAccount": "keep",
+          "serviceAccountName": "keep",
+          "terminationGracePeriodSeconds": 30,
+          "tolerations": [
+            {
+              "effect": "NoSchedule",
+              "key": "o11y",
+              "operator": "Equal",
+              "value": "true"
+            },
+            {
+              "effect": "NoSchedule",
+              "key": "kubernetes.azure.com/scalesetpriority",
+              "operator": "Equal",
+              "value": "spot"
+            }
+          ],
+          "volumes": [
+            {
+              "emptyDir": {},
+              "name": "state-volume"
+            }
+          ]
+        }
+      }
+    },
+    "restarts": []
+  },
+  {
+    "kind": "Deployment",
+    "name": "keep-database",
+    "uid": "2ff54ff4-8ac7-49bb-9c98-eb2be05664ec",
+    "created": "2026-11-12T09:40:58Z",
+    "generation": 1,
+    "spec": {
+      "progressDeadlineSeconds": 600,
+      "replicas": 1,
+      "revisionHistoryLimit": 10,
+      "selector": {
+        "matchLabels": {
+          "app.kubernetes.io/instance": "keep",
+          "app.kubernetes.io/name": "keep",
+          "keep-component": "database"
+        }
+      },
+      "strategy": {
+        "rollingUpdate": {
+          "maxSurge": 0,
+          "maxUnavailable": 1
+        },
+        "type": "RollingUpdate"
+      },
+      "template": {
+        "metadata": {
+          "labels": {
+            "app.kubernetes.io/component": "database",
+            "app.kubernetes.io/instance": "keep",
+            "app.kubernetes.io/managed-by": "Helm",
+            "app.kubernetes.io/name": "keep",
+            "app.kubernetes.io/part-of": "keep",
+            "app.kubernetes.io/version": "0.54.3",
+            "helm.sh/chart": "keep-0.1.97",
+            "keep-component": "database"
+          }
+        },
+        "spec": {
+          "containers": [
+            {
+              "env": [
+                {
+                  "name": "MYSQL_DATABASE",
+                  "value": "keep"
+                },
+                {
+                  "name": "MYSQL_ROOT_PASSWORD_FILE",
+                  "value": "/run/db-secret/mysql-root-password"
+                }
+              ],
+              "image": "mysql:8.4.13@sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902",
+              "imagePullPolicy": "IfNotPresent",
+              "name": "keep",
+              "ports": [
+                {
+                  "containerPort": 3306,
+                  "name": "mysql",
+                  "protocol": "TCP"
+                }
+              ],
+              "resources": {},
+              "securityContext": {},
+              "terminationMessagePath": "/dev/termination-log",
+              "terminationMessagePolicy": "File",
+              "volumeMounts": [
+                {
+                  "mountPath": "/var/lib/mysql",
+                  "name": "keep-pv"
+                },
+                {
+                  "mountPath": "/run/db-secret",
+                  "name": "db-secret",
+                  "readOnly": true
+                }
+              ]
+            }
+          ],
+          "dnsPolicy": "ClusterFirst",
+          "nodeSelector": {
+            "workload": "o11y"
+          },
+          "restartPolicy": "Always",
+          "schedulerName": "default-scheduler",
+          "securityContext": {},
+          "serviceAccount": "keep",
+          "serviceAccountName": "keep",
+          "terminationGracePeriodSeconds": 30,
+          "tolerations": [
+            {
+              "effect": "NoSchedule",
+              "key": "o11y",
+              "operator": "Equal",
+              "value": "true"
+            },
+            {
+              "effect": "NoSchedule",
+              "key": "kubernetes.azure.com/scalesetpriority",
+              "operator": "Equal",
+              "value": "spot"
+            }
+          ],
+          "volumes": [
+            {
+              "name": "keep-pv",
+              "persistentVolumeClaim": {
+                "claimName": "keep-pvc"
+              }
+            },
+            {
+              "name": "db-secret",
+              "secret": {
+                "defaultMode": 420,
+                "items": [
+                  {
+                    "key": "mysql-root-password",
+                    "path": "mysql-root-password"
+                  }
+                ],
+                "secretName": "sre-keep-db"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "restarts": []
+  },
+  {
+    "kind": "Deployment",
+    "name": "keep-frontend",
+    "uid": "8b3a7655-3756-4c46-b28e-999a63d1015d",
+    "created": "2026-11-12T09:40:58Z",
+    "generation": 1,
+    "spec": {
+      "progressDeadlineSeconds": 600,
+      "replicas": 1,
+      "revisionHistoryLimit": 10,
+      "selector": {
+        "matchLabels": {
+          "app.kubernetes.io/instance": "keep",
+          "app.kubernetes.io/name": "keep",
+          "keep-component": "frontend"
+        }
+      },
+      "strategy": {
+        "rollingUpdate": {
+          "maxSurge": "25%",
+          "maxUnavailable": "25%"
+        },
+        "type": "RollingUpdate"
+      },
+      "template": {
+        "metadata": {
+          "labels": {
+            "app.kubernetes.io/component": "frontend",
+            "app.kubernetes.io/instance": "keep",
+            "app.kubernetes.io/managed-by": "Helm",
+            "app.kubernetes.io/name": "keep",
+            "app.kubernetes.io/part-of": "keep",
+            "app.kubernetes.io/version": "0.54.3",
+            "helm.sh/chart": "keep-0.1.97",
+            "keep-component": "frontend"
+          }
+        },
+        "spec": {
+          "containers": [
+            {
+              "env": [
+                {
+                  "name": "PUSHER_HOST",
+                  "value": "/websocket"
+                },
+                {
+                  "name": "API_URL_CLIENT",
+                  "value": "/v2"
+                },
+                {
+                  "name": "API_URL",
+                  "value": "http://keep-backend:8080"
+                },
+                {
+                  "name": "NEXTAUTH_URL",
+                  "value": "http://localhost:3000"
+                },
+                {
+                  "name": "VERCEL",
+                  "value": "1"
+                },
+                {
+                  "name": "ENV",
+                  "value": "development"
+                },
+                {
+                  "name": "NODE_ENV",
+                  "value": "development"
+                },
+                {
+                  "name": "HOSTNAME",
+                  "value": "0.0.0.0"
+                },
+                {
+                  "name": "PUSHER_APP_KEY",
+                  "value": "keepappkey"
+                },
+                {
+                  "name": "FRIGADE_DISABLED",
+                  "value": "true"
+                },
+                {
+                  "name": "POSTHOG_DISABLED",
+                  "value": "true"
+                },
+                {
+                  "name": "SENTRY_DISABLED",
+                  "value": "true"
+                },
+                {
+                  "name": "OPENAI_BASE_URL",
+                  "value": "https://api.fireworks.ai/inference/v1"
+                },
+                {
+                  "name": "OPENAI_MODEL_NAME",
+                  "value": "accounts/fireworks/models/glm-5p3-flash"
+                }
+              ],
+              "envFrom": [
+                {
+                  "secretRef": {
+                    "name": "sre-keep-ai-frontend",
+                    "optional": false
+                  }
+                },
+                {
+                  "secretRef": {
+                    "name": "sre-keep-auth",
+                    "optional": false
+                  }
+                }
+              ],
+              "image": "us-central1-docker.pkg.dev/keephq/keep/keep-ui:0.54.3",
+              "imagePullPolicy": "Always",
+              "name": "keep",
+              "ports": [
+                {
+                  "containerPort": 3000,
+                  "name": "http",
+                  "protocol": "TCP"
+                }
+              ],
+              "resources": {},
+              "securityContext": {},
+              "terminationMessagePath": "/dev/termination-log",
+              "terminationMessagePolicy": "File",
+              "volumeMounts": [
+                {
+                  "mountPath": "/state",
+                  "name": "state-volume"
+                }
+              ]
+            }
+          ],
+          "dnsPolicy": "ClusterFirst",
+          "nodeSelector": {
+            "workload": "o11y"
+          },
+          "restartPolicy": "Always",
+          "schedulerName": "default-scheduler",
+          "securityContext": {},
+          "serviceAccount": "keep",
+          "serviceAccountName": "keep",
+          "terminationGracePeriodSeconds": 30,
+          "tolerations": [
+            {
+              "effect": "NoSchedule",
+              "key": "o11y",
+              "operator": "Equal",
+              "value": "true"
+            },
+            {
+              "effect": "NoSchedule",
+              "key": "kubernetes.azure.com/scalesetpriority",
+              "operator": "Equal",
+              "value": "spot"
+            }
+          ],
+          "volumes": [
+            {
+              "emptyDir": {},
+              "name": "state-volume"
+            }
+          ]
+        }
+      }
+    },
+    "restarts": []
+  },
+  {
+    "kind": "Deployment",
+    "name": "keep-websocket",
+    "uid": "a9b05496-8a75-4fa5-9485-5d375ebdfb0c",
+    "created": "2026-11-12T09:40:58Z",
+    "generation": 1,
+    "spec": {
+      "progressDeadlineSeconds": 600,
+      "replicas": 1,
+      "revisionHistoryLimit": 10,
+      "selector": {
+        "matchLabels": {
+          "app.kubernetes.io/instance": "keep",
+          "app.kubernetes.io/name": "keep",
+          "keep-component": "websocket"
+        }
+      },
+      "strategy": {
+        "rollingUpdate": {
+          "maxSurge": "25%",
+          "maxUnavailable": "25%"
+        },
+        "type": "RollingUpdate"
+      },
+      "template": {
+        "metadata": {
+          "labels": {
+            "app.kubernetes.io/component": "websocket",
+            "app.kubernetes.io/instance": "keep",
+            "app.kubernetes.io/managed-by": "Helm",
+            "app.kubernetes.io/name": "keep",
+            "app.kubernetes.io/part-of": "keep",
+            "app.kubernetes.io/version": "0.54.3",
+            "helm.sh/chart": "keep-0.1.97",
+            "keep-component": "websocket"
+          }
+        },
+        "spec": {
+          "containers": [
+            {
+              "env": [
+                {
+                  "name": "SOKETI_HOST",
+                  "value": "0.0.0.0"
+                },
+                {
+                  "name": "SOKETI_DEBUG",
+                  "value": "1"
+                },
+                {
+                  "name": "SOKETI_USER_AUTHENTICATION_TIMEOUT",
+                  "value": "3000"
+                },
+                {
+                  "name": "SOKETI_DEFAULT_APP_ID",
+                  "value": "1"
+                },
+                {
+                  "name": "SOKETI_DEFAULT_APP_KEY",
+                  "value": "keepappkey"
+                },
+                {
+                  "name": "SOKETI_DEFAULT_APP_SECRET",
+                  "value": "keepappsecret"
+                }
+              ],
+              "image": "quay.io/soketi/soketi:1.4-16-debian",
+              "imagePullPolicy": "Always",
+              "name": "keep",
+              "ports": [
+                {
+                  "containerPort": 6001,
+                  "name": "http",
+                  "protocol": "TCP"
+                }
+              ],
+              "resources": {},
+              "securityContext": {},
+              "terminationMessagePath": "/dev/termination-log",
+              "terminationMessagePolicy": "File",
+              "volumeMounts": [
+                {
+                  "mountPath": "/state",
+                  "name": "state-volume"
+                }
+              ]
+            }
+          ],
+          "dnsPolicy": "ClusterFirst",
+          "nodeSelector": {
+            "workload": "o11y"
+          },
+          "restartPolicy": "Always",
+          "schedulerName": "default-scheduler",
+          "securityContext": {},
+          "serviceAccount": "keep",
+          "serviceAccountName": "keep",
+          "terminationGracePeriodSeconds": 30,
+          "tolerations": [
+            {
+              "effect": "NoSchedule",
+              "key": "o11y",
+              "operator": "Equal",
+              "value": "true"
+            },
+            {
+              "effect": "NoSchedule",
+              "key": "kubernetes.azure.com/scalesetpriority",
+              "operator": "Equal",
+              "value": "spot"
+            }
+          ],
+          "volumes": [
+            {
+              "emptyDir": {},
+              "name": "state-volume"
+            }
+          ]
+        }
+      }
+    },
+    "restarts": []
+  },
+  {
+    "kind": "Ingress",
+    "name": "keep-ingress",
+    "uid": "ef910b6a-53da-44eb-9922-09322251423c",
+    "created": "2026-11-12T09:40:58Z",
+    "generation": 1,
+    "spec": {
+      "ingressClassName": "nginx",
+      "rules": [
+        {
+          "http": {
+            "paths": [
+              {
+                "backend": {
+                  "service": {
+                    "name": "keep-websocket",
+                    "port": {
+                      "number": 6001
+                    }
+                  }
+                },
+                "path": "/websocket(/|$)(.*)",
+                "pathType": "ImplementationSpecific"
+              },
+              {
+                "backend": {
+                  "service": {
+                    "name": "keep-backend",
+                    "port": {
+                      "number": 8080
+                    }
+                  }
+                },
+                "path": "/v2(/|$)(.*)",
+                "pathType": "ImplementationSpecific"
+              },
+              {
+                "backend": {
+                  "service": {
+                    "name": "keep-frontend",
+                    "port": {
+                      "number": 3000
+                    }
+                  }
+                },
+                "path": "/(.*)",
+                "pathType": "ImplementationSpecific"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "restarts": []
+  },
+  {
+    "kind": "PersistentVolumeClaim",
+    "name": "keep-pvc",
+    "uid": "db8b084b-6c31-4d25-903d-d06bba56f99f",
+    "created": "2026-11-12T09:40:58Z",
+    "generation": null,
+    "spec": {
+      "accessModes": [
+        "ReadWriteOnce"
+      ],
+      "resources": {
+        "requests": {
+          "storage": "5Gi"
+        }
+      },
+      "storageClassName": "gp2",
+      "volumeMode": "Filesystem",
+      "volumeName": "pvc-db8b084b-6c31-4d25-903d-d06bba56f99f"
+    },
+    "restarts": []
+  },
+  {
+    "kind": "Pod",
+    "name": "keep-backend-54cf767857-qqz2t",
+    "uid": "b4b8a6cd-0b4e-4849-a4f7-0ad1e818a1c5",
+    "created": "2026-11-12T09:40:58Z",
+    "generation": 1,
+    "spec": {
+      "containers": [
+        {
+          "env": [
+            {
+              "name": "KEEP_API_URL",
+              "value": "http://localhost:3000/v2"
+            },
+            {
+              "name": "DATABASE_NAME",
+              "value": "keep-database"
+            },
+            {
+              "name": "SECRET_MANAGER_TYPE",
+              "value": "k8s"
+            },
+            {
+              "name": "PORT",
+              "value": "8080"
+            },
+            {
+              "name": "PUSHER_APP_ID",
+              "value": "1"
+            },
+            {
+              "name": "PUSHER_APP_KEY",
+              "value": "keepappkey"
+            },
+            {
+              "name": "PUSHER_APP_SECRET",
+              "value": "keepappsecret"
+            },
+            {
+              "name": "PUSHER_HOST",
+              "value": "keep-websocket"
+            },
+            {
+              "name": "PUSHER_PORT",
+              "value": "6001"
+            },
+            {
+              "name": "PROMETHEUS_MULTIPROC_DIR",
+              "value": "/tmp/prometheus"
+            },
+            {
+              "name": "POSTHOG_DISABLED",
+              "value": "true"
+            },
+            {
+              "name": "OPENAI_API_KEY",
+              "valueFrom": {
+                "secretKeyRef": {
+                  "key": "fireworks.key",
+                  "name": "sre-keep-ai-env"
+                }
+              }
+            },
+            {
+              "name": "OPENAI_BASE_URL",
+              "value": "https://api.fireworks.ai/inference/v1"
+            },
+            {
+              "name": "OPENAI_MODEL_NAME",
+              "value": "accounts/fireworks/models/glm-5p3-flash"
+            },
+            {
+              "name": "K8S_NAMESPACE",
+              "valueFrom": {
+                "fieldRef": {
+                  "apiVersion": "v1",
+                  "fieldPath": "metadata.namespace"
+                }
+              }
+            },
+            {
+              "name": "DATABASE_CONNECTION_STRING",
+              "valueFrom": {
+                "secretKeyRef": {
+                  "key": "DATABASE_CONNECTION_STRING",
+                  "name": "sre-keep-db"
+                }
+              }
+            }
+          ],
+          "image": "us-central1-docker.pkg.dev/keephq/keep/keep-api:0.54.3",
+          "imagePullPolicy": "Always",
+          "livenessProbe": {
+            "failureThreshold": 5,
+            "httpGet": {
+              "path": "/healthcheck",
+              "port": 8080,
+              "scheme": "HTTP"
+            },
+            "initialDelaySeconds": 60,
+            "periodSeconds": 10,
+            "successThreshold": 1,
+            "timeoutSeconds": 1
+          },
+          "name": "keep",
+          "ports": [
+            {
+              "containerPort": 8080,
+              "name": "http",
+              "protocol": "TCP"
+            }
+          ],
+          "readinessProbe": {
+            "failureThreshold": 3,
+            "httpGet": {
+              "path": "/healthcheck",
+              "port": 8080,
+              "scheme": "HTTP"
+            },
+            "initialDelaySeconds": 10,
+            "periodSeconds": 5,
+            "successThreshold": 1,
+            "timeoutSeconds": 1
+          },
+          "resources": {},
+          "securityContext": {},
+          "terminationMessagePath": "/dev/termination-log",
+          "terminationMessagePolicy": "File",
+          "volumeMounts": [
+            {
+              "mountPath": "/state",
+              "name": "state-volume"
+            },
+            {
+              "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+              "name": "kube-api-access-t77nm",
+              "readOnly": true
+            }
+          ]
+        }
+      ],
+      "dnsPolicy": "ClusterFirst",
+      "enableServiceLinks": true,
+      "initContainers": [
+        {
+          "command": [
+            "sh",
+            "-c",
+            "until nc -z keep-database 3306; do sleep 1; done;"
+          ],
+          "image": "busybox:1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4",
+          "imagePullPolicy": "IfNotPresent",
+          "name": "wait-for-database",
+          "resources": {},
+          "terminationMessagePath": "/dev/termination-log",
+          "terminationMessagePolicy": "File",
+          "volumeMounts": [
+            {
+              "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+              "name": "kube-api-access-t77nm",
+              "readOnly": true
+            }
+          ]
+        }
+      ],
+      "nodeName": "aks-o11y-41769888-vmss00000x",
+      "nodeSelector": {
+        "workload": "o11y"
+      },
+      "preemptionPolicy": "PreemptLowerPriority",
+      "priority": 0,
+      "restartPolicy": "Always",
+      "schedulerName": "default-scheduler",
+      "securityContext": {},
+      "serviceAccount": "keep",
+      "serviceAccountName": "keep",
+      "terminationGracePeriodSeconds": 30,
+      "tolerations": [
+        {
+          "effect": "NoSchedule",
+          "key": "o11y",
+          "operator": "Equal",
+          "value": "true"
+        },
+        {
+          "effect": "NoSchedule",
+          "key": "kubernetes.azure.com/scalesetpriority",
+          "operator": "Equal",
+          "value": "spot"
+        },
+        {
+          "effect": "NoExecute",
+          "key": "node.kubernetes.io/not-ready",
+          "operator": "Exists",
+          "tolerationSeconds": 300
+        },
+        {
+          "effect": "NoExecute",
+          "key": "node.kubernetes.io/unreachable",
+          "operator": "Exists",
+          "tolerationSeconds": 300
+        }
+      ],
+      "volumes": [
+        {
+          "emptyDir": {},
+          "name": "state-volume"
+        },
+        {
+          "name": "kube-api-access-t77nm",
+          "projected": {
+            "defaultMode": 420,
+            "sources": [
+              {
+                "serviceAccountToken": {
+                  "expirationSeconds": 3607,
+                  "path": "token"
+                }
+              },
+              {
+                "configMap": {
+                  "items": [
+                    {
+                      "key": "ca.crt",
+                      "path": "ca.crt"
+                    }
+                  ],
+                  "name": "kube-root-ca.crt"
+                }
+              },
+              {
+                "downwardAPI": {
+                  "items": [
+                    {
+                      "fieldRef": {
+                        "apiVersion": "v1",
+                        "fieldPath": "metadata.namespace"
+                      },
+                      "path": "namespace"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "restarts": [
+      0
+    ]
+  },
+  {
+    "kind": "Pod",
+    "name": "keep-database-767d97f89-mnfff",
+    "uid": "58bc97c3-b9c0-4cbe-8c0e-d61fe88cb361",
+    "created": "2026-11-12T09:40:58Z",
+    "generation": 1,
+    "spec": {
+      "containers": [
+        {
+          "env": [
+            {
+              "name": "MYSQL_DATABASE",
+              "value": "keep"
+            },
+            {
+              "name": "MYSQL_ROOT_PASSWORD_FILE",
+              "value": "/run/db-secret/mysql-root-password"
+            }
+          ],
+          "image": "mysql:8.4.13@sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902",
+          "imagePullPolicy": "IfNotPresent",
+          "name": "keep",
+          "ports": [
+            {
+              "containerPort": 3306,
+              "name": "mysql",
+              "protocol": "TCP"
+            }
+          ],
+          "resources": {},
+          "securityContext": {},
+          "terminationMessagePath": "/dev/termination-log",
+          "terminationMessagePolicy": "File",
+          "volumeMounts": [
+            {
+              "mountPath": "/var/lib/mysql",
+              "name": "keep-pv"
+            },
+            {
+              "mountPath": "/run/db-secret",
+              "name": "db-secret",
+              "readOnly": true
+            },
+            {
+              "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+              "name": "kube-api-access-2675l",
+              "readOnly": true
+            }
+          ]
+        }
+      ],
+      "dnsPolicy": "ClusterFirst",
+      "enableServiceLinks": true,
+      "nodeName": "aks-o11y-41769888-vmss00000x",
+      "nodeSelector": {
+        "workload": "o11y"
+      },
+      "preemptionPolicy": "PreemptLowerPriority",
+      "priority": 0,
+      "restartPolicy": "Always",
+      "schedulerName": "default-scheduler",
+      "securityContext": {},
+      "serviceAccount": "keep",
+      "serviceAccountName": "keep",
+      "terminationGracePeriodSeconds": 30,
+      "tolerations": [
+        {
+          "effect": "NoSchedule",
+          "key": "o11y",
+          "operator": "Equal",
+          "value": "true"
+        },
+        {
+          "effect": "NoSchedule",
+          "key": "kubernetes.azure.com/scalesetpriority",
+          "operator": "Equal",
+          "value": "spot"
+        },
+        {
+          "effect": "NoExecute",
+          "key": "node.kubernetes.io/not-ready",
+          "operator": "Exists",
+          "tolerationSeconds": 300
+        },
+        {
+          "effect": "NoExecute",
+          "key": "node.kubernetes.io/unreachable",
+          "operator": "Exists",
+          "tolerationSeconds": 300
+        }
+      ],
+      "volumes": [
+        {
+          "name": "keep-pv",
+          "persistentVolumeClaim": {
+            "claimName": "keep-pvc"
+          }
+        },
+        {
+          "name": "db-secret",
+          "secret": {
+            "defaultMode": 420,
+            "items": [
+              {
+                "key": "mysql-root-password",
+                "path": "mysql-root-password"
+              }
+            ],
+            "secretName": "sre-keep-db"
+          }
+        },
+        {
+          "name": "kube-api-access-2675l",
+          "projected": {
+            "defaultMode": 420,
+            "sources": [
+              {
+                "serviceAccountToken": {
+                  "expirationSeconds": 3607,
+                  "path": "token"
+                }
+              },
+              {
+                "configMap": {
+                  "items": [
+                    {
+                      "key": "ca.crt",
+                      "path": "ca.crt"
+                    }
+                  ],
+                  "name": "kube-root-ca.crt"
+                }
+              },
+              {
+                "downwardAPI": {
+                  "items": [
+                    {
+                      "fieldRef": {
+                        "apiVersion": "v1",
+                        "fieldPath": "metadata.namespace"
+                      },
+                      "path": "namespace"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "restarts": [
+      0
+    ]
+  },
+  {
+    "kind": "Pod",
+    "name": "keep-frontend-f9f989687-jsphk",
+    "uid": "8644452f-28b6-40f4-af6f-b347de3922a0",
+    "created": "2026-11-12T09:40:58Z",
+    "generation": 1,
+    "spec": {
+      "containers": [
+        {
+          "env": [
+            {
+              "name": "PUSHER_HOST",
+              "value": "/websocket"
+            },
+            {
+              "name": "API_URL_CLIENT",
+              "value": "/v2"
+            },
+            {
+              "name": "API_URL",
+              "value": "http://keep-backend:8080"
+            },
+            {
+              "name": "NEXTAUTH_URL",
+              "value": "http://localhost:3000"
+            },
+            {
+              "name": "VERCEL",
+              "value": "1"
+            },
+            {
+              "name": "ENV",
+              "value": "development"
+            },
+            {
+              "name": "NODE_ENV",
+              "value": "development"
+            },
+            {
+              "name": "HOSTNAME",
+              "value": "0.0.0.0"
+            },
+            {
+              "name": "PUSHER_APP_KEY",
+              "value": "keepappkey"
+            },
+            {
+              "name": "FRIGADE_DISABLED",
+              "value": "true"
+            },
+            {
+              "name": "POSTHOG_DISABLED",
+              "value": "true"
+            },
+            {
+              "name": "SENTRY_DISABLED",
+              "value": "true"
+            },
+            {
+              "name": "OPENAI_BASE_URL",
+              "value": "https://api.fireworks.ai/inference/v1"
+            },
+            {
+              "name": "OPENAI_MODEL_NAME",
+              "value": "accounts/fireworks/models/glm-5p3-flash"
+            }
+          ],
+          "envFrom": [
+            {
+              "secretRef": {
+                "name": "sre-keep-ai-frontend",
+                "optional": false
+              }
+            },
+            {
+              "secretRef": {
+                "name": "sre-keep-auth",
+                "optional": false
+              }
+            }
+          ],
+          "image": "us-central1-docker.pkg.dev/keephq/keep/keep-ui:0.54.3",
+          "imagePullPolicy": "Always",
+          "name": "keep",
+          "ports": [
+            {
+              "containerPort": 3000,
+              "name": "http",
+              "protocol": "TCP"
+            }
+          ],
+          "resources": {},
+          "securityContext": {},
+          "terminationMessagePath": "/dev/termination-log",
+          "terminationMessagePolicy": "File",
+          "volumeMounts": [
+            {
+              "mountPath": "/state",
+              "name": "state-volume"
+            },
+            {
+              "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+              "name": "kube-api-access-675fh",
+              "readOnly": true
+            }
+          ]
+        }
+      ],
+      "dnsPolicy": "ClusterFirst",
+      "enableServiceLinks": true,
+      "nodeName": "aks-o11y-41769888-vmss00000x",
+      "nodeSelector": {
+        "workload": "o11y"
+      },
+      "preemptionPolicy": "PreemptLowerPriority",
+      "priority": 0,
+      "restartPolicy": "Always",
+      "schedulerName": "default-scheduler",
+      "securityContext": {},
+      "serviceAccount": "keep",
+      "serviceAccountName": "keep",
+      "terminationGracePeriodSeconds": 30,
+      "tolerations": [
+        {
+          "effect": "NoSchedule",
+          "key": "o11y",
+          "operator": "Equal",
+          "value": "true"
+        },
+        {
+          "effect": "NoSchedule",
+          "key": "kubernetes.azure.com/scalesetpriority",
+          "operator": "Equal",
+          "value": "spot"
+        },
+        {
+          "effect": "NoExecute",
+          "key": "node.kubernetes.io/not-ready",
+          "operator": "Exists",
+          "tolerationSeconds": 300
+        },
+        {
+          "effect": "NoExecute",
+          "key": "node.kubernetes.io/unreachable",
+          "operator": "Exists",
+          "tolerationSeconds": 300
+        }
+      ],
+      "volumes": [
+        {
+          "emptyDir": {},
+          "name": "state-volume"
+        },
+        {
+          "name": "kube-api-access-675fh",
+          "projected": {
+            "defaultMode": 420,
+            "sources": [
+              {
+                "serviceAccountToken": {
+                  "expirationSeconds": 3607,
+                  "path": "token"
+                }
+              },
+              {
+                "configMap": {
+                  "items": [
+                    {
+                      "key": "ca.crt",
+                      "path": "ca.crt"
+                    }
+                  ],
+                  "name": "kube-root-ca.crt"
+                }
+              },
+              {
+                "downwardAPI": {
+                  "items": [
+                    {
+                      "fieldRef": {
+                        "apiVersion": "v1",
+                        "fieldPath": "metadata.namespace"
+                      },
+                      "path": "namespace"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "restarts": [
+      0
+    ]
+  },
+  {
+    "kind": "Pod",
+    "name": "keep-websocket-8554bd9f4d-6g42v",
+    "uid": "662065df-73dd-47e8-b8d1-90e75ff3c639",
+    "created": "2026-11-12T09:40:58Z",
+    "generation": 1,
+    "spec": {
+      "containers": [
+        {
+          "env": [
+            {
+              "name": "SOKETI_HOST",
+              "value": "0.0.0.0"
+            },
+            {
+              "name": "SOKETI_DEBUG",
+              "value": "1"
+            },
+            {
+              "name": "SOKETI_USER_AUTHENTICATION_TIMEOUT",
+              "value": "3000"
+            },
+            {
+              "name": "SOKETI_DEFAULT_APP_ID",
+              "value": "1"
+            },
+            {
+              "name": "SOKETI_DEFAULT_APP_KEY",
+              "value": "keepappkey"
+            },
+            {
+              "name": "SOKETI_DEFAULT_APP_SECRET",
+              "value": "keepappsecret"
+            }
+          ],
+          "image": "quay.io/soketi/soketi:1.4-16-debian",
+          "imagePullPolicy": "Always",
+          "name": "keep",
+          "ports": [
+            {
+              "containerPort": 6001,
+              "name": "http",
+              "protocol": "TCP"
+            }
+          ],
+          "resources": {},
+          "securityContext": {},
+          "terminationMessagePath": "/dev/termination-log",
+          "terminationMessagePolicy": "File",
+          "volumeMounts": [
+            {
+              "mountPath": "/state",
+              "name": "state-volume"
+            },
+            {
+              "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+              "name": "kube-api-access-t2d92",
+              "readOnly": true
+            }
+          ]
+        }
+      ],
+      "dnsPolicy": "ClusterFirst",
+      "enableServiceLinks": true,
+      "nodeName": "aks-o11y-41769888-vmss00000x",
+      "nodeSelector": {
+        "workload": "o11y"
+      },
+      "preemptionPolicy": "PreemptLowerPriority",
+      "priority": 0,
+      "restartPolicy": "Always",
+      "schedulerName": "default-scheduler",
+      "securityContext": {},
+      "serviceAccount": "keep",
+      "serviceAccountName": "keep",
+      "terminationGracePeriodSeconds": 30,
+      "tolerations": [
+        {
+          "effect": "NoSchedule",
+          "key": "o11y",
+          "operator": "Equal",
+          "value": "true"
+        },
+        {
+          "effect": "NoSchedule",
+          "key": "kubernetes.azure.com/scalesetpriority",
+          "operator": "Equal",
+          "value": "spot"
+        },
+        {
+          "effect": "NoExecute",
+          "key": "node.kubernetes.io/not-ready",
+          "operator": "Exists",
+          "tolerationSeconds": 300
+        },
+        {
+          "effect": "NoExecute",
+          "key": "node.kubernetes.io/unreachable",
+          "operator": "Exists",
+          "tolerationSeconds": 300
+        }
+      ],
+      "volumes": [
+        {
+          "emptyDir": {},
+          "name": "state-volume"
+        },
+        {
+          "name": "kube-api-access-t2d92",
+          "projected": {
+            "defaultMode": 420,
+            "sources": [
+              {
+                "serviceAccountToken": {
+                  "expirationSeconds": 3607,
+                  "path": "token"
+                }
+              },
+              {
+                "configMap": {
+                  "items": [
+                    {
+                      "key": "ca.crt",
+                      "path": "ca.crt"
+                    }
+                  ],
+                  "name": "kube-root-ca.crt"
+                }
+              },
+              {
+                "downwardAPI": {
+                  "items": [
+                    {
+                      "fieldRef": {
+                        "apiVersion": "v1",
+                        "fieldPath": "metadata.namespace"
+                      },
+                      "path": "namespace"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "restarts": [
+      0
+    ]
+  },
+  {
+    "kind": "ReplicaSet",
+    "name": "keep-backend-54cf767857",
+    "uid": "ebaca3b8-0c2c-41c1-a65b-d6f1f74e9ce3",
+    "created": "2026-11-12T09:40:58Z",
+    "generation": 1,
+    "spec": {
+      "replicas": 1,
+      "selector": {
+        "matchLabels": {
+          "app.kubernetes.io/instance": "keep",
+          "app.kubernetes.io/name": "keep",
+          "keep-component": "backend",
+          "pod-template-hash": "54cf767857"
+        }
+      },
+      "template": {
+        "metadata": {
+          "annotations": {
+            "checksum/provision-providers": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "checksum/provision-workflows": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "prometheus.io/path": "/metrics/processing",
+            "prometheus.io/port": "8080",
+            "prometheus.io/scrape": "true"
+          },
+          "labels": {
+            "app.kubernetes.io/component": "backend",
+            "app.kubernetes.io/instance": "keep",
+            "app.kubernetes.io/managed-by": "Helm",
+            "app.kubernetes.io/name": "keep",
+            "app.kubernetes.io/part-of": "keep",
+            "app.kubernetes.io/version": "0.54.3",
+            "helm.sh/chart": "keep-0.1.97",
+            "keep-component": "backend",
+            "pod-template-hash": "54cf767857"
+          }
+        },
+        "spec": {
+          "containers": [
+            {
+              "env": [
+                {
+                  "name": "KEEP_API_URL",
+                  "value": "http://localhost:3000/v2"
+                },
+                {
+                  "name": "DATABASE_NAME",
+                  "value": "keep-database"
+                },
+                {
+                  "name": "SECRET_MANAGER_TYPE",
+                  "value": "k8s"
+                },
+                {
+                  "name": "PORT",
+                  "value": "8080"
+                },
+                {
+                  "name": "PUSHER_APP_ID",
+                  "value": "1"
+                },
+                {
+                  "name": "PUSHER_APP_KEY",
+                  "value": "keepappkey"
+                },
+                {
+                  "name": "PUSHER_APP_SECRET",
+                  "value": "keepappsecret"
+                },
+                {
+                  "name": "PUSHER_HOST",
+                  "value": "keep-websocket"
+                },
+                {
+                  "name": "PUSHER_PORT",
+                  "value": "6001"
+                },
+                {
+                  "name": "PROMETHEUS_MULTIPROC_DIR",
+                  "value": "/tmp/prometheus"
+                },
+                {
+                  "name": "POSTHOG_DISABLED",
+                  "value": "true"
+                },
+                {
+                  "name": "OPENAI_API_KEY",
+                  "valueFrom": {
+                    "secretKeyRef": {
+                      "key": "fireworks.key",
+                      "name": "sre-keep-ai-env"
+                    }
+                  }
+                },
+                {
+                  "name": "OPENAI_BASE_URL",
+                  "value": "https://api.fireworks.ai/inference/v1"
+                },
+                {
+                  "name": "OPENAI_MODEL_NAME",
+                  "value": "accounts/fireworks/models/glm-5p3-flash"
+                },
+                {
+                  "name": "K8S_NAMESPACE",
+                  "valueFrom": {
+                    "fieldRef": {
+                      "apiVersion": "v1",
+                      "fieldPath": "metadata.namespace"
+                    }
+                  }
+                },
+                {
+                  "name": "DATABASE_CONNECTION_STRING",
+                  "valueFrom": {
+                    "secretKeyRef": {
+                      "key": "DATABASE_CONNECTION_STRING",
+                      "name": "sre-keep-db"
+                    }
+                  }
+                }
+              ],
+              "image": "us-central1-docker.pkg.dev/keephq/keep/keep-api:0.54.3",
+              "imagePullPolicy": "Always",
+              "livenessProbe": {
+                "failureThreshold": 5,
+                "httpGet": {
+                  "path": "/healthcheck",
+                  "port": 8080,
+                  "scheme": "HTTP"
+                },
+                "initialDelaySeconds": 60,
+                "periodSeconds": 10,
+                "successThreshold": 1,
+                "timeoutSeconds": 1
+              },
+              "name": "keep",
+              "ports": [
+                {
+                  "containerPort": 8080,
+                  "name": "http",
+                  "protocol": "TCP"
+                }
+              ],
+              "readinessProbe": {
+                "failureThreshold": 3,
+                "httpGet": {
+                  "path": "/healthcheck",
+                  "port": 8080,
+                  "scheme": "HTTP"
+                },
+                "initialDelaySeconds": 10,
+                "periodSeconds": 5,
+                "successThreshold": 1,
+                "timeoutSeconds": 1
+              },
+              "resources": {},
+              "securityContext": {},
+              "terminationMessagePath": "/dev/termination-log",
+              "terminationMessagePolicy": "File",
+              "volumeMounts": [
+                {
+                  "mountPath": "/state",
+                  "name": "state-volume"
+                }
+              ]
+            }
+          ],
+          "dnsPolicy": "ClusterFirst",
+          "initContainers": [
+            {
+              "command": [
+                "sh",
+                "-c",
+                "until nc -z keep-database 3306; do sleep 1; done;"
+              ],
+              "image": "busybox:1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4",
+              "imagePullPolicy": "IfNotPresent",
+              "name": "wait-for-database",
+              "resources": {},
+              "terminationMessagePath": "/dev/termination-log",
+              "terminationMessagePolicy": "File"
+            }
+          ],
+          "nodeSelector": {
+            "workload": "o11y"
+          },
+          "restartPolicy": "Always",
+          "schedulerName": "default-scheduler",
+          "securityContext": {},
+          "serviceAccount": "keep",
+          "serviceAccountName": "keep",
+          "terminationGracePeriodSeconds": 30,
+          "tolerations": [
+            {
+              "effect": "NoSchedule",
+              "key": "o11y",
+              "operator": "Equal",
+              "value": "true"
+            },
+            {
+              "effect": "NoSchedule",
+              "key": "kubernetes.azure.com/scalesetpriority",
+              "operator": "Equal",
+              "value": "spot"
+            }
+          ],
+          "volumes": [
+            {
+              "emptyDir": {},
+              "name": "state-volume"
+            }
+          ]
+        }
+      }
+    },
+    "restarts": []
+  },
+  {
+    "kind": "ReplicaSet",
+    "name": "keep-database-767d97f89",
+    "uid": "d40b2a05-1466-411d-979c-3004ad9bace8",
+    "created": "2026-11-12T09:40:58Z",
+    "generation": 1,
+    "spec": {
+      "replicas": 1,
+      "selector": {
+        "matchLabels": {
+          "app.kubernetes.io/instance": "keep",
+          "app.kubernetes.io/name": "keep",
+          "keep-component": "database",
+          "pod-template-hash": "767d97f89"
+        }
+      },
+      "template": {
+        "metadata": {
+          "labels": {
+            "app.kubernetes.io/component": "database",
+            "app.kubernetes.io/instance": "keep",
+            "app.kubernetes.io/managed-by": "Helm",
+            "app.kubernetes.io/name": "keep",
+            "app.kubernetes.io/part-of": "keep",
+            "app.kubernetes.io/version": "0.54.3",
+            "helm.sh/chart": "keep-0.1.97",
+            "keep-component": "database",
+            "pod-template-hash": "767d97f89"
+          }
+        },
+        "spec": {
+          "containers": [
+            {
+              "env": [
+                {
+                  "name": "MYSQL_DATABASE",
+                  "value": "keep"
+                },
+                {
+                  "name": "MYSQL_ROOT_PASSWORD_FILE",
+                  "value": "/run/db-secret/mysql-root-password"
+                }
+              ],
+              "image": "mysql:8.4.13@sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902",
+              "imagePullPolicy": "IfNotPresent",
+              "name": "keep",
+              "ports": [
+                {
+                  "containerPort": 3306,
+                  "name": "mysql",
+                  "protocol": "TCP"
+                }
+              ],
+              "resources": {},
+              "securityContext": {},
+              "terminationMessagePath": "/dev/termination-log",
+              "terminationMessagePolicy": "File",
+              "volumeMounts": [
+                {
+                  "mountPath": "/var/lib/mysql",
+                  "name": "keep-pv"
+                },
+                {
+                  "mountPath": "/run/db-secret",
+                  "name": "db-secret",
+                  "readOnly": true
+                }
+              ]
+            }
+          ],
+          "dnsPolicy": "ClusterFirst",
+          "nodeSelector": {
+            "workload": "o11y"
+          },
+          "restartPolicy": "Always",
+          "schedulerName": "default-scheduler",
+          "securityContext": {},
+          "serviceAccount": "keep",
+          "serviceAccountName": "keep",
+          "terminationGracePeriodSeconds": 30,
+          "tolerations": [
+            {
+              "effect": "NoSchedule",
+              "key": "o11y",
+              "operator": "Equal",
+              "value": "true"
+            },
+            {
+              "effect": "NoSchedule",
+              "key": "kubernetes.azure.com/scalesetpriority",
+              "operator": "Equal",
+              "value": "spot"
+            }
+          ],
+          "volumes": [
+            {
+              "name": "keep-pv",
+              "persistentVolumeClaim": {
+                "claimName": "keep-pvc"
+              }
+            },
+            {
+              "name": "db-secret",
+              "secret": {
+                "defaultMode": 420,
+                "items": [
+                  {
+                    "key": "mysql-root-password",
+                    "path": "mysql-root-password"
+                  }
+                ],
+                "secretName": "sre-keep-db"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "restarts": []
+  },
+  {
+    "kind": "ReplicaSet",
+    "name": "keep-frontend-f9f989687",
+    "uid": "09e26c23-66b3-4780-be3b-721dc5abe2cb",
+    "created": "2026-11-12T09:40:58Z",
+    "generation": 1,
+    "spec": {
+      "replicas": 1,
+      "selector": {
+        "matchLabels": {
+          "app.kubernetes.io/instance": "keep",
+          "app.kubernetes.io/name": "keep",
+          "keep-component": "frontend",
+          "pod-template-hash": "f9f989687"
+        }
+      },
+      "template": {
+        "metadata": {
+          "labels": {
+            "app.kubernetes.io/component": "frontend",
+            "app.kubernetes.io/instance": "keep",
+            "app.kubernetes.io/managed-by": "Helm",
+            "app.kubernetes.io/name": "keep",
+            "app.kubernetes.io/part-of": "keep",
+            "app.kubernetes.io/version": "0.54.3",
+            "helm.sh/chart": "keep-0.1.97",
+            "keep-component": "frontend",
+            "pod-template-hash": "f9f989687"
+          }
+        },
+        "spec": {
+          "containers": [
+            {
+              "env": [
+                {
+                  "name": "PUSHER_HOST",
+                  "value": "/websocket"
+                },
+                {
+                  "name": "API_URL_CLIENT",
+                  "value": "/v2"
+                },
+                {
+                  "name": "API_URL",
+                  "value": "http://keep-backend:8080"
+                },
+                {
+                  "name": "NEXTAUTH_URL",
+                  "value": "http://localhost:3000"
+                },
+                {
+                  "name": "VERCEL",
+                  "value": "1"
+                },
+                {
+                  "name": "ENV",
+                  "value": "development"
+                },
+                {
+                  "name": "NODE_ENV",
+                  "value": "development"
+                },
+                {
+                  "name": "HOSTNAME",
+                  "value": "0.0.0.0"
+                },
+                {
+                  "name": "PUSHER_APP_KEY",
+                  "value": "keepappkey"
+                },
+                {
+                  "name": "FRIGADE_DISABLED",
+                  "value": "true"
+                },
+                {
+                  "name": "POSTHOG_DISABLED",
+                  "value": "true"
+                },
+                {
+                  "name": "SENTRY_DISABLED",
+                  "value": "true"
+                },
+                {
+                  "name": "OPENAI_BASE_URL",
+                  "value": "https://api.fireworks.ai/inference/v1"
+                },
+                {
+                  "name": "OPENAI_MODEL_NAME",
+                  "value": "accounts/fireworks/models/glm-5p3-flash"
+                }
+              ],
+              "envFrom": [
+                {
+                  "secretRef": {
+                    "name": "sre-keep-ai-frontend",
+                    "optional": false
+                  }
+                },
+                {
+                  "secretRef": {
+                    "name": "sre-keep-auth",
+                    "optional": false
+                  }
+                }
+              ],
+              "image": "us-central1-docker.pkg.dev/keephq/keep/keep-ui:0.54.3",
+              "imagePullPolicy": "Always",
+              "name": "keep",
+              "ports": [
+                {
+                  "containerPort": 3000,
+                  "name": "http",
+                  "protocol": "TCP"
+                }
+              ],
+              "resources": {},
+              "securityContext": {},
+              "terminationMessagePath": "/dev/termination-log",
+              "terminationMessagePolicy": "File",
+              "volumeMounts": [
+                {
+                  "mountPath": "/state",
+                  "name": "state-volume"
+                }
+              ]
+            }
+          ],
+          "dnsPolicy": "ClusterFirst",
+          "nodeSelector": {
+            "workload": "o11y"
+          },
+          "restartPolicy": "Always",
+          "schedulerName": "default-scheduler",
+          "securityContext": {},
+          "serviceAccount": "keep",
+          "serviceAccountName": "keep",
+          "terminationGracePeriodSeconds": 30,
+          "tolerations": [
+            {
+              "effect": "NoSchedule",
+              "key": "o11y",
+              "operator": "Equal",
+              "value": "true"
+            },
+            {
+              "effect": "NoSchedule",
+              "key": "kubernetes.azure.com/scalesetpriority",
+              "operator": "Equal",
+              "value": "spot"
+            }
+          ],
+          "volumes": [
+            {
+              "emptyDir": {},
+              "name": "state-volume"
+            }
+          ]
+        }
+      }
+    },
+    "restarts": []
+  },
+  {
+    "kind": "ReplicaSet",
+    "name": "keep-websocket-8554bd9f4d",
+    "uid": "427c0b49-68d8-4f9e-9196-421a06d1455b",
+    "created": "2026-11-12T09:40:58Z",
+    "generation": 1,
+    "spec": {
+      "replicas": 1,
+      "selector": {
+        "matchLabels": {
+          "app.kubernetes.io/instance": "keep",
+          "app.kubernetes.io/name": "keep",
+          "keep-component": "websocket",
+          "pod-template-hash": "8554bd9f4d"
+        }
+      },
+      "template": {
+        "metadata": {
+          "labels": {
+            "app.kubernetes.io/component": "websocket",
+            "app.kubernetes.io/instance": "keep",
+            "app.kubernetes.io/managed-by": "Helm",
+            "app.kubernetes.io/name": "keep",
+            "app.kubernetes.io/part-of": "keep",
+            "app.kubernetes.io/version": "0.54.3",
+            "helm.sh/chart": "keep-0.1.97",
+            "keep-component": "websocket",
+            "pod-template-hash": "8554bd9f4d"
+          }
+        },
+        "spec": {
+          "containers": [
+            {
+              "env": [
+                {
+                  "name": "SOKETI_HOST",
+                  "value": "0.0.0.0"
+                },
+                {
+                  "name": "SOKETI_DEBUG",
+                  "value": "1"
+                },
+                {
+                  "name": "SOKETI_USER_AUTHENTICATION_TIMEOUT",
+                  "value": "3000"
+                },
+                {
+                  "name": "SOKETI_DEFAULT_APP_ID",
+                  "value": "1"
+                },
+                {
+                  "name": "SOKETI_DEFAULT_APP_KEY",
+                  "value": "keepappkey"
+                },
+                {
+                  "name": "SOKETI_DEFAULT_APP_SECRET",
+                  "value": "keepappsecret"
+                }
+              ],
+              "image": "quay.io/soketi/soketi:1.4-16-debian",
+              "imagePullPolicy": "Always",
+              "name": "keep",
+              "ports": [
+                {
+                  "containerPort": 6001,
+                  "name": "http",
+                  "protocol": "TCP"
+                }
+              ],
+              "resources": {},
+              "securityContext": {},
+              "terminationMessagePath": "/dev/termination-log",
+              "terminationMessagePolicy": "File",
+              "volumeMounts": [
+                {
+                  "mountPath": "/state",
+                  "name": "state-volume"
+                }
+              ]
+            }
+          ],
+          "dnsPolicy": "ClusterFirst",
+          "nodeSelector": {
+            "workload": "o11y"
+          },
+          "restartPolicy": "Always",
+          "schedulerName": "default-scheduler",
+          "securityContext": {},
+          "serviceAccount": "keep",
+          "serviceAccountName": "keep",
+          "terminationGracePeriodSeconds": 30,
+          "tolerations": [
+            {
+              "effect": "NoSchedule",
+              "key": "o11y",
+              "operator": "Equal",
+              "value": "true"
+            },
+            {
+              "effect": "NoSchedule",
+              "key": "kubernetes.azure.com/scalesetpriority",
+              "operator": "Equal",
+              "value": "spot"
+            }
+          ],
+          "volumes": [
+            {
+              "emptyDir": {},
+              "name": "state-volume"
+            }
+          ]
+        }
+      }
+    },
+    "restarts": []
+  },
+  {
+    "kind": "Role",
+    "name": "secret-manager-role",
+    "uid": "d27640e5-43c8-4e2d-8099-00784a636ead",
+    "created": "2026-11-12T09:40:58Z",
+    "generation": null,
+    "spec": null,
+    "restarts": []
+  },
+  {
+    "kind": "RoleBinding",
+    "name": "secret-manager-rolebinding",
+    "uid": "b30f43c1-71c2-40c7-8bb2-6f177cea3586",
+    "created": "2026-11-12T09:40:58Z",
+    "generation": null,
+    "spec": null,
+    "restarts": []
+  },
+  {
+    "kind": "Service",
+    "name": "keep-backend",
+    "uid": "8c5ea451-ccf7-4675-bfc0-90bf272874db",
+    "created": "2026-11-12T09:40:58Z",
+    "generation": null,
+    "spec": {
+      "clusterIP": "10.0.46.52",
+      "clusterIPs": [
+        "10.0.46.52"
+      ],
+      "internalTrafficPolicy": "Cluster",
+      "ipFamilies": [
+        "IPv4"
+      ],
+      "ipFamilyPolicy": "SingleStack",
+      "ports": [
+        {
+          "name": "http",
+          "port": 8080,
+          "protocol": "TCP",
+          "targetPort": "http"
+        }
+      ],
+      "selector": {
+        "app.kubernetes.io/instance": "keep",
+        "app.kubernetes.io/name": "keep",
+        "keep-component": "backend"
+      },
+      "sessionAffinity": "None",
+      "type": "ClusterIP"
+    },
+    "restarts": []
+  },
+  {
+    "kind": "Service",
+    "name": "keep-database",
+    "uid": "8bac146a-8316-4501-ad19-64e71965be5a",
+    "created": "2026-11-12T09:40:58Z",
+    "generation": null,
+    "spec": {
+      "clusterIP": "10.0.145.131",
+      "clusterIPs": [
+        "10.0.145.131"
+      ],
+      "internalTrafficPolicy": "Cluster",
+      "ipFamilies": [
+        "IPv4"
+      ],
+      "ipFamilyPolicy": "SingleStack",
+      "ports": [
+        {
+          "name": "mysql",
+          "port": 3306,
+          "protocol": "TCP",
+          "targetPort": 3306
+        }
+      ],
+      "selector": {
+        "app.kubernetes.io/instance": "keep",
+        "app.kubernetes.io/name": "keep",
+        "keep-component": "database"
+      },
+      "sessionAffinity": "None",
+      "type": "ClusterIP"
+    },
+    "restarts": []
+  },
+  {
+    "kind": "Service",
+    "name": "keep-frontend",
+    "uid": "315dfbd7-be01-4543-84c0-f5cd0454d67f",
+    "created": "2026-11-12T09:40:58Z",
+    "generation": null,
+    "spec": {
+      "clusterIP": "10.0.235.187",
+      "clusterIPs": [
+        "10.0.235.187"
+      ],
+      "internalTrafficPolicy": "Cluster",
+      "ipFamilies": [
+        "IPv4"
+      ],
+      "ipFamilyPolicy": "SingleStack",
+      "ports": [
+        {
+          "name": "http",
+          "port": 3000,
+          "protocol": "TCP",
+          "targetPort": "http"
+        }
+      ],
+      "selector": {
+        "app.kubernetes.io/instance": "keep",
+        "app.kubernetes.io/name": "keep",
+        "keep-component": "frontend"
+      },
+      "sessionAffinity": "None",
+      "type": "ClusterIP"
+    },
+    "restarts": []
+  },
+  {
+    "kind": "Service",
+    "name": "keep-websocket",
+    "uid": "359ddb39-1a44-4ecf-8102-3f6592f64029",
+    "created": "2026-11-12T09:40:58Z",
+    "generation": null,
+    "spec": {
+      "clusterIP": "10.0.254.111",
+      "clusterIPs": [
+        "10.0.254.111"
+      ],
+      "internalTrafficPolicy": "Cluster",
+      "ipFamilies": [
+        "IPv4"
+      ],
+      "ipFamilyPolicy": "SingleStack",
+      "ports": [
+        {
+          "name": "http",
+          "port": 6001,
+          "protocol": "TCP",
+          "targetPort": "http"
+        }
+      ],
+      "selector": {
+        "app.kubernetes.io/instance": "keep",
+        "app.kubernetes.io/name": "keep",
+        "keep-component": "websocket"
+      },
+      "sessionAffinity": "None",
+      "type": "ClusterIP"
+    },
+    "restarts": []
+  },
+  {
+    "kind": "ServiceAccount",
+    "name": "keep",
+    "uid": "5a4525d8-93f6-488e-b5e6-8493c4ba56c7",
+    "created": "2026-11-12T09:40:58Z",
+    "generation": null,
+    "spec": null,
+    "restarts": []
+  }
+]

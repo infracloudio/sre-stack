@@ -1,0 +1,8 @@
+== curl -I /incidents (no cookies)
+HTTP/1.1 307 Temporary Redirect
+location: http://localhost:3000/signin?callbackUrl=http://localhost:3000/incidents
+== curl -I /
+HTTP/1.1 307 Temporary Redirect
+location: /incidents
+== curl -I /signin
+HTTP/1.1 200 OK

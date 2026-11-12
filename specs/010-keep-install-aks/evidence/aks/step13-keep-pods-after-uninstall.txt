@@ -1,0 +1,4 @@
+NAME                              READY   STATUS        RESTARTS   AGE
+keep-backend-54cf767857-qqz2t     1/1     Terminating   0          15m
+keep-database-767d97f89-mnfff     1/1     Terminating   0          15m
+keep-websocket-8554bd9f4d-6g42v   1/1     Terminating   0          15m

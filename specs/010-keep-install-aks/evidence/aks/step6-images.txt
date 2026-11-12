@@ -1,0 +1,9 @@
+keep-backend-54cf767857-qqz2t
+  init wait-for-database busybox:1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4
+  keep us-central1-docker.pkg.dev/keephq/keep/keep-api:0.54.3
+keep-database-767d97f89-mnfff
+  keep mysql:8.4.13@sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902
+keep-frontend-f9f989687-jsphk
+  keep us-central1-docker.pkg.dev/keephq/keep/keep-ui:0.54.3
+keep-websocket-8554bd9f4d-6g42v
+  keep quay.io/soketi/soketi:1.4-16-debian

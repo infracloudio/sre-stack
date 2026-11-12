@@ -1,0 +1,51 @@
+# Group 2 ad-hoc checks for setup-keep.sh: C1 to C11. Temp folders outside the repo (C9 under the repo, removed by trap); dummy values; no ~/.secrets/keep.
+== C1 (T004) Bash 3.2 refuses before any work
+setup-keep: needs Bash 4 or newer (found 3.2.57(1)-release)
+exit 2
+== C2 (T004) Bash 5 with KEEP_SECRETS_DIR unset
+setup-keep: KEEP_SECRETS_DIR is not set (set it in .env or the environment)
+exit 2
+== C3 (T003) key file missing
+setup-keep: AI key file missing or empty: <scratch>/case.QNQx/fireworks.key
+exit 1
+shim calls: none
+== C4 (T003) key file empty
+setup-keep: AI key file missing or empty: <scratch>/case.pU3m/fireworks.key
+exit 1
+shim calls: none
+== C5 (chain mode) key missing with KEEP_SKIP_IF_NO_KEY=1
+setup-keep: skipped, AI key file missing or empty: <scratch>/case.YrJA/fireworks.key
+exit 0
+shim calls: none
+== C6 (T004) dummy key, default PATH (Homebrew Helm v4.2.4)
+setup-keep: needs Helm v3.14.4 on PATH (found: v4.2.4+g3900f43). Prefix PATH with $HOME/.local/opt/helm-3.14.4.
+exit 2
+files: fireworks.key 
+== C7 (T005) dummy key, Helm prefixed, cluster unreachable
+setup-keep: the cluster cannot be reached from the current kubectl context; nothing was changed
+exit 1
+files: fireworks.key 
+== C8 (T006) dummy key, Helm prefixed, disposable cluster (read-only): create, modes, reuse
+setup-keep: created <scratch>/case.LO0O/db-password
+setup-keep: created <scratch>/case.LO0O/nextauth-secret
+setup-keep: local secret files ready in <scratch>/case.LO0O (values not printed)
+exit 0
+modes: folder=700 db-password=600 nextauth-secret=600
+db-password length: 48 (value not shown)
+second run exit 0
+db-password unchanged
+nextauth-secret unchanged
+value leak check on output: 0 matching lines
+== C9 (T004) inside-repo refusal: temp subfolder under the repo, dummy key, removed by trap
+setup-keep: KEEP_SECRETS_DIR is inside the repository: <repo>/.setup-keep-inside-test.M3yMtE
+exit 2
+removed: yes
+== C10 folder mode mismatch: chmod shim does nothing, folder is 755 -> stop, exit 1
+setup-keep: mode of <scratch>/case.uw4h is 755, expected 700; stopped
+exit 1
+== C11 file mode mismatch: folder 700, db-password 644, chmod shim does nothing -> stop, exit 1
+setup-keep: reused <scratch>/case.BxaZ/db-password
+setup-keep: mode of <scratch>/case.BxaZ/db-password is 644, expected 600; stopped
+exit 1
+== cleanup
+removed scratch folders

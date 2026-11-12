@@ -1,0 +1,95 @@
+# Removal and reinstall (FR-007, SC-006), namespace keep-remove-test, dummy key, temp folder removed afterwards
+== install
+TEST SUITE: None
+setup-keep: Keep installed in namespace keep-remove-test
+Tables_in_keep
+action
+aifeedback
+aisuggestion
+alembic_version
+alert
+alertaudit
+alertdeduplicationevent
+alertdeduplicationrule
+alertenrichment
+alertenrichment_before_tenant_fingerprint_constraint
+alertfield
+alertraw
+alerttogroup
+alerttoincident
+commentmention
+dashboard
+enrichmentevent
+enrichmentlog
+externalaiconfigandmetadata
+extractionrule
+facet
+group
+incident
+lastalert
+lastalerttoincident
+maintenancewindowrule
+mappingrule
+marker
+pmimatrix
+preset
+presettaglink
+provider
+providerexecutionlog
+providerimage
+rule
+secret
+system
+tag
+tenant
+tenantapikey
+tenantinstallation
+topologyapplication
+topologyservice
+topologyserviceapplication
+topologyservicedependency
+user
+workflow
+workflowexecution
+workflowexecutionlog
+workflowtoalertexecution
+workflowtoincidentexecution
+workflowversion
+== documented uninstall (--no-hooks)
+release "keep" uninstalled
+== after uninstall: our Secrets (names) and the release
+NAME
+sre-keep-ai-env
+sre-keep-ai-frontend
+sre-keep-auth
+sre-keep-db
+NAME	NAMESPACE	REVISION	UPDATED	STATUS	CHART	APP VERSION
+NAME       STATUS        VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+keep-pvc   Terminating   pvc-f52e4e83-e381-4363-9641-9f27e7fdb185   5Gi        RWO            gp2            <unset>                 33s
+Release "keep" does not exist. Installing it now.
+Error: persistentvolumeclaims "keep-pvc" not found
+setup-keep: Keep did not install or become ready in namespace keep-remove-test; no success is reported
+== after reinstall: same password works; database starts empty
+Error from server (BadRequest): pod keep-database-fff6c946c-ltz6c does not have a host assigned
+Error from server (BadRequest): pod keep-database-fff6c946c-ltz6c does not have a host assigned
+Error from server (BadRequest): pod keep-database-fff6c946c-ltz6c does not have a host assigned
+temp folder removed
+== state before retry (PVC was Terminating)
+NAME                                 READY   STATUS     RESTARTS   AGE
+pod/keep-backend-864ccffc6c-9tkbp    0/1     Init:0/1   0          3m32s
+pod/keep-database-fff6c946c-ltz6c    0/1     Pending    0          3m32s
+pod/keep-frontend-7f6bcb5bd5-cnlnp   1/1     Running    0          3m32s
+pod/keep-websocket-6c6dc5dc4-5mhvn   1/1     Running    0          3m32s
+== reinstall retry (new temp folder; Secrets from the first install are kept)
+STATUS: deployed
+REVISION: 2
+TEST SUITE: None
+setup-keep: Keep installed in namespace keep-remove-test
+pod/keep-frontend-7f6bcb5bd5-cnlnp condition met
+pod/keep-websocket-6c6dc5dc4-5mhvn condition met
+== after reinstall: same password works; database starts empty
+1
+tables in keep after reinstall: 51
+marker table present: 0
+no-password login: ERROR 1045 (28000): Access denied for user 'root'@'localhost' (using password: NO)
+temp folder removed

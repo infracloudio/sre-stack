@@ -1,0 +1,9 @@
+# curl probes, no cookies, headers only (status, content-type, location). Read-only.
+/v2/tags                           status=307 content-type= location=http://localhost:3000/signin?callbackUrl=http://localhost:3000/v2/tags
+/v2/healthcheck                    status=307 content-type= location=http://localhost:3000/signin?callbackUrl=http://localhost:3000/v2/healthcheck
+/v2/preset                         status=307 content-type= location=http://localhost:3000/signin?callbackUrl=http://localhost:3000/v2/preset
+/backend/healthcheck               status=200 content-type=application/json location=
+/backend/tags                      status=401 content-type=application/json location=
+/websocket/app/keepappkey          status=307 content-type= location=http://localhost:3000/signin?callbackUrl=http://localhost:3000/websocket/app/keepappkey
+/incidents                         status=307 content-type= location=http://localhost:3000/signin?callbackUrl=http://localhost:3000/incidents
+/api/auth/providers                status=200 content-type=application/json location=

@@ -1,0 +1,7 @@
+Name        OsType    KubernetesVersion    VmSize           Count    MaxPods    ProvisioningState    Mode
+----------  --------  -------------------  ---------------  -------  ---------  -------------------  ------
+nodepool1   Linux     1.34                 Standard_D2s_v5  1        250        Succeeded            System
+app         Linux     1.34                 Standard_D2s_v5  3        250        Succeeded            User
+persistent  Linux     1.34                 Standard_D4s_v5  2        250        Succeeded            User
+o11y        Linux     1.34                 Standard_D4s_v5  2        250        Succeeded            User
+loadgen     Linux     1.34                 Standard_F4s_v2  1        250        Succeeded            User

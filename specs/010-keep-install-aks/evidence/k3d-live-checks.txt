@@ -1,0 +1,45 @@
+== SC-005: login without a password is refused
+ERROR 1045 (28000): Access denied for user 'root'@'localhost' (using password: NO)
+command terminated with exit code 1
+exit 1
+== SC-005: login with the generated password (read inside the container, not printed) works
+1
+exit 0
+== SC-008: the database claim and its volume
+NAME       CLASS   STATUS   VOLUME                                     CAPACITY
+keep-pvc   gp2     Bound    pvc-10e51b32-0229-4162-bef3-9bbb07ff33d8   5Gi
+NAME                                       CLASS   PROVISIONER             STATUS
+pvc-10e51b32-0229-4162-bef3-9bbb07ff33d8   gp2     rancher.io/local-path   Bound
+== FR-003: every image in the Keep pods (containers and init containers), jobs listed
+keep-backend-864ccffc6c-4vw4f containers: us-central1-docker.pkg.dev/keephq/keep/keep-api:0.54.3 init: busybox:1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4
+keep-database-fff6c946c-h2hzq containers: mysql:8.4.13@sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902 init: 
+keep-frontend-7f6bcb5bd5-csdtx containers: us-central1-docker.pkg.dev/keephq/keep/keep-ui:0.54.3 init: 
+keep-websocket-6c6dc5dc4-w9bpm containers: quay.io/soketi/soketi:1.4-16-debian init: 
+distinct images: 5
+floating tags (latest or no tag) among them:
+  none
+third-party cleanup image (alpine/k8s) among pods: 0
+== SC-010 (pod spec, frontend pod, no exec and no Secret read):
+frontend pod: keep-frontend-7f6bcb5bd5-csdtx
+OPENAI_BASE_URL = https://api.fireworks.ai/inference/v1
+OPENAI_MODEL_NAME = accounts/fireworks/models/glm-5p3-flash
+envFrom secretRef names: sre-keep-ai-frontend sre-keep-auth
+NEXTAUTH_SECRET env entries (name and whether a literal value is set): 
+(end)
+== FR-010: the page through a temporary port-forward, no login
+HTTP 307, redirect to: http://localhost:13000/incidents
+HTTP 307 for /incidents
+port-forward stopped
+== FR-011: other Pods in every namespace on this cluster (monitoring pods do not exist on this cluster)
+   4 keep-uninstall-test Running
+   3 kube-system Running
+pods not Running or Completed: 0
+== FR-010 redirect chain (curl -L, port-forward to the frontend)
+HTTP/1.1 307 Temporary Redirect  location: /incidents
+HTTP/1.1 307 Temporary Redirect  location: http://localhost:3000/signin?callbackUrl=http://localhost:3000/incidents
+== FR-010 result: FAIL. The page redirects an unauthenticated request to /signin. /signin, /api/auth/session and /api/auth/providers return 200.
+== FR-011: other Pods in the cluster are Running (see above); no monitoring namespace exists on this disposable cluster, so AKS behaviour is not tested here.
+== FR-010 (earlier result, now INCONCLUSIVE): the earlier curl run used a port-forward to local 13000, but NEXTAUTH_URL is http://localhost:3000, so the server-side redirects pointed at an unforwarded port. The 307 to /signin was therefore not a confirmed failure.
+== FR-010 (port-forward on 3000): /api/auth/providers lists provider names only: credentials, tenant-switch. /signin server HTML has no password input (the form may render in the browser, so this is not conclusive by itself).
+== FR-010 and SC-003 (Playwright 1.64.1, one run, evidence in playwright-run.txt): final URL /incidents, HTTP 200; password inputs 0; forms 0; calls outside localhost 0 in a 25.25 s window (120 requests).
+CORRECTION 2026-11-12: FR-010 on k3d is NOT CONFIRMED; content not checked. The run above checked only HTTP 200, no password input and no form. It did not check that the page rendered. The AKS render check (same chart, same frontend) shows "Application error: a client-side exception" with no heading. Probe evidence: evidence/aks/step10c-*.

@@ -1,0 +1,13 @@
+# T018 render checks (render-checks.sh, pinned Helm v3.14.4, offline apart from the chart download)
+# helm version: v3.14.4+g81c902a
+pass   SC-010 envFrom references sre-keep-ai-frontend and sre-keep-auth
+pass   SC-010 OPENAI_BASE_URL and OPENAI_MODEL_NAME are set
+pass   SC-010 no NEXTAUTH_SECRET literal in the render
+pass   SC-004 no latest and no untagged image in the render
+pass   SC-004 busybox and MySQL are pinned by digest
+pass   FR-002 POSTHOG_DISABLED is true on backend and frontend
+pass   FR-002 SENTRY_DISABLED is true on the frontend
+pass   FR-003 the rendered cleanup Job is the pre-delete hook with the pinned alpine/k8s digest
+
+checks passed: 8, checks failed: 0
+exit 0

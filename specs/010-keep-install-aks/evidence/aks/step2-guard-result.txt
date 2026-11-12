@@ -1,0 +1,1 @@
+GUARD RESULT: ALL PASS (run 2026-11-12, after G3 departure and key mode 600)

@@ -1,0 +1,8 @@
+== gp2 StorageClass
+NAME   PROVISIONER          RECLAIM   BINDING
+gp2    disk.csi.azure.com   Delete    WaitForFirstConsumer
+== PVCs in keep
+NAME       STATUS   STORAGECLASS   VOLUME                                     CAPACITY
+keep-pvc   Bound    gp2            pvc-db8b084b-6c31-4d25-903d-d06bba56f99f   5Gi
+== PV provisioner for each keep PVC
+pvc-db8b084b-6c31-4d25-903d-d06bba56f99f provisioner=disk.csi.azure.com class=gp2

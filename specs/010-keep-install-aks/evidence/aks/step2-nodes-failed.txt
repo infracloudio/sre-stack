@@ -1,0 +1,10 @@
+NAME                                 STATUS   ROLES    AGE   VERSION    INTERNAL-IP   EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION      CONTAINER-RUNTIME
+aks-app-19185549-vmss000016          Ready    <none>   11m   v1.34.11   10.224.0.10   <none>        Ubuntu 22.04.5 LTS   5.15.0-1121-azure   containerd://1.7.34-2
+aks-app-19185549-vmss000017          Ready    <none>   10m   v1.34.11   10.224.0.9    <none>        Ubuntu 22.04.5 LTS   5.15.0-1121-azure   containerd://1.7.34-2
+aks-app-19185549-vmss000018          Ready    <none>   11m   v1.34.11   10.224.0.8    <none>        Ubuntu 22.04.5 LTS   5.15.0-1121-azure   containerd://1.7.34-2
+aks-loadgen-35497795-vmss00000e      Ready    <none>   10m   v1.34.11   10.224.0.7    <none>        Ubuntu 22.04.5 LTS   5.15.0-1121-azure   containerd://1.7.34-2
+aks-nodepool1-20434173-vmss00000d    Ready    <none>   11m   v1.34.11   10.224.0.4    <none>        Ubuntu 22.04.5 LTS   5.15.0-1121-azure   containerd://1.7.34-2
+aks-o11y-41769888-vmss00000x         Ready    <none>   11m   v1.34.11   10.224.0.6    <none>        Ubuntu 22.04.5 LTS   5.15.0-1121-azure   containerd://1.7.34-2
+aks-o11y-41769888-vmss00000y         Ready    <none>   11m   v1.34.11   10.224.0.5    <none>        Ubuntu 22.04.5 LTS   5.15.0-1121-azure   containerd://1.7.34-2
+aks-persistent-39067344-vmss00000s   Ready    <none>   11m   v1.34.11   10.224.0.12   <none>        Ubuntu 22.04.5 LTS   5.15.0-1121-azure   containerd://1.7.34-2
+aks-persistent-39067344-vmss00000t   Ready    <none>   11m   v1.34.11   10.224.0.11   <none>        Ubuntu 22.04.5 LTS   5.15.0-1121-azure   containerd://1.7.34-2

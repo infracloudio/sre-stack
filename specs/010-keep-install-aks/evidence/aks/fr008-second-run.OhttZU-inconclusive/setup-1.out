@@ -1,0 +1,1 @@
+setup-keep: /var/folders/kg/9w7xkz8j643gnn78y9yfds9m0000gn/T//fr008-keys.AqzayZ/fireworks.key has mode 644, expected 600. Run: chmod 600 /var/folders/kg/9w7xkz8j643gnn78y9yfds9m0000gn/T//fr008-keys.AqzayZ/fireworks.key (setup-keep did not change it; nothing was created)

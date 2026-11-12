@@ -81,8 +81,6 @@ frontend:
       value: spot
       effect: NoSchedule
   env:
-    - name: NEXTAUTH_SECRET
-      value: secret
     - name: VERCEL
       value: 1
     - name: ENV
@@ -105,8 +103,11 @@ frontend:
     - name: OPENAI_MODEL_NAME
       value: accounts/fireworks/models/glm-5p3-flash
   # The frontend key is loaded as OPEN_AI_API_KEY from the frontend Secret (research Finding 11).
+  # The NEXTAUTH_SECRET key comes from sre-keep-auth (D4, AD-008 and AD-009; story 6a extends this Secret).
   envFromSecrets:
     - name: sre-keep-ai-frontend
+      optional: false
+    - name: sre-keep-auth
       optional: false
 
 websocket:

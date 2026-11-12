@@ -1,0 +1,16 @@
+# FR-010 and SC-003, one Playwright 1.64.1 run (ephemeral; temp folder outside the repo, deleted afterwards)
+CORRECTION 2026-11-12: the FR-010 result in this file is NOT CONFIRMED; content not checked. Only HTTP 200, no password input and no form were checked. The page content was not checked, and the AKS render check shows a client-side error. The original text below is kept as recorded.
+# Install: playwright@1.64.1 (npm package 18 MB unpacked on disk); Chromium: headless shell 156.0.8078.4 (chromium-headless-shell v1248), downloaded 99 MiB
+# Port-forward: svc/keep-frontend 3000:3000 (matches NEXTAUTH_URL=http://localhost:3000)
+{
+  "finalUrl": "http://localhost:3000/incidents",
+  "firstStatus": 200,
+  "passwordInputs": 0,
+  "emailOrUserInputs": 0,
+  "forms": 0,
+  "requestsTotal": 120,
+  "callsOutsideLocalhost": 0,
+  "hostsOutsideLocalhost": {},
+  "windowMs": 25253
+}
+# Backend log, usage reporting (counts only): 'Uptime reported to PostHog' = 0; 'Posthog reporting is disabled' = 1
