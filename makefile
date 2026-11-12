@@ -29,6 +29,7 @@ help:
 	@echo "	setup-aks-log-shipper             - Setup the Grafana Alloy log shipper (AKS)"
 	@echo "	setup-aks-o11y-routes             - Apply the observability routes and scrape configs (AKS)"
 	@echo "	setup-aks-alert-rules             - Apply the robot-shop alert rules (AKS)"
+	@echo "	setup-keep                        - Install Keep from the local AI key file (AKS)"
 	@echo "	setup-aks-kiali                   - Setup Kiali (AKS, refuses when the mesh is not running)"
 	@echo "	aks-ratings-abort-start           - Start scenario 01 on AKS: ratings answers every request with error 500"
 	@echo "	aks-ratings-abort-status          - Report whether the scenario 01 ratings fault is active (AKS, changes nothing)"
@@ -294,6 +295,14 @@ aks-db-latency-status:
 aks-db-latency-revert:
 	bash infra/azure/scenario-03/db-latency.sh revert
 
+# setup-keep installs Keep (story #123) from the local AI key file. setup-aks runs it with KEEP_SKIP_IF_NO_KEY=1,
+# so a missing key or an unset KEEP_SECRETS_DIR skips Keep and the chain continues. Helm v3.14.4 must be first on PATH.
+setup-keep:
+ifneq ($(STACK_MODE),aks)
+	$(error setup-keep needs STACK_MODE=aks (currently '$(STACK_MODE)'))
+endif
+	KEEP_SECRETS_DIR="$(KEEP_SECRETS_DIR)" bash infra/azure/keep/setup-keep.sh
+
 # One-shot AKS deploy, same path as specs/002-azure-observability-stack/
 # instructions.md steps 2–7: cluster → mesh → observability → Kiali → apps →
 # routing → endpoints, then prints the optional load generator (step 6)
@@ -313,6 +322,7 @@ endif
 	$(MAKE) setup-robot-shop
 	$(MAKE) setup-hotrod
 	$(MAKE) setup-gateway
+	KEEP_SKIP_IF_NO_KEY=1 $(MAKE) setup-keep
 	$(MAKE) get-service-endpoints
 	@echo ""
 	@echo "Optional: start the load generator (the dashboards stay empty without traffic):"

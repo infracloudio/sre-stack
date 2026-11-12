@@ -1,0 +1,15 @@
+setup-keep: created /private/var/folders/kg/9w7xkz8j643gnn78y9yfds9m0000gn/T/fr008-keys.T3CQtp/db-password
+setup-keep: created /private/var/folders/kg/9w7xkz8j643gnn78y9yfds9m0000gn/T/fr008-keys.T3CQtp/nextauth-secret
+setup-keep: local secret files ready in /private/var/folders/kg/9w7xkz8j643gnn78y9yfds9m0000gn/T/fr008-keys.T3CQtp (values not printed)
+setup-keep: Secret sre-keep-db already exists, not changed
+setup-keep: Secret sre-keep-ai-env already exists, not changed
+setup-keep: Secret sre-keep-ai-frontend already exists, not changed
+setup-keep: Secret sre-keep-auth already exists, not changed
+Release "keep" has been upgraded. Happy Helming!
+NAME: keep
+LAST DEPLOYED: Thu Nov 12 15:21:15 2026
+NAMESPACE: keep
+STATUS: deployed
+REVISION: 2
+TEST SUITE: None
+setup-keep: Keep installed in namespace keep

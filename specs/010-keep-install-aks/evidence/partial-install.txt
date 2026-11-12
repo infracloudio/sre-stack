@@ -1,0 +1,47 @@
+# Partial install (edge case: The install is cut off halfway), namespace keep-partial-test, dummy key, temp folder removed afterwards
+== run 1: start, then interrupt Helm once it has begun
+-- run 1 output (interrupted):
+setup-keep: created <temp>/db-password
+setup-keep: created <temp>/nextauth-secret
+setup-keep: local secret files ready in <temp> (values not printed)
+setup-keep: created Secret sre-keep-db
+setup-keep: created Secret sre-keep-ai-env
+setup-keep: created Secret sre-keep-ai-frontend
+setup-keep: created Secret sre-keep-auth
+Release "keep" does not exist. Installing it now.
+Release keep has been cancelled.
+Error: context canceled
+-- state after the interruption:
+NAME
+sh.helm.release.v1.keep.v1
+sre-keep-ai-env
+sre-keep-ai-frontend
+sre-keep-auth
+sre-keep-db
+NAME	NAMESPACE        	REVISION	UPDATED                            	STATUS	CHART      	APP VERSION
+keep	keep-partial-test	1       	2026-11-09 19:47:53.34186 +0530 IST	failed	keep-0.1.97	0.54.3     
+== run 2: re-run the same command
+exit 0
+setup-keep: reused <temp>/db-password
+setup-keep: reused <temp>/nextauth-secret
+setup-keep: local secret files ready in <temp> (values not printed)
+setup-keep: Secret sre-keep-db already exists, not changed
+setup-keep: Secret sre-keep-ai-env already exists, not changed
+setup-keep: Secret sre-keep-ai-frontend already exists, not changed
+setup-keep: Secret sre-keep-auth already exists, not changed
+Release "keep" has been upgraded. Happy Helming!
+NAME: keep
+LAST DEPLOYED: Mon Nov  9 19:48:04 2026
+NAMESPACE: keep-partial-test
+STATUS: deployed
+REVISION: 2
+TEST SUITE: None
+setup-keep: Keep installed in namespace keep-partial-test
+-- state after run 2:
+NAME	NAMESPACE        	REVISION	UPDATED                             	STATUS  	CHART      	APP VERSION
+keep	keep-partial-test	2       	2026-11-09 19:48:04.502787 +0530 IST	deployed	keep-0.1.97	0.54.3     
+NAME READY STATUS NODE
+keep-backend-864ccffc6c-tm5bj 1/1 Running k3d-keep-uninstall-test-agent-0
+keep-database-fff6c946c-6mttx 1/1 Running k3d-keep-uninstall-test-agent-0
+keep-frontend-7f6bcb5bd5-l25xg 1/1 Running k3d-keep-uninstall-test-agent-0
+keep-websocket-6c6dc5dc4-d757f 1/1 Running k3d-keep-uninstall-test-agent-0

@@ -1,0 +1,2 @@
+RESULT=PASS
+evidence: /Users/patrickemmanual/Desktop/devin/sre-stack/specs/010-keep-install-aks/evidence/aks/fr008-second-run.vC8Ju6

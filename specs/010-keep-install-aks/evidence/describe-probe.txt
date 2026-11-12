@@ -1,0 +1,10 @@
+Name:         keep-describe-probe
+Namespace:    keep-uninstall-test
+Labels:       <none>
+Annotations:  <none>
+
+Type:  Opaque
+
+Data
+====
+probe-key:  28 bytes

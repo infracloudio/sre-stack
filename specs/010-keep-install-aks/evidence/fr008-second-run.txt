@@ -1,0 +1,7 @@
+# FR-008 second-run test (T016) on the live release in keep-uninstall-test, run before any clearing.
+# Result: RESULT=PASS
+# Full evidence (outside the repo): /Users/patrickemmanual/keep-uninstall-evidence/2026-11-09-fr008-second-run/fr008-second-run.hLey0z
+# Secrets: UIDs and creation times identical before and after (secrets.diff empty).
+# Credential files: inode and mtime identical (credfiles.diff empty).
+# Workloads: normalised objects identical (workload.diff empty); Pods 0 restarts.
+# Helm revisions: 3 and 4 (diagnostic, not a pass condition).

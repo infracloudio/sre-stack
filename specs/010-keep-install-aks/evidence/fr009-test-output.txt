@@ -1,0 +1,20 @@
+# T011 and T017: FR-009 offline test, full output (includes case I, the failed-install check)
+pass   A (T003) missing key: exit 1, names the file, no kubectl or helm call
+pass   B (T003) empty key counts as missing: exit 1, no call
+pass   C (T005) cluster unreachable: exit 1, one read-only kubectl call
+pass   C (T005) cluster unreachable: no secret file created
+pass   D (FR-009 chain) key missing with KEEP_SKIP_IF_NO_KEY=1: exit 0 with skip message, no call
+pass   E (FR-009) folder missing names the key path: exit 1, no call
+pass   F home folder refused by the lexical guard: exit 2, no call
+pass   G KEEP_SECRETS_DIR unset: exit 2, no call
+pass   H /tmp refused by the lexical guard: exit 2, no call
+pass   I (T011) install fails: non-zero exit, no success line, helm reached
+pass   J (T009) kubectl error other than NotFound: stop before helm, reported as such
+pass   K (T009) key empty after newline strip: stop before any Secret or helm call
+pass   L (T014) leading ~/ expands to HOME: names the expanded key path
+pass   M bare ~ refused by the lexical guard: exit 2, no call
+pass   N literal $HOME refused by the lexical guard: exit 2, no call
+pass   O chain mode, KEEP_SECRETS_DIR unset: exit 0, skip message names the variable, no call
+
+cases passed: 16, cases failed: 0, skipped: 0
+exit 0

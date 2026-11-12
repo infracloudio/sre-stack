@@ -1,0 +1,9 @@
+aks-app-19185549-vmss000016	MC_rijo-john-improving-com-aks-452138_sre-stack-452138_southind	True
+aks-app-19185549-vmss000017	MC_rijo-john-improving-com-aks-452138_sre-stack-452138_southind	True
+aks-app-19185549-vmss000018	MC_rijo-john-improving-com-aks-452138_sre-stack-452138_southind	True
+aks-loadgen-35497795-vmss00000e	MC_rijo-john-improving-com-aks-452138_sre-stack-452138_southind	True
+aks-nodepool1-20434173-vmss00000d	MC_rijo-john-improving-com-aks-452138_sre-stack-452138_southind	True
+aks-o11y-41769888-vmss00000x	MC_rijo-john-improving-com-aks-452138_sre-stack-452138_southind	True
+aks-o11y-41769888-vmss00000y	MC_rijo-john-improving-com-aks-452138_sre-stack-452138_southind	True
+aks-persistent-39067344-vmss00000s	MC_rijo-john-improving-com-aks-452138_sre-stack-452138_southind	True
+aks-persistent-39067344-vmss00000t	MC_rijo-john-improving-com-aks-452138_sre-stack-452138_southind	True

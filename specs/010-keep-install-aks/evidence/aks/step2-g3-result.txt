@@ -1,0 +1,10 @@
+aks-app-19185549-vmss000016	PASS
+aks-app-19185549-vmss000017	PASS
+aks-app-19185549-vmss000018	PASS
+aks-loadgen-35497795-vmss00000e	PASS
+aks-nodepool1-20434173-vmss00000d	PASS
+aks-o11y-41769888-vmss00000x	PASS
+aks-o11y-41769888-vmss00000y	PASS
+aks-persistent-39067344-vmss00000s	PASS
+aks-persistent-39067344-vmss00000t	PASS
+nodes failing: 0 of 9

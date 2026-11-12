@@ -1,0 +1,7 @@
+{
+  "nodeRG": "MC_rijo-john-improving-com-aks-452138_sre-stack-452138_southindia",
+  "powerState": "Running",
+  "provisioning": "Succeeded",
+  "tier": "Free",
+  "version": "1.34"
+}

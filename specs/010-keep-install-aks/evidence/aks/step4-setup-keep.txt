@@ -1,0 +1,23 @@
+KEEP_SECRETS_DIR="~/.secrets/keep" bash infra/azure/keep/setup-keep.sh
+setup-keep: created /Users/patrickemmanual/.secrets/keep/db-password
+setup-keep: created /Users/patrickemmanual/.secrets/keep/nextauth-secret
+setup-keep: local secret files ready in /Users/patrickemmanual/.secrets/keep (values not printed)
+setup-keep: created Secret sre-keep-db
+setup-keep: created Secret sre-keep-ai-env
+setup-keep: created Secret sre-keep-ai-frontend
+setup-keep: created Secret sre-keep-auth
+Release "keep" does not exist. Installing it now.
+NAME: keep
+LAST DEPLOYED: Thu Nov 12 15:10:56 2026
+NAMESPACE: keep
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+setup-keep: Keep installed in namespace keep
+make setup-keep exit=0 elapsed=151s
+pod/keep-backend-54cf767857-qqz2t condition met
+pod/keep-database-767d97f89-mnfff condition met
+pod/keep-frontend-f9f989687-jsphk condition met
+pod/keep-websocket-8554bd9f4d-6g42v condition met
+kubectl wait exit=0
+STEP4_DONE

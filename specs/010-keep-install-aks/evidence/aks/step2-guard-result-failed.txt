@@ -1,0 +1,9 @@
+Step 1 (read-only): PASS. powerState Running, provisioningState Succeeded, kubernetesVersion 1.34 (server v1.34.11). Files: step1-account.txt, step1-aks-show.txt, step1-nodepools.txt.
+Step 2 guards (2026-11-12):
+  G1 context sre-stack-452138: PASS
+  G2 API server host ends .azmk8s.io: PASS
+  G3 node label kubernetes.azure.com/cluster equals nodeRG, and Ready: FAIL (all 9 nodes). The label value is 63 characters, the first 63 of the nodeRG name (65 characters). Kubernetes limits label values to 63 characters. Node Ready: all 9 True. Files: step2-nodes.txt, step2-node-labels.txt.
+  G4 at least one workload=o11y node: PASS (2 nodes)
+  G5 namespace keep absent: PASS (NotFound)
+  G6 fireworks.key mode 600: FAIL (mode 644). The operator chmod was not applied. The agent did not change the file.
+STOP: Steps 3 onward not run.

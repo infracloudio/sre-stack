@@ -1,0 +1,8 @@
+# T007 rendered frontend wiring (pinned Helm v3.14.4), from the same render
+NEXTAUTH_SECRET entries in the render: 0
+envFrom secretRef names (frontend): name: sre-keep-ai-frontend name: sre-keep-auth 
+OPENAI_BASE_URL and OPENAI_MODEL_NAME lines:
+            - name: OPENAI_BASE_URL
+              value: "https://api.fireworks.ai/inference/v1"
+            - name: OPENAI_MODEL_NAME
+              value: "accounts/fireworks/models/glm-5p3-flash"

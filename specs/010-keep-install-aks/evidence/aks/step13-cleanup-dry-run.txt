@@ -1,0 +1,2 @@
+DRY_RUN=1: no Secret will be deleted
+No keep-* Secrets in keep. Nothing to delete.

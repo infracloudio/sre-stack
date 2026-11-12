@@ -1,0 +1,8 @@
+Step 10 (SC-003, FR-010), run 2026-11-12, developer-approved.
+Port-forward svc/keep-frontend 3000:3000 (stopped afterwards).
+Playwright 1.64.1 in a temp folder outside the repo, deleted afterwards.
+Browser result (step10-playwright.json): final URL /incidents, first response 200, password inputs 0, email or user inputs 0, forms 0, requests 118, calls outside localhost 0 in a 25.0 s window.
+Navigation (step10-page-peek.json): a cookie-less browser gets 307 from /incidents to /signin, then 200 from /signin, then 200 at /incidents. The browser ends with a session cookie. The agent recorded cookie names only. No credential was entered by the agent.
+curl without cookies (step10-curl-probe.txt): 307 from /incidents to /signin. This is the server-side redirect the browser also follows.
+Backend log counts (step10-backend-log-count.txt): "Uptime reported to PostHog" 0; "Posthog reporting is disabled" 1.
+Observation for review: the page title and h1 were empty 3 s after load (step10-page-peek.json). Content was not checked beyond that.

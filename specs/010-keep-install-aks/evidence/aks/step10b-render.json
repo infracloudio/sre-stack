@@ -1,0 +1,14 @@
+{
+  "navigationHops": [
+    "307 http://localhost:3000/incidents",
+    "200 http://localhost:3000/signin",
+    "200 http://localhost:3000/incidents"
+  ],
+  "finalUrl": "http://localhost:3000/incidents",
+  "waitedMs": 30539,
+  "title": "",
+  "firstH1": "",
+  "bodyTextChars": 127,
+  "bodyTextFirst80": "Application error: a client-side exception has occurred while loading localhost ",
+  "passwordInputs": 0
+}

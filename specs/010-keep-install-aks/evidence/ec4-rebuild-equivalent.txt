@@ -1,0 +1,55 @@
+# Edge case 4 equivalent (cheaper than a cluster rebuild): namespace keep-rebuild-test deleted with its Secrets, setup-keep.sh re-run with the same local files.
+# Local folder: temp, outside the repo, dummy AI key; no value printed.
+== run 1 (fresh install) timing: setup-keep start to all Pods Ready = 77 s
+setup-keep: created <local>/db-password
+setup-keep: created <local>/nextauth-secret
+setup-keep: local secret files ready in <local> (values not printed)
+setup-keep: created Secret sre-keep-db
+setup-keep: created Secret sre-keep-ai-env
+setup-keep: created Secret sre-keep-ai-frontend
+setup-keep: created Secret sre-keep-auth
+Release "keep" does not exist. Installing it now.
+NAME: keep
+LAST DEPLOYED: Mon Nov  9 20:33:12 2026
+NAMESPACE: keep-rebuild-test
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+setup-keep: Keep installed in namespace keep-rebuild-test
+NAME                             READY   STATUS    RESTARTS   AGE   IP           NODE                              NOMINATED NODE   READINESS GATES
+keep-backend-864ccffc6c-trljw    1/1     Running   0          44s   10.42.0.54   k3d-keep-uninstall-test-agent-0   <none>           <none>
+keep-database-fff6c946c-khjtw    1/1     Running   0          44s   10.42.0.55   k3d-keep-uninstall-test-agent-0   <none>           <none>
+keep-frontend-7f6bcb5bd5-ff87f   1/1     Running   0          44s   10.42.0.53   k3d-keep-uninstall-test-agent-0   <none>           <none>
+keep-websocket-6c6dc5dc4-85ggb   1/1     Running   0          44s   10.42.0.52   k3d-keep-uninstall-test-agent-0   <none>           <none>
+marker table created (run 1)
+namespace "keep-rebuild-test" deleted
+Error from server (NotFound): namespaces "keep-rebuild-test" not found
+== namespace gone before the re-run: yes
+== run 2 (same local files, namespace recreated) timing: setup-keep start to all Pods Ready = 74 s
+setup-keep: reused <local>/db-password
+setup-keep: reused <local>/nextauth-secret
+setup-keep: local secret files ready in <local> (values not printed)
+setup-keep: created Secret sre-keep-db
+setup-keep: created Secret sre-keep-ai-env
+setup-keep: created Secret sre-keep-ai-frontend
+setup-keep: created Secret sre-keep-auth
+Release "keep" does not exist. Installing it now.
+NAME: keep
+LAST DEPLOYED: Mon Nov  9 20:35:09 2026
+NAMESPACE: keep-rebuild-test
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+setup-keep: Keep installed in namespace keep-rebuild-test
+NAME                             READY   STATUS    RESTARTS   AGE   IP           NODE                              NOMINATED NODE   READINESS GATES
+keep-backend-864ccffc6c-8l67m    1/1     Running   0          42s   10.42.0.60   k3d-keep-uninstall-test-agent-0   <none>           <none>
+keep-database-fff6c946c-dfwpn    1/1     Running   0          42s   10.42.0.61   k3d-keep-uninstall-test-agent-0   <none>           <none>
+keep-frontend-7f6bcb5bd5-999xl   1/1     Running   0          42s   10.42.0.59   k3d-keep-uninstall-test-agent-0   <none>           <none>
+keep-websocket-6c6dc5dc4-g6rnn   1/1     Running   0          42s   10.42.0.58   k3d-keep-uninstall-test-agent-0   <none>           <none>
+== same password accepted (read inside the container, not printed)
+1
+== no-password login refused
+ERROR 1045 (28000): Access denied for user 'root'@'localhost' (using password: NO)
+== empty database: marker from run 1 present?
+marker_ec4 count: 0
+tables in keep (Keep migrations only): 51

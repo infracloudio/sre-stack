@@ -1,0 +1,18 @@
+# T001 tool versions (command output only)
+## helm, default PATH (Homebrew, unchanged)
+v4.2.4+g3900f43
+## helm, with PATH="$HOME/.local/opt/helm-3.14.4:$PATH"
+v3.14.4+g81c902a
+## sha256 of $HOME/.local/opt/helm-3.14.4/helm
+29d2e0c36e8882c9d189f569c9ae3b8360bd9b24844dd0541b74dc8461d5730c  /Users/patrickemmanual/.local/opt/helm-3.14.4/helm
+## kubectl
+Client Version: v1.34.1
+Kustomize Version: v5.7.1
+## k3d
+k3d version v5.9.0
+## jq
+jq-1.7.1-apple
+## bash on PATH
+GNU bash, version 5.3.20(1)-release (aarch64-apple-darwin27.0.0)
+## /bin/bash
+GNU bash, version 3.2.57(1)-release (arm64-apple-darwin26)

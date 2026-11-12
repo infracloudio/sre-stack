@@ -1,0 +1,20 @@
+# T024 offline checks (re-run with exit codes captured directly)
+== shasum -a 256 -c SHA256SUMS
+shasum exit 0
+entries OK: 19
+== watch-rules-test.sh exit 0
+cases passed: 14, cases failed: 0
+== log-capture-test.sh exit 0
+cases passed: 4, cases failed: 0
+== version-check-test.sh exit 0
+cases passed: 5, cases failed: 0
+== finish-test.sh exit 0
+cases passed: 6, cases failed: 0
+== nohooks-evaluation-test.sh exit 0
+cases passed: 6, cases failed: 0
+== fr009-missing-key.sh exit 0
+cases passed: 16, cases failed: 0, skipped: 0
+== render-checks.sh exit 0
+checks passed: 8, checks failed: 0
+shellcheck setup-keep.sh exit 0
+shellcheck tests exit 0

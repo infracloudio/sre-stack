@@ -1,0 +1,2 @@
+no-password exit=1
+password exit=0

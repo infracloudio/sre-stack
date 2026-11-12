@@ -1,0 +1,4 @@
+opencode: no database, skipped
+story-cost: skipped 512.2M tokens on 1 non-story branches
+story-cost: 010-keep-install-aks: no change (1 rows)
+| **Total** | 1 | 168 | 70976 | 107093 | 11047800 | 0 | $2.24 | - |

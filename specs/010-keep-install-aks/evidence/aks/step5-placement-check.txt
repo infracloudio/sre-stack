@@ -1,0 +1,4 @@
+keep-backend-54cf767857-qqz2t  node=aks-o11y-41769888-vmss00000x  pool=o11y
+keep-database-767d97f89-mnfff  node=aks-o11y-41769888-vmss00000x  pool=o11y
+keep-frontend-f9f989687-jsphk  node=aks-o11y-41769888-vmss00000x  pool=o11y
+keep-websocket-8554bd9f4d-6g42v  node=aks-o11y-41769888-vmss00000x  pool=o11y

@@ -1,0 +1,84 @@
+# Handoff offline checks, 2026-11-12. Exit codes captured directly.
+== shasum -a 256 -c SHA256SUMS
+shasum exit 0
+  lib-uninstall-test.sh: OK
+  keep-uninstall-control.sh: OK
+  keep-uninstall-nohooks.sh: OK
+  keep-manual-cleanup.sh: OK
+  watch-rules-test.sh: OK
+  log-capture-test.sh: OK
+  version-check-test.sh: OK
+  finish-test.sh: OK
+  nohooks-evaluation-test.sh: OK
+  fixtures/cm-default.txt: OK
+  fixtures/job-default.txt: OK
+  fixtures/pod-wide.txt: OK
+  fixtures/pod-default.txt: OK
+  fixtures/version-k3s-v1.36.4.json: OK
+  ../../chart-values/keep.yaml: OK
+  ../setup-keep.sh: OK
+  fr009-missing-key.sh: OK
+  fr008-second-run.sh: OK
+  render-checks.sh: OK
+  OK count: 19
+== watch-rules-test.sh
+  
+  cases passed: 14, cases failed: 0
+  exit 0
+== log-capture-test.sh
+  
+  cases passed: 4, cases failed: 0
+  exit 0
+== version-check-test.sh
+  
+  cases passed: 5, cases failed: 0
+  exit 0
+== finish-test.sh
+  
+  cases passed: 6, cases failed: 0
+  exit 0
+== nohooks-evaluation-test.sh
+  
+  cases passed: 6, cases failed: 0
+  exit 0
+== fr009-missing-key.sh
+  
+  cases passed: 19, cases failed: 0, skipped: 0
+  exit 0
+== render-checks.sh
+  render-checks: needs Helm v3.14.4 on PATH (found: v4.2.4+g3900f43)
+  exit 2
+== shellcheck setup-keep.sh and tests
+
+In infra/azure/keep/tests/keep-uninstall-control.sh line 24:
+if ! . "$SCRIPT_DIR/lib-uninstall-test.sh"; then
+       ^-- SC1091 (info): Not following: ./lib-uninstall-test.sh was not specified as input (see shellcheck -x).
+
+
+In infra/azure/keep/tests/keep-uninstall-nohooks.sh line 29:
+if ! . "$SCRIPT_DIR/lib-uninstall-test.sh"; then
+       ^-- SC1091 (info): Not following: ./lib-uninstall-test.sh was not specified as input (see shellcheck -x).
+
+
+In infra/azure/keep/tests/watch-rules-test.sh line 11:
+if ! . "$DIR/lib-uninstall-test.sh"; then
+       ^--------------------------^ SC1091 (info): Not following: ./lib-uninstall-test.sh was not specified as input (see shellcheck -x).
+
+For more information:
+  https://www.shellcheck.net/wiki/SC1091 -- Not following: ./lib-uninstall-te...
+  exit 1
+== bash -n all keep tests (bash 5 and /bin/bash 3.2)
+  files 13, syntax failures 0
+== render-checks.sh (PATH with Helm 3.14.4)
+pass   FR-003 the rendered cleanup Job is the pre-delete hook with the pinned alpine/k8s digest
+
+checks passed: 8, checks failed: 0
+  exit 0
+== shellcheck -x setup-keep.sh and tests/*.sh
+  exit 1
+== SC codes without -x (SC1091 is info: sourced files not followed)
+   2 SC
+   4 SC1091
+== shellcheck -x -P SCRIPTDIR setup-keep.sh and tests/*.sh (sourced lib followed)
+  exit 0
+  make lint exit 0

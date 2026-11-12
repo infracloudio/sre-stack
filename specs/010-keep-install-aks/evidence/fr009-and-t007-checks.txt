@@ -1,0 +1,18 @@
+# T017 formal FR-009 offline test (infra/azure/keep/tests/fr009-missing-key.sh), run on this date
+pass   A (T003) missing key: exit 1, names the file, no kubectl or helm call
+pass   B (T003) empty key counts as missing: exit 1, no call
+pass   C (T005) cluster unreachable: exit 1, one read-only kubectl call
+pass   C (T005) cluster unreachable: no secret file created
+pass   D (FR-009 chain) key missing with KEEP_SKIP_IF_NO_KEY=1: exit 0 with skip message, no call
+pass   E (FR-009) folder missing names the key path: exit 1, no call
+pass   F home folder refused by the lexical guard: exit 2, no call
+pass   G KEEP_SECRETS_DIR unset: exit 2, no call
+pass   H /tmp refused by the lexical guard: exit 2, no call
+skip   I (edge case "A Keep part cannot start", T011): not implemented in setup-keep.sh yet
+
+cases passed: 9, cases failed: 0, skipped: 1
+exit 0
+# shellcheck -x on setup-keep.sh and fr009-missing-key.sh
+shellcheck exit 0
+# T007 render check (pinned Helm 3.14.4; ad hoc, T018 not written yet)
+1 chart(s) linted, 0 chart(s) failed

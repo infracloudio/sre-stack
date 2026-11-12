@@ -1,0 +1,3 @@
+# Backend log counts (counts only; log text not saved)
+Uptime reported to PostHog: 0
+Posthog reporting is disabled: 1
